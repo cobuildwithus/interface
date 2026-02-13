@@ -33,7 +33,7 @@ export function ProfilePhotoSection({
             onClick={onUploadClick}
             disabled={!canEdit || isUploading}
             aria-label="Upload profile photo"
-            className="focus-visible:ring-offset-background group relative block rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/60 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
+            className="focus-visible:ring-offset-background group relative block rounded-full focus-visible:ring-2 focus-visible:ring-sky-500/60 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed"
           >
             <Avatar
               src={previewSrc}

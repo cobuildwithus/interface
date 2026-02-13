@@ -814,8 +814,8 @@ export function startDaoFlowDiagram({
         const parent = n.parentId ? forceNodesById.get(n.parentId) : undefined;
         const radius = nodeRadius(n.type) + 6;
 
-        let x = prev?.x ?? (parent?.x ?? centerX) + randomJitter();
-        let y = prev?.y ?? (parent?.y ?? centerY) + randomJitter();
+        const x = prev?.x ?? (parent?.x ?? centerX) + randomJitter();
+        const y = prev?.y ?? (parent?.y ?? centerY) + randomJitter();
         const node: ForceNode = {
           id: n.id,
           type: n.type,

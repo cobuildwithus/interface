@@ -1,0 +1,33 @@
+name: Question / support
+description: Use this when you need guidance, setup help, or troubleshooting support.
+title: "[question]: "
+labels:
+  - "type: question"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Questions are handled in Discussions, not Issues.
+
+        Please open your question here:
+        https://github.com/cobuildwithus/interface/discussions
+
+        You can also ask in Discord:
+        https://discord.com/invite/PwWFgTck7f
+
+  - type: input
+    id: discussion_link
+    attributes:
+      label: Link to your Discussions thread
+      description: Paste the URL to the thread you opened.
+      placeholder: "https://github.com/cobuildwithus/interface/discussions/..."
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation
+      options:
+        - label: I opened this question in Discussions and included all relevant details there.
+          required: true

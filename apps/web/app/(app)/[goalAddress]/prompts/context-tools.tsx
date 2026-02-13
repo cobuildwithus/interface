@@ -62,7 +62,7 @@ export function ContextTools() {
         <div key={section.label}>
           <div className="mb-3 flex items-center gap-2">
             <section.icon className="text-muted-foreground h-3.5 w-3.5" />
-            <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+            <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
               {section.label}
             </h4>
           </div>
