@@ -1,6 +1,6 @@
 type Decimalish = {
   toNumber?: () => number;
-  valueOf?: () => number | string | bigint | object | Object;
+  valueOf?: () => number | string | bigint | object;
   toFixed?: (digits?: number) => string;
   toString?: () => string;
 };

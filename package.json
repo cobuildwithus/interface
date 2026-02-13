@@ -7,7 +7,9 @@
   ],
   "scripts": {
     "dev:web": "pnpm --filter web dev",
+    "lint": "pnpm --filter web lint",
     "build:web": "pnpm --filter web build",
+    "build": "pnpm build:web",
     "test": "pnpm -r --filter \"./apps/*\" test --if-present",
     "typecheck": "pnpm --filter web typecheck",
     "setup:skills": "pnpm dlx skills add vercel-labs/agent-skills --skill vercel-react-best-practices --skill web-design-guidelines --agent codex --yes",

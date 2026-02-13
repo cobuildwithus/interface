@@ -53,26 +53,24 @@ export function GoalActionCards({
     [dismissedCards]
   );
 
-  useEffect(() => {
-    if (visibleIndices.length === 0) return;
-    if (!visibleIndices.includes(currentIndex)) {
-      setCurrentIndex(visibleIndices[0]!);
-    }
-  }, [currentIndex, visibleIndices]);
+  const activeIndex = useMemo(
+    () => (visibleIndices.includes(currentIndex) ? currentIndex : visibleIndices[0]!),
+    [currentIndex, visibleIndices]
+  );
 
   const goNext = useCallback(() => {
-    const nextIndex = getWrappedIndex(visibleIndices, currentIndex, 1);
+    const nextIndex = getWrappedIndex(visibleIndices, activeIndex, 1);
     if (nextIndex !== undefined) {
       setCurrentIndex(nextIndex);
     }
-  }, [currentIndex, visibleIndices]);
+  }, [activeIndex, visibleIndices]);
 
   const goPrev = useCallback(() => {
-    const nextIndex = getWrappedIndex(visibleIndices, currentIndex, -1);
+    const nextIndex = getWrappedIndex(visibleIndices, activeIndex, -1);
     if (nextIndex !== undefined) {
       setCurrentIndex(nextIndex);
     }
-  }, [currentIndex, visibleIndices]);
+  }, [activeIndex, visibleIndices]);
 
   const persistReadState = useCallback(
     (cardIndex: number) => {
@@ -91,21 +89,21 @@ export function GoalActionCards({
     }
 
     ackTimeoutRef.current = setTimeout(() => {
-      const nextIndex = getWrappedIndex(visibleIndices, currentIndex, 1);
+      const nextIndex = getWrappedIndex(visibleIndices, activeIndex, 1);
 
       setDismissedCards((prev) => {
         const next = new Set(prev);
-        next.add(currentIndex);
+        next.add(activeIndex);
         return next;
       });
-      persistReadState(currentIndex);
-      if (nextIndex !== undefined && nextIndex !== currentIndex) {
+      persistReadState(activeIndex);
+      if (nextIndex !== undefined && nextIndex !== activeIndex) {
         setCurrentIndex(nextIndex);
       }
       setIsAcking(false);
       ackTimeoutRef.current = null;
     }, 400);
-  }, [currentIndex, visibleIndices, isAcking, persistReadState]);
+  }, [activeIndex, visibleIndices, isAcking, persistReadState]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -128,7 +126,7 @@ export function GoalActionCards({
     return null;
   }
 
-  const card = cards[currentIndex]!;
+  const card = cards[activeIndex]!;
   const renderCta = (cta: ActionCardCta, variant?: "default" | "ghost") => {
     const showArrow = variant !== "ghost";
     if (cta.kind === "chat") {
@@ -218,7 +216,7 @@ export function GoalActionCards({
                 key={originalIdx}
                 onClick={() => setCurrentIndex(originalIdx)}
                 className={`h-1.5 rounded-full transition-all ${
-                  originalIdx === currentIndex
+                  originalIdx === activeIndex
                     ? "bg-foreground w-6"
                     : "bg-muted-foreground/30 hover:bg-muted-foreground/50 w-1.5"
                 }`}

@@ -4,15 +4,15 @@ import type { Components } from "react-markdown";
 const components: Components = {
   h1: ({ children }) => <h1 className="mb-2 text-center text-3xl font-bold">{children}</h1>,
   h2: ({ children }) => (
-    <h2 className="border-border mb-4 mt-10 border-b pb-2 text-xl font-semibold">{children}</h2>
+    <h2 className="border-border mt-10 mb-4 border-b pb-2 text-xl font-semibold">{children}</h2>
   ),
   h3: ({ children }) => (
-    <h3 className="text-muted-foreground mb-3 mt-6 text-sm font-semibold uppercase tracking-wide">
+    <h3 className="text-muted-foreground mt-6 mb-3 text-sm font-semibold tracking-wide uppercase">
       {children}
     </h3>
   ),
   h4: ({ children }) => (
-    <h4 className="text-foreground mb-2 mt-6 text-sm font-semibold tracking-wide">{children}</h4>
+    <h4 className="text-foreground mt-6 mb-2 text-sm font-semibold tracking-wide">{children}</h4>
   ),
   p: ({ children }) => <p className="text-muted-foreground mb-4 leading-relaxed">{children}</p>,
   strong: ({ children }) => <strong className="text-foreground font-semibold">{children}</strong>,
@@ -43,7 +43,7 @@ const components: Components = {
     const isBlock = Boolean(className?.includes("language-"));
     if (isBlock) {
       return (
-        <code className="text-foreground block whitespace-pre font-mono text-xs">{children}</code>
+        <code className="text-foreground block font-mono text-xs whitespace-pre">{children}</code>
       );
     }
 

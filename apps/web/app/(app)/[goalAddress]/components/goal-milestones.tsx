@@ -26,13 +26,13 @@ export function GoalMilestones() {
     <section aria-labelledby="goal-milestones" className="relative">
       <h3
         id="goal-milestones"
-        className="text-muted-foreground mb-8 text-xs font-medium uppercase tracking-widest"
+        className="text-muted-foreground mb-8 text-xs font-medium tracking-widest uppercase"
       >
         Milestones
       </h3>
 
       <div className="relative">
-        <div className="bg-border absolute bottom-4 left-[5px] top-[10px] w-px" />
+        <div className="bg-border absolute top-[10px] bottom-4 left-[5px] w-px" />
 
         <div className="space-y-10">
           {milestones.map((milestone, i) => (

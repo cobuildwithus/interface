@@ -50,7 +50,7 @@ export function PostAttachmentsGrid({
                 onRemove(attachment);
               }}
               disabled={attachment.isUploading || isPosting}
-              className="bg-background/90 text-foreground hover:bg-background absolute right-2 top-2 rounded-full p-1 shadow disabled:opacity-60"
+              className="bg-background/90 text-foreground hover:bg-background absolute top-2 right-2 rounded-full p-1 shadow disabled:opacity-60"
               aria-label={`Remove attached image ${index + 1}`}
             >
               <X className="size-3" />
