@@ -1,0 +1,48 @@
+type GoalAiContextPromptParams = {
+  endpoint: string;
+};
+
+export function buildGoalAiContextPrompt({ endpoint }: GoalAiContextPromptParams): string {
+  return [
+    "Cobuild live stats",
+    "",
+    `Fetch: \`${endpoint}\``,
+    "",
+    "The response includes:",
+    "- `prompt`: this description of the fields",
+    "- `asOf` / `asOfMs`: timestamp when stats were generated",
+    "- `data`: structured stats for treasury inflows, issuance terms, mints, holders, and distribution",
+    "",
+    "Data fields:",
+    "- `data.baseAsset`: accounting token metadata (`symbol`, `decimals`, `priceUsd`).",
+    "- `data.token`: issued token metadata (`symbol`, `decimals`).",
+    "- `data.treasury.balance`: current treasury balance (`base`, `usd`).",
+    "- `data.treasury.inflow`: inflows for `lifetime`, `last6h`, `last24h`, `last7d`, `last30d` (base units).",
+    "- `data.treasury.paceWeekly`: weeklyized inflow for `last7d` and `last30d` (base units).",
+    "- `data.issuance.currentPrice` / `nextPrice`: price per token (`basePerToken`, `usdPerToken`).",
+    "- `data.issuance.nextChangeAt`: epoch ms of the next price change.",
+    "- `data.issuance.nextChangeType`: `cut` or `stage`.",
+    "- `data.issuance.activeStage` / `nextStage`: stage numbers or null.",
+    "- `data.issuance.reservedPercent`: reserved allocation in basis points (0-10000, where 10000 = 100%).",
+    "- `data.issuance.cashOutTaxRate`: current cash-out tax in basis points (0-10000, where 10000 = 100%).",
+    "- `data.mints.count`: mint count for `last6h`, `last24h`, `last7d`, `last30d` windows.",
+    "- `data.mints.uniqueMinters`: unique minters for `last6h`, `last24h`, `last7d`, `last30d`.",
+    "- `data.mints.medianPrice`: median per-token price for `last6h`/`last24h`/`last7d`/`last30d`.",
+    "- `data.mints.medianSize`: median tokens minted per mint for `last6h`/`last24h`/`last7d`/`last30d`.",
+    "- `data.holders.total`: total holder count.",
+    "- `data.holders.new`: new holders in `last6h`, `last24h`, `last7d`, and `last30d`.",
+    "- `data.holders.medianContribution`: median holder contribution (`base`, `usd`).",
+    "- `data.distribution.totalSupply`: total token supply.",
+    "- `data.distribution.top10Tokens` / `top1Tokens`: tokens held by top holders.",
+    "- `data.distribution.top10Share` / `top1Share`: shares of supply (0-1).",
+    "",
+    "Notes:",
+    "- Treasury values are inflows only (no outflows).",
+    "- Mint activity uses pay events where `effectiveTokenCount > 0`.",
+    "- `6h`, `24h`, `7d`, and `30d` windows are relative to `asOf`.",
+    "- `usd` values use the latest base asset price; if unavailable they are null.",
+    "- Use null as “unavailable/insufficient data.”",
+    "",
+    "Risk note: prices can move, mechanisms can fail, and liquidity may not exist.",
+  ].join("\n");
+}

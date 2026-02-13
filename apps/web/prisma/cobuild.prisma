@@ -1,0 +1,944 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  previewFeatures = ["views", "relationJoins"]
+  engineType      = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["cobuild", "cobuild-onchain", "farcaster", "capital_allocation"]
+}
+
+/**
+ * ---------- Enums (map to existing PG enums) ----------
+ */
+
+enum Platform {
+  farcaster
+
+  @@map("platform_t")
+  @@schema("cobuild")
+}
+
+enum SocialPlatform {
+  farcaster
+  x
+
+  @@map("social_platform_t")
+  @@schema("cobuild")
+}
+
+enum LinkedAccountSource {
+  privy
+  neynar_signer
+  verified_address
+
+  @@map("linked_account_source_t")
+  @@schema("cobuild")
+}
+
+enum TokenCategory {
+  zora
+  juicebox
+  clanker
+  erc20
+  cobuild
+
+  @@map("token_category_t")
+  @@schema("cobuild")
+}
+
+enum Reaction {
+  like
+  recast
+  comment
+  quote_cast
+  follow
+  direct_swap
+
+  @@map("reaction_t")
+  @@schema("cobuild")
+}
+
+enum IntentStatus {
+  PENDING
+  QUEUED
+  SENT
+  FAILED
+  NOSPEND
+
+  @@map("intent_status")
+  @@schema("cobuild")
+}
+
+// Leaderboard period for rankings
+enum LeaderboardPeriod {
+  all
+  day
+  week
+
+  @@map("leaderboard_period_t")
+  @@schema("cobuild")
+}
+
+// ---------- Capital allocation enums ----------
+
+enum PostEvalRoundStatus {
+  draft
+  open
+  closed
+  scored
+
+  @@map("post_eval_round_status")
+  @@schema("capital_allocation")
+}
+
+enum RoundSubmissionSource {
+  farcaster
+  x
+
+  @@map("round_submission_source")
+  @@schema("capital_allocation")
+}
+
+model AccountCoin {
+  id            BigInt   @id @default(autoincrement())
+  ownerAddress  String   @map("owner_address") @db.VarChar(42)
+  castTaggedFid BigInt?  @map("cast_tagged_fid")
+  tokenAddress  String   @map("token_address")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  chainId       Int      @map("chain_id")
+
+  tokenMetadata TokenMetadata? @relation("AccountCoinToTokenMetadata", fields: [chainId, tokenAddress], references: [chainId, address])
+
+  @@index([ownerAddress, chainId, createdAt])
+  @@index([ownerAddress, chainId, tokenAddress])
+  @@map("account_coins")
+  @@schema("cobuild")
+}
+
+model Rule {
+  id           BigInt   @id @default(autoincrement())
+  ownerAddress String   @map("owner_address") @db.VarChar(42)
+  platform     Platform
+  reaction     Reaction
+  chainId      Int      @map("chain_id")
+  tokenAddress String   @map("token_address")
+  amount       String
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  intents Intent[]
+
+  @@unique([ownerAddress, platform, reaction, chainId, tokenAddress], name: "rul_unique_one_per_action")
+  @@index([ownerAddress, platform, chainId, tokenAddress, updatedAt])
+  @@map("rules")
+  @@schema("cobuild")
+}
+
+model LinkedSocialAccount {
+  id          BigInt              @id @default(autoincrement())
+  ownerAddress String             @map("owner_address") @db.VarChar(42)
+  platform    SocialPlatform
+  platformId  String              @map("platform_id") @db.VarChar(255)
+  username    String?             @db.VarChar(255)
+  displayName String?             @map("display_name") @db.VarChar(255)
+  avatarUrl   String?             @map("avatar_url")
+  source      LinkedAccountSource
+  canPost     Boolean             @default(false) @map("can_post")
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  revokedAt   DateTime?           @map("revoked_at") @db.Timestamptz(6)
+
+  @@unique([ownerAddress, platform, platformId], map: "linked_social_accounts_owner_platform_platform_id_key")
+  @@index([ownerAddress, platform])
+  @@index([platform, platformId], map: "linked_social_accounts_platform_platform_id_idx")
+  @@map("linked_social_accounts")
+  @@schema("cobuild")
+}
+
+model Intent {
+  id                 BigInt       @id @default(autoincrement())
+  fidFrom            BigInt?      @map("fid_from")
+  fidTo              BigInt?      @map("fid_to")
+  platform           Platform?
+  reaction           Reaction?
+  ruleId             BigInt?      @map("rule_id")
+  spendChainId       Int          @map("spend_chain_id")
+  spendTokenAddress  String       @map("spend_token_address")
+  spendAmount        String       @map("spend_amount")
+  spendAmountNum     Decimal      @map("spend_amount_num")
+  targetChainId      Int          @map("target_chain_id")
+  targetTokenAddress String       @map("target_token_address")
+  targetAmount       String?      @map("target_amount")
+  status             IntentStatus @default(PENDING)
+  txHash             String?      @map("tx_hash")
+  executedAt         DateTime?    @map("executed_at") @db.Timestamptz(6)
+  errorMsg           String?      @map("error_msg")
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  reactionId         String       @map("reaction_id")
+  reactionTs         DateTime     @map("reaction_ts") @db.Timestamptz(6)
+  entityId           String       @map("entity_id")
+  walletAddressFrom  String       @map("wallet_address_from")
+  walletAddressTo    String?      @map("wallet_address_to")
+
+  rule                Rule?          @relation(fields: [ruleId], references: [id])
+  swapExecuted        SwapExecuted?  @relation("SwapExecutedToIntents", fields: [txHash], references: [txHash])
+  fromUser            User?          @relation("IntentFromUser", fields: [fidFrom], references: [fid])
+  toUser              User?          @relation("IntentToUser", fields: [fidTo], references: [fid])
+  targetTokenMetadata TokenMetadata? @relation("IntentTargetTokenMetadata", fields: [targetChainId, targetTokenAddress], references: [chainId, address])
+  spendTokenMetadata  TokenMetadata? @relation("IntentSpendToTokenMetadata", fields: [spendChainId, spendTokenAddress], references: [chainId, address])
+
+  @@unique([walletAddressFrom, walletAddressTo, reaction, ruleId, spendChainId, targetChainId, reactionId], name: "buy_intents_uq_dedupe")
+  @@index([ruleId])
+  @@index([walletAddressFrom])
+  @@index([walletAddressTo])
+  @@index([fidFrom])
+  @@index([fidTo])
+  @@index([walletAddressFrom, status, txHash])
+  @@index([walletAddressTo, status, txHash])
+  @@index([walletAddressFrom, status, createdAt])
+  @@index([status, reactionTs])
+  @@index([walletAddressFrom, status, reactionTs])
+  @@index([walletAddressTo, status, reactionTs])
+  @@index([walletAddressFrom, status, updatedAt], map: "intents_wallet_address_from_status_updated_at_idx")
+  @@index([walletAddressTo, status, updatedAt], map: "intents_wallet_address_to_status_updated_at_idx")
+  @@index([txHash])
+  @@map("intents")
+  @@schema("cobuild")
+}
+
+model Chat {
+  id        String   @id
+  type      String
+  title     String?
+  messages  Json
+  data      Json
+  createdAt DateTime @default(now()) @db.Timestamp(6)
+  updatedAt DateTime @db.Timestamp(6)
+  user      String
+  attachments Json?
+
+  @@map("chat")
+  @@schema("cobuild")
+}
+
+model User {
+  fid                   BigInt    @id
+  firstSeenAt           DateTime  @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  onboardingCompletedAt DateTime? @map("onboarding_completed_at") @db.Timestamptz(6)
+  lastSeenAt            DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+
+  // Relations
+  intentsFrom          Intent[]                 @relation("IntentFromUser")
+  intentsTo            Intent[]                 @relation("IntentToUser")
+  farcasterProfile     FarcasterProfile? @relation("UserToFarcasterProfile")
+  donorAllocationRules DonorAllocationRule[]    @relation("UserToDonorAllocationRules")
+
+  @@map("users")
+  @@schema("cobuild")
+}
+
+model UserDisallowedTokenCategory {
+  id        BigInt        @id @default(autoincrement())
+  ownerAddress String     @map("owner_address") @db.VarChar(42)
+  category  TokenCategory
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([ownerAddress, category])
+  @@index([ownerAddress])
+  @@map("user_disallowed_token_category")
+  @@schema("cobuild")
+}
+
+model SwapExecuted {
+  id             String  @id
+  recipient      String  @db.VarChar(42)
+  tokenIn        String  @map("token_in") @db.VarChar(42)
+  tokenOut       String  @map("token_out") @db.VarChar(42)
+  amountIn       Decimal @map("amount_in")
+  fee            Decimal
+  amountOut      Decimal @map("amount_out")
+  chainId        Int     @map("chain_id")
+  txHash         String  @map("tx_hash") @db.VarChar(66)
+  blockTimestamp Int     @map("block_timestamp")
+  blockNumber    BigInt  @map("block_number")
+  from           String  @db.VarChar(42)
+  logIndex       Int     @map("log_index")
+
+  intents Intent[] @relation("SwapExecutedToIntents")
+
+  // Relations to ERC-20 tokens for in/out on the same chain
+  tokenOutErc20Token TokenMetadata? @relation("SwapTokenOutToErc20", fields: [chainId, tokenOut], references: [chainId, address])
+  tokenInErc20Token  TokenMetadata? @relation("SwapTokenInToErc20", fields: [chainId, tokenIn], references: [chainId, address])
+
+  @@unique([txHash])
+  @@unique([txHash, recipient, tokenOut, chainId], map: "swap_executed_txhash_recipient_tokenout_chainid_uq")
+  @@index([recipient])
+  @@index([tokenIn])
+  @@index([tokenOut])
+  @@index([blockTimestamp])
+  @@map("swap_executed")
+  @@schema("cobuild-onchain")
+}
+
+model ClankerCoin {
+  chainId        Int    @map("chain_id")
+  address        String @db.VarChar(42)
+  factory        String @db.VarChar(42)
+  version        String
+  blockNumber    BigInt @map("block_number")
+  blockTimestamp Int    @map("block_timestamp")
+
+  @@id([chainId, address])
+  @@map("clanker_coin")
+  @@schema("cobuild-onchain")
+}
+
+model BatchReactionSwap {
+  id             String @id
+  tokenIn        String @map("token_in") @db.VarChar(42)
+  tokenOut       String @map("token_out") @db.VarChar(42)
+  amountIn       BigInt @map("amount_in")
+  amountOut      BigInt @map("amount_out")
+  fee            BigInt
+  router         String @db.VarChar(42)
+  chainId        Int    @map("chain_id")
+  txHash         String @map("tx_hash") @db.VarChar(66)
+  blockTimestamp Int    @map("block_timestamp")
+  blockNumber    BigInt @map("block_number")
+  from           String @db.VarChar(42)
+  logIndex       Int    @map("log_index")
+
+  @@index([tokenIn])
+  @@index([tokenOut])
+  @@index([blockTimestamp])
+  @@index([router])
+  @@map("batch_reaction_swap")
+  @@schema("cobuild-onchain")
+}
+
+model TokenMetadata {
+  chainId         Int       @map("chain_id")
+  address         String    @db.VarChar(42)
+  name            String?
+  symbol          String?
+  decimals        Int?
+  logoUrl         String?   @map("logo_url")
+  /// [TokenDescriptionData]
+  descriptionData Json?     @map("description_data")
+  priceUsdc       Decimal?  @map("price_usdc")
+  priceUpdatedAt  DateTime? @map("price_updated_at") @db.Timestamptz(6)
+  totalSupply     Decimal?  @map("total_supply")
+  marketCap       Decimal?  @map("market_cap")
+  platform        String?
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  swapOuts      SwapExecuted[] @relation("SwapTokenOutToErc20")
+  swapIns       SwapExecuted[] @relation("SwapTokenInToErc20")
+  subscriptions Subscription[] @relation("SubscriptionToTokenMetadata")
+  accountCoins  AccountCoin[]  @relation("AccountCoinToTokenMetadata")
+  intentsTarget Intent[]       @relation("IntentTargetTokenMetadata")
+  intentsSpend  Intent[]       @relation("IntentSpendToTokenMetadata")
+
+  @@id([chainId, address])
+  @@index([chainId], map: "token_metadata_chain_idx")
+  @@index([address], map: "token_metadata_address_idx")
+  @@index([priceUpdatedAt], map: "token_metadata_price_updated_idx")
+  @@map("token_metadata")
+  @@schema("cobuild")
+}
+
+model FunderRanking {
+  id              BigInt   @id @default(autoincrement())
+  address         String   @db.VarChar(42)
+  monthlyUsdc     BigInt   @map("monthly_usdc")
+  monthlyFlowRate Decimal? @map("monthly_flow_rate")
+  buildersCount   Int      @map("builders_count")
+  rank            Int
+  tokenAddress    String?  @map("token_address") @db.VarChar(42)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([address, tokenAddress], name: "funder_ranking_address_token_uidx")
+  @@index([tokenAddress, rank])
+  @@map("funder_ranking")
+  @@schema("cobuild")
+}
+
+/// Farcaster profiles stored in the Cobuild DB (farcaster.profiles).
+model FarcasterProfile {
+  fid                      BigInt    @id
+  fname                    String?
+  displayName              String?   @map("display_name")
+  avatarUrl                String?   @map("avatar_url")
+  bio                      String?
+  verifiedAddresses        String[]  @map("verified_addresses")
+  manualVerifiedAddresses  String[]  @map("manual_verified_addresses")
+  neynarUserScore          Float?    @map("neynar_user_score") @db.DoublePrecision
+  neynarUserScoreUpdatedAt DateTime? @map("neynar_user_score_updated_at") @db.Timestamptz(6)
+  updatedAt                DateTime? @map("updated_at") @db.Timestamptz(6)
+  hiddenAt                 DateTime? @map("hidden_at") @db.Timestamptz(6)
+  hiddenBy                 String?   @map("hidden_by")
+  hiddenReason             String?   @map("hidden_reason")
+
+  user User? @relation("UserToFarcasterProfile", fields: [fid], references: [fid])
+  casts FarcasterCast[]
+
+  @@index([verifiedAddresses], map: "idx_farcaster_profiles_verified_addresses")
+  @@index([fname])
+  @@map("profiles")
+  @@schema("farcaster")
+}
+
+/// Farcaster casts stored in Cobuild DB (farcaster.casts).
+/// Note: casts are already filtered to the cobuild channel at ingest time.
+model FarcasterCast {
+  hash                Bytes     @id @db.ByteA
+  updatedAt           DateTime? @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz(6)
+  hiddenAt            DateTime? @map("hidden_at") @db.Timestamptz(6)
+  hiddenBy            String?   @map("hidden_by")
+  hiddenReason        String?   @map("hidden_reason")
+  castTimestamp       DateTime? @map("timestamp") @db.Timestamptz(6)
+  fid                 BigInt?   @db.BigInt
+  parentHash          Bytes?    @map("parent_hash") @db.ByteA
+  parentFid           BigInt?   @map("parent_fid") @db.BigInt
+  parentUrl           String?   @map("parent_url")
+  text                String?
+  embedsArray         Json?     @map("embeds_array")
+  rootParentHash      Bytes?    @map("root_parent_hash") @db.ByteA
+  rootParentUrl       String?   @map("root_parent_url")
+  embedSummaries      String[]  @map("embed_summaries")
+  mentionedFids       BigInt[]  @map("mentioned_fids") @db.BigInt
+  mentionsPositions   Int[]     @map("mentions_positions_array")
+  impactVerifications Json?     @map("impact_verifications")
+  viewCount           BigInt    @default(0) @map("view_count") @db.BigInt
+  replyCount          BigInt    @default(0) @map("reply_count") @db.BigInt
+  lastReplyAt         DateTime? @map("last_reply_at") @db.Timestamptz(6)
+  lastReplyFid        BigInt?   @map("last_reply_fid") @db.BigInt
+  lastReplyHash       Bytes?    @map("last_reply_hash") @db.ByteA
+  lastActivityAt      DateTime? @map("last_activity_at") @db.Timestamptz(6)
+
+  authorProfile FarcasterProfile? @relation(fields: [fid], references: [fid])
+
+  @@index([fid], map: "casts_fid_idx")
+  @@index([parentHash], map: "casts_parent_hash_idx")
+  @@index([rootParentHash], map: "casts_root_parent_hash_idx")
+  @@index([rootParentUrl], map: "casts_root_parent_url_idx")
+  @@index([embedsArray(ops: JsonbPathOps)], type: Gin, map: "farcaster_casts_embeds_gin")
+  @@map("casts")
+  @@schema("farcaster")
+}
+
+/// Farcaster reactions (storage disabled for writes; read-only in the app).
+model FarcasterReaction {
+  hash         Bytes     @id @db.ByteA
+  createdAt    DateTime? @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime? @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  reactionAt   DateTime? @map("timestamp") @db.Timestamptz(6)
+  reactionType BigInt?   @map("reaction_type") @db.BigInt
+  fid          BigInt?   @db.BigInt
+  targetHash   Bytes?    @map("target_hash") @db.ByteA
+  targetFid    BigInt?   @map("target_fid") @db.BigInt
+  targetUrl    String?   @map("target_url")
+
+  @@index([fid], map: "reactions_fid_idx")
+  @@index([targetFid], map: "reactions_target_fid_idx")
+  @@map("reactions")
+  @@schema("farcaster")
+}
+
+// ---------- Capital allocation ----------
+
+model PostFilterRule {
+  id Int @id @default(autoincrement())
+
+  title     String   @default("")
+  platforms String[]
+
+  logic     String @default("and")
+  clauses   Json
+  outputTag String @map("output_tag")
+
+  requirementsText      String?                @map("requirements_text")
+  requirementsEmbedding Unsupported("vector")? @map("requirements_embedding")
+  additionalEmbeddings  Json?                  @map("additional_embeddings")
+
+  castTemplate String? @map("cast_template")
+  ctaText      String? @map("cta_text")
+
+  /// Lowercased addresses allowed to moderate this rule.
+  admins String[] @default([])
+
+  /// Per-address submission limit across all platforms for this rule.
+  perUserLimit Int? @map("per_user_limit")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  primaryEvalRounds Round[]
+
+  @@map("post_filter_rules")
+  @@schema("capital_allocation")
+}
+
+model PerAddressRuleSubmission {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  address String
+  ruleId  Int    @map("rule_id")
+  postId  String @map("post_id")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([address, ruleId, postId])
+  @@index([address, ruleId], map: "per_address_rule_submissions_lookup_idx")
+  @@map("per_address_rule_submissions")
+  @@schema("capital_allocation")
+}
+
+/// AI model outputs now live in capital_allocation.ai_model_outputs.
+model AiModelOutput {
+  id               BigInt   @id @default(autoincrement()) @db.BigInt
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  model            String
+  promptTokens     Int?     @map("prompt_tokens")
+  completionTokens Int?     @map("completion_tokens")
+  totalTokens      Int?     @map("total_tokens")
+  output           Json
+  /// Canonical provider-native post identifier (Farcaster: hex cast hash; X: numeric post id).
+  postId           String?  @map("post_id")
+  ruleId           Int?     @map("rule_id")
+
+  @@index([postId], map: "ai_outputs_post_id_idx")
+  @@index([ruleId, postId], map: "ai_outputs_rule_post_id_idx")
+  @@index([ruleId], map: "ai_outputs_rule_id_idx")
+  @@index([createdAt], map: "ai_outputs_created_at_idx")
+  @@map("ai_model_outputs")
+  @@schema("capital_allocation")
+}
+
+model Round {
+  id               BigInt              @id @default(autoincrement()) @db.BigInt
+  title            String?
+  description      String?
+  prompt           String
+  createdByAddress String?             @map("created_by_address")
+  status           PostEvalRoundStatus @default(draft)
+  variant          String              @default("default")
+  primaryRuleId    Int                 @map("primary_rule_id")
+  parentRoundId    BigInt?             @map("parent_round_id") @db.BigInt
+  startAt          DateTime?           @map("start_at") @db.Date
+  endAt            DateTime?           @map("end_at") @db.Date
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime?           @map("updated_at") @db.Timestamptz(6)
+  primaryRule      PostFilterRule      @relation(fields: [primaryRuleId], references: [id])
+  parentRound      Round?              @relation("RoundHierarchy", fields: [parentRoundId], references: [id])
+  childRounds      Round[]             @relation("RoundHierarchy")
+  duels            PostEvalDuel[]
+  scores           PostEvalScore[]
+  submissions      RoundSubmission[]
+
+  @@index([status], map: "post_eval_rounds_status_idx")
+  @@index([primaryRuleId], map: "post_eval_rounds_primary_rule_idx")
+  @@index([parentRoundId], map: "post_eval_rounds_parent_idx")
+  @@map("post_eval_rounds")
+  @@schema("capital_allocation")
+}
+
+model RoundSubmission {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  roundId BigInt                @map("round_id") @db.BigInt
+  source  RoundSubmissionSource
+  /// Provider-native post identifier (Farcaster: 0x… hash; X: numeric post id).
+  postId  String                @map("post_id")
+  url     String?
+
+  authorHandle      String?   @map("author_handle")
+  authorDisplayName String?   @map("author_display_name")
+  authorAvatarUrl   String?   @map("author_avatar_url")
+  rawText           String?   @map("raw_text")
+  displayText       String?   @map("display_text")
+  createdAt         DateTime? @map("created_at") @db.Timestamptz(6)
+  embedUrls         String[]  @map("embed_urls")
+  mediaUrls         String[]  @map("media_urls")
+
+  aiTitle       String?   @map("ai_title")
+  aiCategory    String?   @map("ai_category")
+  aiGeneratedAt DateTime? @map("ai_generated_at") @db.Timestamptz(6)
+
+  metadata   Json?
+  insertedAt DateTime @default(now()) @map("inserted_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  round                 Round           @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  postEvalDuelsAsA      PostEvalDuel[]  @relation("PostEvalDuelSubmissionA")
+  postEvalDuelsAsB      PostEvalDuel[]  @relation("PostEvalDuelSubmissionB")
+  postEvalDuelsAsWinner PostEvalDuel[]  @relation("PostEvalDuelWinnerSubmission")
+  postEvalScores        PostEvalScore[]
+
+  @@unique([roundId, source, postId], map: "round_submissions_round_source_sourceid_uidx")
+  @@index([roundId], map: "round_submissions_round_idx")
+  @@index([source, postId], map: "round_submissions_source_lookup_idx")
+  @@map("round_submissions")
+  @@schema("capital_allocation")
+}
+
+model PostEvalDuel {
+  id                      BigInt   @id @default(autoincrement()) @db.BigInt
+  roundId                 BigInt   @map("round_id") @db.BigInt
+  roundSubmissionIdA      BigInt   @map("round_submission_id_a") @db.BigInt
+  roundSubmissionIdB      BigInt   @map("round_submission_id_b") @db.BigInt
+  winnerRoundSubmissionId BigInt?  @map("winner_round_submission_id") @db.BigInt
+  judge                   String
+  judgeFid                BigInt?  @map("judge_fid") @db.BigInt
+  weight                  Decimal  @default(1) @db.Decimal(10, 4)
+  valid                   Boolean  @default(true)
+  metadata                Json?
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  round            Round            @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  submissionA      RoundSubmission  @relation("PostEvalDuelSubmissionA", fields: [roundSubmissionIdA], references: [id], onDelete: Cascade)
+  submissionB      RoundSubmission  @relation("PostEvalDuelSubmissionB", fields: [roundSubmissionIdB], references: [id], onDelete: Cascade)
+  winnerSubmission RoundSubmission? @relation("PostEvalDuelWinnerSubmission", fields: [winnerRoundSubmissionId], references: [id], onDelete: SetNull)
+
+  @@index([roundId], map: "post_eval_duels_round_idx")
+  @@index([roundSubmissionIdA], map: "post_eval_duels_a_idx")
+  @@index([roundSubmissionIdB], map: "post_eval_duels_b_idx")
+  @@map("post_eval_duels")
+  @@schema("capital_allocation")
+}
+
+model PostEvalScore {
+  roundId           BigInt @map("round_id") @db.BigInt
+  roundSubmissionId BigInt @map("round_submission_id") @db.BigInt
+
+  strength    Float    @db.DoublePrecision
+  winRate     Float    @map("win_rate") @db.DoublePrecision
+  share       Decimal  @map("share") @db.Decimal(38, 18)
+  rank        BigInt   @db.BigInt
+  algoVersion String   @default("bt_win_rate_v1") @map("algo_version")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  round      Round           @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  submission RoundSubmission @relation(fields: [roundSubmissionId], references: [id], onDelete: Cascade)
+
+  @@id([roundId, roundSubmissionId], map: "post_eval_scores_pkey")
+  @@index([roundId, rank], map: "post_eval_scores_round_rank_idx")
+  @@map("post_eval_scores")
+  @@schema("capital_allocation")
+}
+
+model JuiceboxProject {
+  chainId               Int      @map("chain_id")
+  createdAt             Int      @map("created_at")
+  projectId             Int      @map("project_id")
+  paymentsCount         Int      @default(0) @map("payments_count")
+  balance               Decimal  @default(0)
+  isRevnet              Boolean  @map("is_revnet")
+  deployer              String   @db.VarChar(42)
+  owner                 String   @db.VarChar(42)
+  erc20                 String?  @db.VarChar(42)
+  erc20Supply           Decimal  @default(0) @map("erc20_supply")
+  erc20Name             String?  @map("erc20_name")
+  erc20Symbol           String?  @map("erc20_symbol")
+  cashoutA              BigInt   @default(0) @map("cashout_a")
+  cashoutB              BigInt   @default(0) @map("cashout_b")
+  currentRulesetId      BigInt   @default(0) @map("current_ruleset_id")
+  contributorsCount     Int      @default(0) @map("contributors_count")
+  redeemCount           Int      @default(0) @map("redeem_count")
+  redeemVolume          BigInt   @default(0) @map("redeem_volume")
+  pendingReservedTokens Decimal  @default(0) @map("pending_reserved_tokens")
+  metadataUri           String?  @map("metadata_uri")
+  metadata              Json?
+  name                  String?
+  infoUri               String?  @map("info_uri")
+  logoUri               String?  @map("logo_uri")
+  coverImageUri         String?  @map("cover_image_uri")
+  twitter               String?
+  discord               String?
+  telegram              String?
+  tokens                String[]
+  domain                String?
+  description           String?
+  tags                  String[]
+  projectTagline        String?  @map("project_tagline")
+  suckerGroupId         String?  @map("sucker_group_id")
+
+  accountingToken       String @map("accounting_token")
+  accountingDecimals    Int    @map("accounting_decimals")
+  accountingCurrency    BigInt @map("accounting_currency")
+  accountingTokenSymbol String @map("accounting_token_symbol")
+  accountingTokenName   String @map("accounting_token_name")
+
+  participants  JuiceboxParticipant[]
+  rulesets      JuiceboxRuleset[]     @relation("JuiceboxProjectRulesets")
+  payEvents     JuiceboxPayEvent[]
+  activeRuleset JuiceboxRuleset?      @relation("ActiveRuleset", fields: [currentRulesetId, chainId, projectId], references: [rulesetId, chainId, projectId])
+
+  @@unique([chainId, projectId])
+  @@unique([currentRulesetId, chainId, projectId])
+  @@index([projectId])
+  @@map("project")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxSuckerGroup {
+  id        String   @id
+  projects  String[]
+  addresses String[] @db.VarChar(42)
+  createdAt Int      @map("created_at")
+
+  @@map("sucker_group")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxParticipant {
+  chainId       Int      @map("chain_id")
+  projectId     Int      @map("project_id")
+  createdAt     Int      @map("created_at")
+  balance       Decimal  @default(0)
+  isRevnet      Boolean? @map("is_revnet")
+  address       String   @db.VarChar(42)
+  firstOwned    Int?     @map("first_owned")
+  suckerGroupId String?  @map("sucker_group_id")
+
+  project JuiceboxProject @relation(fields: [chainId, projectId], references: [chainId, projectId])
+
+  @@id([chainId, projectId, address])
+  @@index([address])
+  @@index([chainId, projectId])
+  @@map("participant")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxRuleset {
+  chainId                    Int     @map("chain_id")
+  projectId                  Int     @map("project_id")
+  rulesetId                  BigInt  @map("ruleset_id")
+  suckerGroupId              String  @map("sucker_group_id")
+  createdAt                  Int     @map("created_at")
+  queuedAt                   Int     @map("queued_at")
+  cycleNumber                Int     @map("cycle_number")
+  basedOnId                  BigInt  @map("based_on_id")
+  start                      BigInt
+  duration                   BigInt
+  weight                     Decimal
+  weightCutPercent           Int     @map("weight_cut_percent")
+  approvalHook               String? @map("approval_hook") @db.VarChar(42)
+  reservedPercent            Int     @map("reserved_percent")
+  cashOutTaxRate             Int     @map("cash_out_tax_rate")
+  baseCurrency               Int     @map("base_currency")
+  pausePay                   Boolean @map("pause_pay")
+  pauseCreditTransfers       Boolean @map("pause_credit_transfers")
+  allowOwnerMinting          Boolean @map("allow_owner_minting")
+  allowSetCustomToken        Boolean @map("allow_set_custom_token")
+  allowTerminalMigration     Boolean @map("allow_terminal_migration")
+  allowSetTerminals          Boolean @map("allow_set_terminals")
+  allowSetController         Boolean @map("allow_set_controller")
+  allowAddAccountingContext  Boolean @map("allow_add_accounting_context")
+  allowAddPriceFeed          Boolean @map("allow_add_price_feed")
+  ownerMustSendPayouts       Boolean @map("owner_must_send_payouts")
+  holdFees                   Boolean @map("hold_fees")
+  useTotalSurplusForCashOuts Boolean @map("use_total_surplus_for_cash_outs")
+  useDataHookForPay          Boolean @map("use_data_hook_for_pay")
+  useDataHookForCashOut      Boolean @map("use_data_hook_for_cash_out")
+  dataHook                   String? @map("data_hook") @db.VarChar(42)
+  metadata                   Decimal
+  metadataExtra              Int?    @map("metadata_extra")
+  mustStartAtOrAfter         BigInt? @map("must_start_at_or_after")
+  caller                     String  @db.VarChar(42)
+  approvalStatus             String? @map("approval_status")
+
+  project       JuiceboxProject  @relation("JuiceboxProjectRulesets", fields: [chainId, projectId], references: [chainId, projectId])
+  activeProject JuiceboxProject? @relation("ActiveRuleset")
+
+  @@unique([chainId, projectId, rulesetId])
+  @@index([projectId])
+  @@index([rulesetId])
+  @@index([start])
+  @@map("ruleset")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxPayEvent {
+  id                    String  @id
+  chainId               Int     @map("chain_id")
+  projectId             Int     @map("project_id")
+  rulesetId             BigInt  @map("ruleset_id")
+  rulesetCycleNumber    BigInt  @map("ruleset_cycle_number")
+  txHash                String  @map("tx_hash") @db.VarChar(66)
+  timestamp             Int
+  caller                String  @db.VarChar(42)
+  from                  String  @db.VarChar(42)
+  logIndex              Int     @map("log_index")
+  payer                 String  @db.VarChar(42)
+  beneficiary           String  @db.VarChar(42)
+  amount                Decimal @db.Decimal(78, 0)
+  newlyIssuedTokenCount Decimal @map("newly_issued_token_count") @db.Decimal(78, 0)
+  buybackTokenCount     Decimal @map("buyback_token_count") @db.Decimal(78, 0)
+  effectiveTokenCount   Decimal @map("effective_token_count") @db.Decimal(78, 0)
+  memo                  String
+  suckerGroupId         String? @map("sucker_group_id")
+  txnValue              String  @map("txn_value")
+
+  metadata String @db.VarChar(66)
+
+  project JuiceboxProject @relation(fields: [chainId, projectId], references: [chainId, projectId])
+
+  @@index([projectId])
+  @@index([payer])
+  @@index([beneficiary])
+  @@index([timestamp])
+  @@map("pay_event")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxCashoutCoefficientSnapshot {
+  id            String @id
+  chainId       Int    @map("chain_id")
+  projectId     Int    @map("project_id")
+  suckerGroupId String @map("sucker_group_id")
+  timestamp     Int
+  txHash        String @map("tx_hash") @db.VarChar(66)
+  cashoutA      BigInt @map("cashout_a")
+  cashoutB      BigInt @map("cashout_b")
+  balance       BigInt
+  totalSupply   BigInt @map("total_supply")
+  cashOutTaxRate Int   @map("cash_out_tax_rate")
+
+  @@index([suckerGroupId, timestamp])
+  @@index([projectId])
+  @@map("cashout_coefficient_snapshot")
+  @@schema("cobuild-onchain")
+}
+
+/**
+ * ---------- New Enums (mapped to PG enums in cobuild) ----------
+ */
+
+enum AllocationSelectionMode {
+  ALL
+  TOP_N
+  TOP_PERCENT
+
+  @@map("allocation_selection_mode_t")
+  @@schema("cobuild")
+}
+
+enum AllocationDistribution {
+  EQUAL
+  PROPORTIONAL
+  QUADRATIC
+
+  @@map("allocation_distribution_t")
+  @@schema("cobuild")
+}
+
+enum AllocationMetricBasis {
+  EARNINGS
+
+  @@map("allocation_metric_basis_t")
+  @@schema("cobuild")
+}
+
+enum AllocationQFBasis {
+  EARNINGS
+  CONTRIBUTORS
+
+  @@map("allocation_qf_basis_t")
+  @@schema("cobuild")
+}
+
+/**
+ * ---------- Subscriptions (DCA) ----------
+ */
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAUSED
+
+  @@map("subscription_status")
+  @@schema("cobuild")
+}
+
+model Subscription {
+  id                BigInt @id @default(autoincrement())
+  walletAddressFrom String @map("wallet_address_from")
+
+  referralAddress String? @map("referral_address")
+
+  spendChainId      Int    @map("spend_chain_id")
+  spendTokenAddress String @map("spend_token_address")
+
+  targetChainId      Int    @map("target_chain_id")
+  targetTokenAddress String @map("target_token_address")
+
+  // Integer base units of the spend token per period
+  amountPerPeriodNum Decimal @map("amount_per_period_num") @db.Decimal(78, 0)
+  periodSeconds      Int     @map("period_seconds")
+
+  startAt         DateTime           @default(now()) @map("start_at") @db.Timestamptz(6)
+  endAt           DateTime?          @map("end_at") @db.Timestamptz(6)
+  status          SubscriptionStatus @default(ACTIVE)
+  pausedReason    String?            @map("paused_reason")
+  accrualAnchorAt DateTime?          @map("accrual_anchor_at") @db.Timestamptz(6)
+
+  // Threshold for emitting intents (base units of spend token)
+  minExecAmountNum Decimal @map("min_exec_amount_num") @db.Decimal(78, 0)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tokenMetadata TokenMetadata? @relation("SubscriptionToTokenMetadata", fields: [targetChainId, targetTokenAddress], references: [chainId, address])
+
+  @@index([walletAddressFrom])
+  @@index([status])
+  @@index([spendChainId, spendTokenAddress, targetChainId, targetTokenAddress])
+  // For joins by target token + status + backer address
+  @@index([targetTokenAddress, status, walletAddressFrom], map: "subscriptions_target_status_wallet_idx")
+  @@map("subscriptions")
+  @@schema("cobuild")
+}
+
+/**
+ * ---------- Per-donor allocation rule ----------
+ */
+
+model DonorAllocationRule {
+  id     BigInt            @id @default(autoincrement())
+  fid    BigInt
+  period LeaderboardPeriod
+  flowId String            @map("flow_id")
+
+  selectionMode AllocationSelectionMode @map("selection_mode")
+  topN          Int?                    @map("top_n")
+  topPercent    Decimal?                @map("top_percent") @db.Decimal(5, 2)
+
+  distribution AllocationDistribution
+
+  rankingMetric AllocationMetricBasis @default(EARNINGS) @map("ranking_metric")
+  qfBasis       AllocationQFBasis     @default(EARNINGS) @map("qf_basis")
+  tokenAddress  String                @map("token_address") @db.VarChar(42)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  donor User @relation("UserToDonorAllocationRules", fields: [fid], references: [fid])
+
+  @@unique([flowId, fid], map: "donor_allocation_rule_flow_id_fid_uidx")
+  @@index([updatedAt], map: "donor_allocation_rule_updated_at_idx")
+  @@map("donor_allocation_rule")
+  @@schema("cobuild")
+}
