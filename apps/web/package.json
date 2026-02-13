@@ -97,7 +97,7 @@
     "@types/react-dom": "19.2.3",
     "@types/three": "^0.181.0",
     "@vitest/coverage-v8": "^2.1.8",
-    "eslint": "^9",
+    "eslint": "^10",
     "eslint-config-next": "16.0.3",
     "happy-dom": "^15.10.2",
     "jsdom": "^27.3.0",
