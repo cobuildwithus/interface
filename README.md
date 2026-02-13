@@ -31,18 +31,8 @@ This software can interact with onchain systems and digital assets. Use at your 
 
 ## Related repositories
 
-- Docs: `https://github.com/cobuildwithus/docs`
-- Indexer: `https://github.com/cobuildwithus/cobuild-indexer`
-
-Indexer quickstart:
-
-```bash
-git clone https://github.com/cobuildwithus/cobuild-indexer.git
-cd cobuild-indexer
-pnpm install
-cp .env.example .env.local
-pnpm dev
-```
+- [Docs](https://github.com/cobuildwithus/docs)
+- [Indexer](https://github.com/cobuildwithus/cobuild-indexer)
 
 ## Repository map
 
