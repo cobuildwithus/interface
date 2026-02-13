@@ -99,7 +99,7 @@
     "@vitest/coverage-v8": "^2.1.8",
     "eslint": "^9",
     "eslint-config-next": "16.0.3",
-    "happy-dom": "^15.10.2",
+    "happy-dom": "^20.6.1",
     "jsdom": "^27.3.0",
     "knip": "^5.75.1",
     "postcss": "^8.5.6",
