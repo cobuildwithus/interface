@@ -1,0 +1,15 @@
+# Prisma References (LLM)
+
+## Core docs
+
+- Prisma docs: https://www.prisma.io/docs
+- Prisma schema: https://www.prisma.io/docs/orm/prisma-schema
+- Prisma Client: https://www.prisma.io/docs/orm/prisma-client
+- Read replicas extension: https://www.prisma.io/docs/orm/prisma-client/setup-and-configuration/read-replicas
+
+## Repo mapping
+
+- Prisma client wrapper: `apps/web/lib/server/db/cobuild-db-client.ts`
+- Schema source: `apps/web/prisma/cobuild.prisma`
+- Generated client: `apps/web/generated/prisma/**`
+- Representative server reads: `apps/web/lib/domains/token/onchain/project-stats.ts`, `apps/web/lib/domains/token/recent-activity.ts`

@@ -1,0 +1,15 @@
+# Wagmi/Viem References (LLM)
+
+## Core docs
+
+- Wagmi docs: https://wagmi.sh/react/getting-started
+- Wagmi hooks API: https://wagmi.sh/react/api/hooks
+- Viem docs: https://viem.sh/docs/getting-started
+- Viem contract reads/writes: https://viem.sh/docs/contract/getContract
+
+## Repo mapping
+
+- Wagmi config + chains: `apps/web/lib/domains/token/onchain/wagmi-config.ts`
+- Contract transaction lifecycle: `apps/web/lib/domains/token/onchain/use-contract-transaction.ts`
+- Swap orchestration: `apps/web/lib/hooks/use-swap-core.ts`, `apps/web/lib/hooks/use-revnet-pay.ts`
+- Onchain read modules: `apps/web/lib/domains/token/onchain/**`

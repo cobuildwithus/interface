@@ -1,0 +1,59 @@
+name: Feature request
+description: Propose a scoped feature or behavior change.
+title: "[feature]: "
+labels:
+  - "type: feature"
+  - "status: needs-triage"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the proposal.
+
+        Please focus on the problem and user impact.
+        External code contributions are currently by invitation only.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user problem does this solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior you want and how users would interact with it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What alternatives have you considered and why are they insufficient?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Estimated impact
+      options:
+        - High (blocks common workflows)
+        - Medium (improves common workflows)
+        - Low (nice-to-have)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched existing issues and feature requests.
+          required: true
+        - label: I understand this issue is a proposal and does not imply implementation commitment.
+          required: true

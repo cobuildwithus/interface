@@ -1,0 +1,18 @@
+# Next.js References (LLM)
+
+## Core docs
+
+- Next.js docs: https://nextjs.org/docs
+- App Router: https://nextjs.org/docs/app
+- Layouts and routing: https://nextjs.org/docs/app/building-your-application/routing
+- Route handlers: https://nextjs.org/docs/app/building-your-application/routing/route-handlers
+- Server Components: https://nextjs.org/docs/app/building-your-application/rendering/server-components
+- Server Actions: https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations
+- Caching and revalidation: https://nextjs.org/docs/app/building-your-application/caching
+
+## Repo mapping
+
+- Root runtime: `apps/web/app/layout.tsx`
+- Provider hydration: `apps/web/app/app-providers.tsx`, `apps/web/app/providers.tsx`
+- App shell: `apps/web/app/(app)/layout.tsx`
+- API boundary: `apps/web/app/api/**`

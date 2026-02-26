@@ -1,0 +1,209 @@
+.floatRight {
+  animation: floatRight 1.5s ease-out forwards;
+}
+
+.floatLeft {
+  animation: floatLeft 1.5s ease-out forwards;
+}
+
+.floatDown {
+  animation: floatDown 1.5s ease-out forwards;
+}
+
+.floatUp {
+  animation: floatUp 1.5s ease-out forwards;
+}
+
+.arcTopRight {
+  animation: arcTopRight 2.5s ease-in-out forwards;
+}
+
+.arcBottomLeft {
+  animation: arcBottomLeft 2.5s ease-in-out forwards;
+}
+
+.arcLeftTop {
+  animation: arcLeftTop 2.5s ease-in-out forwards;
+}
+
+.arcRightBottom {
+  animation: arcRightBottom 2.5s ease-in-out forwards;
+}
+
+.arcBuildToEarn {
+  animation: arcBuildToEarn 2.5s ease-in-out forwards;
+}
+
+.arcEarnToEngage {
+  animation: arcEarnToEngage 2.5s ease-in-out forwards;
+}
+
+@keyframes floatRight {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(6rem);
+    opacity: 0;
+  }
+}
+
+@keyframes floatLeft {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-6rem);
+    opacity: 0;
+  }
+}
+
+@keyframes floatDown {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(6rem);
+    opacity: 0;
+  }
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-6rem);
+    opacity: 0;
+  }
+}
+
+@keyframes arcTopRight {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes arcRightBottom {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes arcBuildToEarn {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes arcEarnToEngage {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes arcBottomLeft {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes arcLeftTop {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}

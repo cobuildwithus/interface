@@ -1,0 +1,24 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "paths": {
+    "@": ["."]
+  },
+  "ignore": [".next/**", "coverage/**", "tsconfig.tsbuildinfo"],
+  "ignoreFiles": [
+    "prisma/migrations/**",
+    "generated/**/browser.ts",
+    "generated/**/internal/prismaNamespaceBrowser.ts"
+  ],
+  "ignoreIssues": {
+    "generated/**": [
+      "exports",
+      "types",
+      "nsExports",
+      "nsTypes",
+      "duplicates",
+      "enumMembers",
+      "classMembers"
+    ]
+  },
+  "ignoreDependencies": ["prisma-client"]
+}

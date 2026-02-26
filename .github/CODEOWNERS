@@ -1,0 +1,10 @@
+# Default owners
+* @rocketman-21
+
+# Project areas
+/apps/web/ @rocketman-21
+/apps/contracts/ @rocketman-21
+/agent-docs/ @rocketman-21
+
+# Repository settings and automation
+/.github/ @rocketman-21

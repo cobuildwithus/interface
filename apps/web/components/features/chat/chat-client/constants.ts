@@ -1,0 +1,1 @@
+export const REASONING_PREVIEW_LIMIT = 140;

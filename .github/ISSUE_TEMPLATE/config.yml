@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and support (Discussions)
+    url: https://github.com/cobuildwithus/interface/discussions
+    about: Ask setup questions and request troubleshooting help.
+  - name: Community Discord
+    url: https://discord.com/invite/PwWFgTck7f
+    about: Join community chat.
+  - name: Security vulnerability reporting
+    url: mailto:security@justco.build
+    about: Report vulnerabilities privately. Do not open public issues.
