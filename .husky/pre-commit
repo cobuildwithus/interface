@@ -1,1 +1,6 @@
+#!/bin/sh
+set -e
+
+bash scripts/doc-gardening.sh
+
 pnpm exec lint-staged
