@@ -13,6 +13,14 @@ import {
 const asFetch = (fn: (...args: Parameters<typeof fetch>) => Promise<Response>) =>
   fn as typeof fetch;
 
+const setEnvVar = (key: string, value: string | undefined) => {
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+  process.env[key] = value;
+};
+
 describe("github prompts", () => {
   it("extracts the first template literal", () => {
     const source = "export const value = `hello`;";
@@ -128,34 +136,36 @@ describe("github prompts", () => {
     expect(result.errors[0]?.error).toContain("Invalid path segment");
   });
 
-  it("rejects invalid repo slugs", async () => {
-    await expect(
-      fetchGithubPromptFiles({
-        repo: "bad-repo",
-        directory: "src/ai/prompts",
-        files: ["one.ts"],
-        fetcher: asFetch(
-          vi.fn(async () => {
-            throw new Error("should not reach fetch");
-          })
-        ),
-      })
-    ).rejects.toThrow("Invalid GitHub repo slug");
+  it("returns structured errors for invalid repo slugs", async () => {
+    const result = await fetchGithubPromptFiles({
+      repo: "bad-repo",
+      directory: "src/ai/prompts",
+      files: ["one.ts"],
+      fetcher: asFetch(
+        vi.fn(async () => {
+          throw new Error("should not reach fetch");
+        })
+      ),
+    });
+
+    expect(result.files).toEqual([]);
+    expect(result.errors).toEqual([{ file: "*", error: "Invalid GitHub repo slug" }]);
   });
 
-  it("rejects repo slugs with invalid characters", async () => {
-    await expect(
-      fetchGithubPromptFiles({
-        repo: "owner/na*me",
-        directory: "src/ai/prompts",
-        files: ["one.ts"],
-        fetcher: asFetch(
-          vi.fn(async () => {
-            throw new Error("should not reach fetch");
-          })
-        ),
-      })
-    ).rejects.toThrow("Invalid GitHub repo slug");
+  it("returns structured errors for repo slugs with invalid characters", async () => {
+    const result = await fetchGithubPromptFiles({
+      repo: "owner/na*me",
+      directory: "src/ai/prompts",
+      files: ["one.ts"],
+      fetcher: asFetch(
+        vi.fn(async () => {
+          throw new Error("should not reach fetch");
+        })
+      ),
+    });
+
+    expect(result.files).toEqual([]);
+    expect(result.errors).toEqual([{ file: "*", error: "Invalid GitHub repo slug" }]);
   });
 
   it("returns a descriptive error for empty file lists", async () => {
@@ -171,6 +181,23 @@ describe("github prompts", () => {
 
     expect(result.files).toEqual([]);
     expect(result.errors).toEqual([{ file: "*", error: "No files specified" }]);
+  });
+
+  it("returns a descriptive error for blank git refs", async () => {
+    const fetcher = vi.fn(async () => {
+      throw new Error("should not reach fetch");
+    });
+
+    const result = await fetchGithubPromptFiles({
+      repo: "owner/repo",
+      branch: "   ",
+      files: ["one.ts"],
+      fetcher: asFetch(fetcher),
+    });
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(result.files).toEqual([]);
+    expect(result.errors).toEqual([{ file: "*", error: "No git ref specified" }]);
   });
 
   it("attaches auth headers when token is provided", async () => {
@@ -238,6 +265,101 @@ describe("github prompts", () => {
       delete process.env.GITHUB_PROMPTS_REVALIDATE_SECONDS;
     } else {
       process.env.GITHUB_PROMPTS_REVALIDATE_SECONDS = originalEnv;
+    }
+  });
+
+  it("rejects mutable git refs in production", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    setEnvVar("NODE_ENV", "production");
+
+    const fetcher = vi.fn(async () => {
+      throw new Error("should not reach fetch");
+    });
+
+    try {
+      const result = await fetchGithubPromptFiles({
+        repo: "owner/repo",
+        branch: "main",
+        directory: "src/ai/prompts",
+        files: ["one.ts"],
+        fetcher: asFetch(fetcher),
+      });
+
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(result.files).toEqual([]);
+      expect(result.errors).toEqual([
+        {
+          file: "*",
+          error: "Production requires GITHUB_PROMPTS_BRANCH to be a full commit SHA",
+        },
+      ]);
+    } finally {
+      setEnvVar("NODE_ENV", originalNodeEnv);
+    }
+  });
+
+  it("rejects production prompt fetch when branch falls back to default main ref", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalBranch = process.env.GITHUB_PROMPTS_BRANCH;
+    setEnvVar("NODE_ENV", "production");
+    delete process.env.GITHUB_PROMPTS_BRANCH;
+
+    const fetcher = vi.fn(async () => {
+      throw new Error("should not reach fetch");
+    });
+
+    try {
+      const result = await fetchGithubPromptFiles({
+        repo: "owner/repo",
+        directory: "src/ai/prompts",
+        files: ["one.ts"],
+        fetcher: asFetch(fetcher),
+      });
+
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(result.files).toEqual([]);
+      expect(result.errors).toEqual([
+        {
+          file: "*",
+          error: "Production requires GITHUB_PROMPTS_BRANCH to be a full commit SHA",
+        },
+      ]);
+    } finally {
+      setEnvVar("NODE_ENV", originalNodeEnv);
+      if (originalBranch === undefined) {
+        delete process.env.GITHUB_PROMPTS_BRANCH;
+      } else {
+        process.env.GITHUB_PROMPTS_BRANCH = originalBranch;
+      }
+    }
+  });
+
+  it("allows immutable commit refs in production", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    setEnvVar("NODE_ENV", "production");
+
+    const fetcher = vi.fn(async (_input: RequestInfo | URL) => {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => "export const one = async () => `One`;",
+      } as Response;
+    });
+
+    try {
+      const result = await fetchGithubPromptFiles({
+        repo: "owner/repo",
+        branch: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        directory: "src/ai/prompts",
+        files: ["one.ts"],
+        fetcher: asFetch(fetcher),
+      });
+
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(result.errors).toEqual([]);
+      expect(result.files[0]?.content).toBe("One");
+    } finally {
+      setEnvVar("NODE_ENV", originalNodeEnv);
     }
   });
 

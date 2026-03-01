@@ -1,5 +1,6 @@
 "use server";
 
+import { getSession } from "@/lib/domains/auth/session";
 import { registerDirectIntent } from "@/lib/server/swaps-direct-intent";
 
 export async function registerDirectIntentAction(body: {
@@ -9,6 +10,11 @@ export async function registerDirectIntentAction(body: {
   chainId?: number;
   recipient?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await getSession();
+  if (!session.address) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
   const result = await registerDirectIntent(body);
   if (!result.ok) {
     return { ok: false, error: result.error };

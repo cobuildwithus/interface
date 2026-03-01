@@ -8,6 +8,7 @@ import { TreasuryChartSkeleton } from "@/components/common/skeletons/treasury-ch
 import { RevnetActions } from "./revnet-actions";
 import { RevnetActionsSkeleton } from "@/components/common/skeletons/revnet-actions-skeleton";
 import { buildPageMetadata } from "@/lib/shared/page-metadata";
+import { BuildBotSetupDialog } from "./build-bot-setup-dialog";
 
 export const metadata = buildPageMetadata({
   title: "Home | Cobuild",
@@ -18,6 +19,7 @@ export const metadata = buildPageMetadata({
 export default function HomePage() {
   return (
     <main className="w-full p-4 md:p-6">
+      <BuildBotSetupDialog />
       <PageHeader title="Home" />
 
       <MillionMemberGoal />

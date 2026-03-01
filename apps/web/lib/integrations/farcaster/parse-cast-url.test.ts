@@ -87,24 +87,24 @@ describe("parseCastInput", () => {
 
   describe("farcaster.xyz/username URLs", () => {
     it("parses standard farcaster URL with username", () => {
-      const url = `https://farcaster.xyz/sampleuser/${FULL_HASH}`;
+      const url = `https://farcaster.xyz/exampleuser/${FULL_HASH}`;
       const result = parseCastInput(url);
       expect(result).toEqual({
         hash: FULL_HASH,
         isFullHash: true,
         url,
-        username: "sampleuser",
+        username: "exampleuser",
       });
     });
 
     it("parses URL with short hash and username", () => {
-      const url = `https://farcaster.xyz/sampleuser/${SHORT_HASH}`;
+      const url = `https://farcaster.xyz/exampleuser/${SHORT_HASH}`;
       const result = parseCastInput(url);
       expect(result).toEqual({
         hash: SHORT_HASH,
         isFullHash: false,
         url,
-        username: "sampleuser",
+        username: "exampleuser",
       });
     });
 
@@ -118,21 +118,21 @@ describe("parseCastInput", () => {
 
   describe("warpcast.com URLs", () => {
     it("parses warpcast URL with username", () => {
-      const url = `https://warpcast.com/sampleuser/${FULL_HASH}`;
+      const url = `https://warpcast.com/exampleuser/${FULL_HASH}`;
       const result = parseCastInput(url);
       expect(result).toEqual({
         hash: FULL_HASH,
         isFullHash: true,
         url,
-        username: "sampleuser",
+        username: "exampleuser",
       });
     });
 
     it("handles www prefix", () => {
-      const url = `https://www.warpcast.com/sampleuser/${FULL_HASH}`;
+      const url = `https://www.warpcast.com/exampleuser/${FULL_HASH}`;
       const result = parseCastInput(url);
       expect(result?.hash).toBe(FULL_HASH);
-      expect(result?.username).toBe("sampleuser");
+      expect(result?.username).toBe("exampleuser");
     });
   });
 
@@ -158,12 +158,12 @@ describe("parseCastInput", () => {
 
   describe("edge cases", () => {
     it("handles URL with query params (captures base URL)", () => {
-      const baseUrl = `https://farcaster.xyz/sampleuser/${FULL_HASH}`;
+      const baseUrl = `https://farcaster.xyz/exampleuser/${FULL_HASH}`;
       const url = `${baseUrl}?ref=test`;
       const result = parseCastInput(url);
       expect(result?.hash).toBe(FULL_HASH);
       expect(result?.url).toBe(baseUrl);
-      expect(result?.username).toBe("sampleuser");
+      expect(result?.username).toBe("exampleuser");
     });
 
     it("returns null for unrecognized domains", () => {
@@ -186,12 +186,12 @@ describe("extractFullHashFromUrl", () => {
   });
 
   it("extracts full hash from standard URL", () => {
-    const url = `https://farcaster.xyz/sampleuser/${FULL_HASH}`;
+    const url = `https://farcaster.xyz/exampleuser/${FULL_HASH}`;
     expect(extractFullHashFromUrl(url)).toBe(FULL_HASH);
   });
 
   it("returns null for short hash URL", () => {
-    const url = `https://farcaster.xyz/sampleuser/${SHORT_HASH}`;
+    const url = `https://farcaster.xyz/exampleuser/${SHORT_HASH}`;
     expect(extractFullHashFromUrl(url)).toBeNull();
   });
 
@@ -208,9 +208,7 @@ describe("extractUsernameFromCastUrl", () => {
   });
 
   it("extracts username from warpcast.com URL", () => {
-    expect(extractUsernameFromCastUrl(`https://warpcast.com/sampleuser/${FULL_HASH}`)).toBe(
-      "sampleuser"
-    );
+    expect(extractUsernameFromCastUrl(`https://warpcast.com/exampleuser/${FULL_HASH}`)).toBe("exampleuser");
   });
 
   it("returns null for raw hash", () => {

@@ -350,6 +350,7 @@ describe("session auth helpers", () => {
     mockJwtVerify.mockResolvedValue(
       buildJwtResult({
         sub: "user-1",
+        linked_accounts: JSON.stringify([{ type: "wallet", address: walletAddress }]),
       })
     );
 
@@ -412,6 +413,180 @@ describe("session auth helpers", () => {
     });
 
     warnSpy.mockRestore();
+  });
+
+  it("returns undefined and warns when app id is missing", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    delete process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+    mockCookieValue(token);
+
+    const privyToken = await getPrivyIdToken();
+
+    expect(privyToken).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith("[auth] privy token verify failed", {
+      error: "NEXT_PUBLIC_PRIVY_APP_ID is required",
+    });
+
+    warnSpy.mockRestore();
+  });
+
+  it("returns undefined and warns when app id is blank", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    process.env.NEXT_PUBLIC_PRIVY_APP_ID = "   ";
+    mockCookieValue(token);
+
+    const privyToken = await getPrivyIdToken();
+
+    expect(privyToken).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith("[auth] privy token verify failed", {
+      error: "NEXT_PUBLIC_PRIVY_APP_ID is required",
+    });
+
+    warnSpy.mockRestore();
+  });
+
+  it("rejects identity token when multiple wallet accounts are linked", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockCookieValue(token);
+    mockJwtVerify.mockResolvedValue(
+      buildJwtResult({
+        sub: "user-1",
+        linked_accounts: JSON.stringify([
+          { type: "wallet", address: "0x0000000000000000000000000000000000000001" },
+          { type: "wallet", address: "0x0000000000000000000000000000000000000002" },
+          { type: "farcaster", fid: 123, username: "alice" },
+        ]),
+      })
+    );
+
+    const [session, user, linkedIdentity, privyToken] = await Promise.all([
+      getSession(),
+      getUser(),
+      getPrivyLinkedIdentity(),
+      getPrivyIdToken(),
+    ]);
+
+    expect(session).toEqual({});
+    expect(user).toBeUndefined();
+    expect(linkedIdentity).toBeUndefined();
+    expect(privyToken).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[auth] rejecting session with invalid linked wallet accounts"
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("rejects identity token when wallet entries are malformed", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockCookieValue(token);
+    mockJwtVerify.mockResolvedValue(
+      buildJwtResult({
+        sub: "user-1",
+        linked_accounts: JSON.stringify([
+          { type: "wallet", address: walletAddress },
+          { type: "wallet", address: 123 },
+        ]),
+      })
+    );
+
+    const [session, user, linkedIdentity, privyToken] = await Promise.all([
+      getSession(),
+      getUser(),
+      getPrivyLinkedIdentity(),
+      getPrivyIdToken(),
+    ]);
+
+    expect(session).toEqual({});
+    expect(user).toBeUndefined();
+    expect(linkedIdentity).toBeUndefined();
+    expect(privyToken).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[auth] rejecting session with invalid linked wallet accounts"
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("rejects identity token when a malformed wallet accompanies a valid wallet", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockCookieValue(token);
+    mockJwtVerify.mockResolvedValue(
+      buildJwtResult({
+        sub: "user-1",
+        linked_accounts: JSON.stringify([
+          { type: "wallet", address: walletAddress },
+          { type: "wallet" },
+        ]),
+      })
+    );
+
+    const [session, user, linkedIdentity, privyToken] = await Promise.all([
+      getSession(),
+      getUser(),
+      getPrivyLinkedIdentity(),
+      getPrivyIdToken(),
+    ]);
+
+    expect(session).toEqual({});
+    expect(user).toBeUndefined();
+    expect(linkedIdentity).toBeUndefined();
+    expect(privyToken).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[auth] rejecting session with invalid linked wallet accounts"
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("rejects identity token when wallet address is not a valid hex address", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockCookieValue(token);
+    mockJwtVerify.mockResolvedValue(
+      buildJwtResult({
+        sub: "user-1",
+        linked_accounts: JSON.stringify([{ type: "wallet", address: "not-an-address" }]),
+      })
+    );
+
+    const [session, user, linkedIdentity, privyToken] = await Promise.all([
+      getSession(),
+      getUser(),
+      getPrivyLinkedIdentity(),
+      getPrivyIdToken(),
+    ]);
+
+    expect(session).toEqual({});
+    expect(user).toBeUndefined();
+    expect(linkedIdentity).toBeUndefined();
+    expect(privyToken).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[auth] rejecting session with invalid linked wallet accounts"
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("rejects identity token when linked accounts payload contains malformed entries", async () => {
+    mockCookieValue(token);
+    mockJwtVerify.mockResolvedValue(
+      buildJwtResult({
+        sub: "user-1",
+        linked_accounts: JSON.stringify([null, { type: "wallet", address: walletAddress }]),
+      })
+    );
+
+    const [session, user, linkedIdentity, privyToken] = await Promise.all([
+      getSession(),
+      getUser(),
+      getPrivyLinkedIdentity(),
+      getPrivyIdToken(),
+    ]);
+
+    expect(session).toEqual({});
+    expect(user).toBeUndefined();
+    expect(linkedIdentity).toBeUndefined();
+    expect(privyToken).toBeUndefined();
   });
 
   it("formats non-Error verification failures in warning logs", async () => {

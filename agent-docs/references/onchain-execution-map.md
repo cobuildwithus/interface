@@ -30,6 +30,7 @@
 
 - Client reads: wagmi/viem hooks and quote helpers.
 - Server cached reads: revnet/project stats/ETH price helpers.
+- Server writes (build-bot API): `app/api/buildbot/exec/route.ts` via CDP smart-account user operations (`transfer` / `sendUserOperation` + `waitForUserOperation`), currently scoped to `base` and `base-sepolia`.
 
 ## Auth and Wallet Gating
 

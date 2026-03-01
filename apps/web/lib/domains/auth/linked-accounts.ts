@@ -46,31 +46,47 @@ type ParsedLinkedAccounts = {
   twitter?: TwitterLinkedAccount;
 };
 
+function hasAccountType(value: unknown): value is { type: string } {
+  if (typeof value !== "object" || value === null || !("type" in value)) {
+    return false;
+  }
+  return typeof (value as { type: unknown }).type === "string";
+}
+
 export function isWalletAccount(a: LinkedAccount): a is WalletAccount {
-  return a.type === "wallet" && typeof (a as WalletAccount).address === "string";
+  return (
+    hasAccountType(a) && a.type === "wallet" && "address" in a && typeof a.address === "string"
+  );
 }
 
 export function isFarcasterAccount(a: LinkedAccount): a is FarcasterLinkedAccount {
-  return a.type === "farcaster" && typeof (a as FarcasterLinkedAccount).fid === "number";
+  return hasAccountType(a) && a.type === "farcaster" && "fid" in a && typeof a.fid === "number";
 }
 
 export function isTwitterAccount(a: LinkedAccount): a is TwitterLinkedAccount {
-  return a.type === "twitter_oauth";
+  return hasAccountType(a) && a.type === "twitter_oauth";
 }
 
 export function parseLinkedAccountsJson(json: string): LinkedAccount[] | undefined {
   try {
     const parsed = JSON.parse(json);
     if (!Array.isArray(parsed)) return undefined;
+    if (!parsed.every(hasAccountType)) return undefined;
     return parsed as LinkedAccount[];
   } catch {
     return undefined;
   }
 }
 
+export function countWalletAccounts(accounts: LinkedAccount[]): number {
+  return accounts.filter((account) => hasAccountType(account) && account.type === "wallet").length;
+}
+
 export function extractAccounts(accounts: LinkedAccount[]): ParsedLinkedAccounts {
+  const wallet = countWalletAccounts(accounts) === 1 ? accounts.find(isWalletAccount) : undefined;
+
   return {
-    wallet: accounts.find(isWalletAccount),
+    wallet,
     farcaster: accounts.find(isFarcasterAccount),
     twitter: accounts.find(isTwitterAccount),
   };

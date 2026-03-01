@@ -12,6 +12,8 @@ import {
   type FarcasterAccount,
   type TwitterAccount,
   type LinkedAccount,
+  countWalletAccounts,
+  isWalletAccount,
   parseLinkedAccountsJson,
   extractAccounts,
   toFarcasterAccount,
@@ -36,6 +38,14 @@ async function getVerificationKey() {
   return cachedKey;
 }
 
+function getPrivyAppId(): string {
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
+  if (!appId) {
+    throw new Error("NEXT_PUBLIC_PRIVY_APP_ID is required");
+  }
+  return appId;
+}
+
 async function verifyIdentityToken(): Promise<{ token: string; payload: jose.JWTPayload } | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get("privy-id-token")?.value;
@@ -45,7 +55,7 @@ async function verifyIdentityToken(): Promise<{ token: string; payload: jose.JWT
     const verificationKey = await getVerificationKey();
     const { payload } = await jose.jwtVerify(token, verificationKey, {
       issuer: "privy.io",
-      audience: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+      audience: getPrivyAppId(),
     });
 
     if (!payload?.sub) {
@@ -61,18 +71,41 @@ async function verifyIdentityToken(): Promise<{ token: string; payload: jose.JWT
   }
 }
 
-async function parseIdentityToken(): Promise<LinkedAccount[] | undefined> {
+async function parseIdentityToken(): Promise<{
+  token: string;
+  linkedAccounts: LinkedAccount[];
+} | null> {
   const verified = await verifyIdentityToken();
   if (!verified || typeof verified.payload.linked_accounts !== "string") {
-    return undefined;
+    return null;
+  }
+  const linkedAccounts = parseLinkedAccountsJson(verified.payload.linked_accounts);
+  if (!linkedAccounts) {
+    return null;
   }
 
-  return parseLinkedAccountsJson(verified.payload.linked_accounts);
+  const walletEntryCount = countWalletAccounts(linkedAccounts);
+  const validWalletAccounts = linkedAccounts.filter(isWalletAccount);
+  const validWalletCount = validWalletAccounts.length;
+  if (walletEntryCount > 1 || validWalletCount !== walletEntryCount) {
+    console.warn("[auth] rejecting session with invalid linked wallet accounts");
+    return null;
+  }
+  for (const walletAccount of validWalletAccounts) {
+    try {
+      normalizeAddress(walletAccount.address);
+    } catch {
+      console.warn("[auth] rejecting session with invalid linked wallet accounts");
+      return null;
+    }
+  }
+
+  return { token: verified.token, linkedAccounts };
 }
 
 export async function getPrivyIdToken(): Promise<string | undefined> {
-  const verified = await verifyIdentityToken();
-  return verified?.token;
+  const parsed = await parseIdentityToken();
+  return parsed?.token;
 }
 
 export async function getPrivyLinkedIdentity(): Promise<
@@ -88,9 +121,9 @@ export async function getPrivyLinkedIdentity(): Promise<
     }
   | undefined
 > {
-  const linkedAccounts = await parseIdentityToken();
-  if (!linkedAccounts) return undefined;
-  const { wallet, farcaster, twitter } = extractAccounts(linkedAccounts);
+  const parsed = await parseIdentityToken();
+  if (!parsed) return undefined;
+  const { wallet, farcaster, twitter } = extractAccounts(parsed.linkedAccounts);
   return {
     wallet: wallet?.address ? { address: wallet.address } : undefined,
     farcaster: farcaster
@@ -123,10 +156,10 @@ type Session = {
  * Parses the JWT once and returns address + linked accounts.
  */
 export async function getSession(): Promise<Session> {
-  const linkedAccounts = await parseIdentityToken();
-  if (!linkedAccounts) return {};
+  const parsed = await parseIdentityToken();
+  if (!parsed) return {};
 
-  const { wallet, farcaster: privyFarcaster, twitter } = extractAccounts(linkedAccounts);
+  const { wallet, farcaster: privyFarcaster, twitter } = extractAccounts(parsed.linkedAccounts);
 
   const address = wallet?.address ? normalizeAddress(wallet.address) : undefined;
 
@@ -158,10 +191,10 @@ export async function getSession(): Promise<Session> {
  * Only parses the JWT - no DB queries.
  */
 export async function getUser(): Promise<`0x${string}` | undefined> {
-  const linkedAccounts = await parseIdentityToken();
-  if (!linkedAccounts) return undefined;
+  const parsed = await parseIdentityToken();
+  if (!parsed) return undefined;
 
-  const { wallet } = extractAccounts(linkedAccounts);
+  const { wallet } = extractAccounts(parsed.linkedAccounts);
   if (!wallet?.address) return undefined;
 
   return normalizeAddress(wallet.address);

@@ -11,6 +11,8 @@
 - `apps/web/lib/server/db/cobuild-db-client.ts`
 - `apps/web/lib/server/kv/kv-store.ts`
 - `apps/web/lib/server/kv/encryption.ts`
+- `apps/web/lib/server/build-bot/token-store.ts`
+- `apps/web/lib/server/build-bot/wallet-store.ts`
 - `apps/web/lib/domains/goals/action-card-read.ts`
 - `apps/web/lib/domains/token/onchain/revnet-data.ts`
 - `apps/web/lib/domains/token/onchain/project-stats.ts`
@@ -29,6 +31,11 @@ Examples:
 - revnet data cache: `lib/domains/token/onchain/revnet-data.ts`
 - project stats cache: `lib/domains/token/onchain/project-stats.ts`
 - ETH price fallback cache: `lib/domains/token/onchain/eth-price.ts`
+
+Build-bot note:
+
+- Build-bot token/wallet/tx-log reads and writes are DB-backed only (no cache layer), with bearer-token auth state persisted via hashed token rows.
+- `build_bot_tx_logs` also stores optional idempotency keys and enforces uniqueness on `(ownerAddress, agentKey, idempotencyKey)` for replay-safe exec calls.
 
 ## Consistency Guidance
 

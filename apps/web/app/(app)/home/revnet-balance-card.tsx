@@ -3,7 +3,7 @@ import { RevnetActionButtons } from "./revnet-actions-client";
 import { RevnetBalanceRow } from "./revnet-balance-row";
 
 type RevnetBalanceCardProps = {
-  isConnected: boolean;
+  isAuthenticated: boolean;
   tokenSymbol: string;
   baseTokenSymbol: string;
   tokenLogoUrl: string | null;
@@ -12,22 +12,22 @@ type RevnetBalanceCardProps = {
 };
 
 export function RevnetBalanceCard({
-  isConnected,
+  isAuthenticated,
   tokenSymbol,
   baseTokenSymbol,
   tokenLogoUrl,
   balanceAmount,
   cashOutAmount,
 }: RevnetBalanceCardProps) {
-  const balanceValue = isConnected ? (
+  const balanceValue = isAuthenticated ? (
     <>
       <Currency value={balanceAmount ?? Number.NaN} kind="token" /> {tokenSymbol}
     </>
   ) : (
-    "Connect wallet"
+    "--"
   );
 
-  const cashOutValue = isConnected ? (
+  const cashOutValue = isAuthenticated ? (
     <>
       <Currency value={cashOutAmount ?? Number.NaN} kind="token" /> {baseTokenSymbol}
     </>
@@ -42,7 +42,7 @@ export function RevnetBalanceCard({
         <RevnetBalanceRow label="Floor value" value={cashOutValue} />
       </div>
 
-      <RevnetActionButtons tokenLogoUrl={tokenLogoUrl} />
+      <RevnetActionButtons tokenLogoUrl={tokenLogoUrl} isAuthenticated={isAuthenticated} />
     </div>
   );
 }

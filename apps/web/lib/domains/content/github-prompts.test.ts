@@ -81,8 +81,7 @@ describe("getCobuildPromptContent", () => {
     const { fetchGithubPromptFiles } = await import("@/lib/integrations/github/prompts");
     const { getCobuildPromptContent, COBUILD_PROMPT_FILE_MAP } =
       await import("@/lib/domains/content/github-prompts");
-    const { manifesto, billOfRights, charter, systemPrompt } =
-      await import("@/lib/domains/content/content");
+    const { billOfRights, charter, systemPrompt } = await import("@/lib/domains/content/content");
 
     (fetchGithubPromptFiles as ReturnType<typeof vi.fn>).mockResolvedValue({
       files: [{ name: COBUILD_PROMPT_FILE_MAP.manifesto, path: "x/manifesto.ts", content: "GH" }],

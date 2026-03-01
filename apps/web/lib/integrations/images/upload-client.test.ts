@@ -76,6 +76,16 @@ describe("validateImageFile", () => {
     });
   });
 
+  it("rejects svg uploads", () => {
+    const file = new File(["<svg/>"], "vector.svg", { type: "image/svg+xml" });
+
+    expect(validateImageFile(file)).toEqual({
+      ok: false,
+      code: "file-invalid-type",
+      message: "Unsupported file type.",
+    });
+  });
+
   it("rejects files that exceed the size limit", () => {
     const file = new File([new Uint8Array(MAX_IMAGE_SIZE_BYTES + 1)], "big.png", {
       type: ACCEPTED_IMAGE_TYPES[0],

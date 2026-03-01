@@ -140,4 +140,35 @@ describe("useLogin", () => {
 
     expect(result.current.error).toBe("Failed to connect wallet");
   });
+
+  it("uses fresh login flow instead of wallet linking when already authenticated", async () => {
+    usePrivyMock.mockReturnValue({ ready: true, authenticated: true });
+
+    const { result } = renderHook(() => useLogin());
+
+    await act(async () => {
+      result.current.connectWallet();
+      await flushPromises();
+    });
+
+    expect(privyConnectWalletMock).not.toHaveBeenCalled();
+    expect(privyLogoutMock).toHaveBeenCalled();
+    expect(privyLoginMock).toHaveBeenCalled();
+  });
+
+  it("surfaces logout errors when authenticated connectWallet forces relogin", async () => {
+    usePrivyMock.mockReturnValue({ ready: true, authenticated: true });
+    privyLogoutMock.mockRejectedValue(new Error("logout failed"));
+
+    const { result } = renderHook(() => useLogin());
+
+    await act(async () => {
+      result.current.connectWallet();
+      await flushPromises();
+    });
+
+    expect(privyConnectWalletMock).not.toHaveBeenCalled();
+    expect(privyLoginMock).not.toHaveBeenCalled();
+    expect(result.current.error).toBe("logout failed");
+  });
 });

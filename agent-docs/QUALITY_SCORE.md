@@ -1,6 +1,6 @@
 # Quality Score
 
-Snapshot date: 2026-02-23
+Snapshot date: 2026-02-26
 
 Scoring rubric:
 
@@ -19,7 +19,7 @@ Scoring rubric:
 | Server data + cache consistency              | 3           | Prisma read-replica extension + KV patterns in place.                                                                   | Expand explicit primary-safe guidance where read-after-write matters.        |
 | API route boundary quality                   | 3           | Route validation/normalization is present in key handlers.                                                              | Add/standardize response envelope contracts and redaction guidance.          |
 | Test and CI posture                          | 4           | Lint/typecheck/tests/build in CI plus coverage artifact workflow.                                                       | Add explicit coverage threshold gate if needed.                              |
-| Agent docs enforcement                       | 5           | Drift checks now enforce non-generated docs-or-active-plan coupling, plus completion-prompt and boundary-map artifacts. | Keep required artifact list aligned with future architecture docs additions. |
+| Agent docs enforcement                       | 5           | Drift checks enforce non-generated docs-or-active-plan coupling; local pre-commit now auto-generates/stages doc-gardening artifacts. | Keep required artifact list and hook behavior aligned with future doc workflow changes. |
 
 ## Top Risk Register
 

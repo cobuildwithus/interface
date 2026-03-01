@@ -1,13 +1,14 @@
 import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
 import { formatUsd, RAISE_1M_GOAL, RAISE_1M_RAISED } from "@/lib/domains/goals/raise-1m";
+import { resolveBaseUrl } from "@/lib/server/resolve-base-url";
 
 const CANVAS_WIDTH = 1200;
 const CANVAS_HEIGHT = 800;
 
 export async function GET(req: NextRequest) {
-  const { origin } = new URL(req.url);
-  const logoUrl = `${origin}/logo-light.svg`;
+  const baseUrl = resolveBaseUrl(req.headers);
+  const logoUrl = `${baseUrl}/logo-light.svg`;
 
   const progress = Math.min(1, RAISE_1M_RAISED / RAISE_1M_GOAL);
   const percent = Math.round(progress * 1000) / 10;

@@ -32,6 +32,9 @@ The database is multi‑schema Postgres with Prisma mapping across:
 - `DonorAllocationRule`: per‑donor allocation logic (selection + distribution).
 - `FunderRanking`, `Cobuild`: aggregated project stats.
 - `UserDisallowedTokenCategory`: token category exclusions per user.
+- `BuildBotCliToken`: hashed PAT records for build-bot CLI access, scoped by owner + agent key.
+- `BuildBotAgentWallet`: CDP account mapping keyed by `(ownerAddress, agentKey)`.
+- `BuildBotTxLog`: audit log for build-bot transfer/tx submissions, including optional idempotency keys for replay-safe exec requests.
 
 ### cobuild-onchain (indexed onchain events)
 

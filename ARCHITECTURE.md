@@ -49,6 +49,9 @@ Representative handlers:
 - `apps/web/app/api/cobuild/ai-context/route.ts`
 - `apps/web/app/api/cast/[hash]/view/route.ts`
 - `apps/web/app/api/images/upload/route.ts`
+- `apps/web/app/api/buildbot/{token,wallet,exec}/route.ts`
+- `apps/web/app/api/docs/search/route.ts`
+- `apps/web/app/api/buildbot/tools/{get-user,get-cast,cast-preview,cobuild-ai-context}/route.ts`
 
 ## Layering Model
 

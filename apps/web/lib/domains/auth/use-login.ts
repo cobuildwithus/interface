@@ -78,13 +78,17 @@ export function useLogin() {
   }, [privyLogout, privyLogin]);
 
   const connectWallet = useCallback(() => {
+    if (authenticated) {
+      void switchWallet();
+      return;
+    }
     setError(null);
     try {
       privyConnectWallet();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect wallet");
     }
-  }, [privyConnectWallet]);
+  }, [authenticated, privyConnectWallet, switchWallet]);
 
   const clearError = useCallback(() => setError(null), []);
 

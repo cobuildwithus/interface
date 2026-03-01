@@ -25,3 +25,4 @@ This file contains web-app-specific overlays for the root `AGENTS.md`.
 - Addresses are canonical lowercase; avoid SQL `lower(...)`/`upper(...)` in address joins/filters.
 - If shared UI architecture changes, update `agent-docs/cobuild-ui-architecture.md` and `agent-docs/cobuild-ui-components.md`.
 - Never access `.env` or `.env*` files.
+- Use a hard cutover approach and never implement backward compatibility unless explicitly asked.

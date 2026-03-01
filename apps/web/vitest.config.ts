@@ -18,10 +18,9 @@ export default defineConfig({
       ],
       exclude: ["**/generated/**", "**/*.d.ts", "**/*.test.{ts,tsx}", "**/*types.ts"],
       thresholds: {
-        perFile: true,
-        lines: 85,
+        lines: 90,
         functions: 85,
-        branches: 80,
+        branches: 85,
         statements: 85,
       },
     },

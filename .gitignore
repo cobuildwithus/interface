@@ -49,6 +49,8 @@ next-env.d.ts
 
 # prisma generated (apps/web/generated). Run `pnpm --filter web db:generate`.
 generated
+!agent-docs/generated/
+!agent-docs/generated/*.md
 
 # local AI/agent tooling
 .agents/

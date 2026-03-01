@@ -22,6 +22,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check agent docs drift
+        run: bash scripts/check-agent-docs-drift.sh
+
+      - name: Check doc gardening
+        run: bash scripts/doc-gardening.sh --fail-on-issues
+
       - uses: actions/setup-node@v6
         with:
           node-version: 20

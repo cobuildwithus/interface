@@ -8,6 +8,7 @@ const DEFAULT_REPO = "cobuildwithus/chat-api";
 const DEFAULT_BRANCH = "main";
 const DEFAULT_DIRECTORY = "src/ai/prompts";
 const DEFAULT_FILES = ["about.ts", "manifesto.ts", "bill-of-rights.ts", "goal.ts"] as const;
+const COMMIT_SHA_REGEX = /^[a-f0-9]{40}$/i;
 
 export type GithubPromptFile = {
   name: string;
@@ -100,7 +101,7 @@ function buildGithubHeaders(token?: string | null): HeadersInit {
   return headers;
 }
 
-function getErrorMessage(error: import("@/lib/shared/errors").ErrorLike): string {
+function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   if (error && typeof error === "object" && "message" in error) {
@@ -277,8 +278,13 @@ async function fetchPromptFile({
 export async function fetchGithubPromptFiles(
   options: GithubPromptFetchOptions = {}
 ): Promise<GithubPromptFetchResult> {
+  const fail = (error: string): GithubPromptFetchResult => ({
+    files: [],
+    errors: [{ file: "*", error }],
+  });
+
   const repoSlug = options.repo ?? process.env.GITHUB_PROMPTS_REPO ?? DEFAULT_REPO;
-  const branch = options.branch ?? process.env.GITHUB_PROMPTS_BRANCH ?? DEFAULT_BRANCH;
+  const branch = (options.branch ?? process.env.GITHUB_PROMPTS_BRANCH ?? DEFAULT_BRANCH).trim();
   const directory = options.directory ?? process.env.GITHUB_PROMPTS_DIRECTORY ?? DEFAULT_DIRECTORY;
   const files = options.files ?? Array.from(DEFAULT_FILES);
   const token = options.token ?? process.env.GITHUB_PROMPTS_TOKEN ?? null;
@@ -297,10 +303,21 @@ export async function fetchGithubPromptFiles(
   const fetcher = options.fetcher ?? fetch;
 
   if (files.length === 0) {
-    return { files: [], errors: [{ file: "*", error: "No files specified" }] };
+    return fail("No files specified");
+  }
+  if (branch.length === 0) {
+    return fail("No git ref specified");
+  }
+  if (process.env.NODE_ENV === "production" && !COMMIT_SHA_REGEX.test(branch)) {
+    return fail("Production requires GITHUB_PROMPTS_BRANCH to be a full commit SHA");
   }
 
-  const repo = parseRepoSlug(repoSlug);
+  let repo: GithubRepoRef;
+  try {
+    repo = parseRepoSlug(repoSlug);
+  } catch (error) {
+    return fail(getErrorMessage(error));
+  }
 
   const results = await Promise.allSettled(
     files.map((file) =>

@@ -20,8 +20,7 @@ import {
 const NORMALIZE_OPTIONS = { allowUnknown: true, unknownCase: "preserve" } as const;
 
 export async function getSubmissionsByRoundWithAiOutputs(
-  roundId: string,
-  ruleId: number
+  roundId: string
 ): Promise<RoundSubmissionsResult> {
   const roundIdBigInt = parseRoundId(roundId);
   if (!roundIdBigInt) return { submissions: [], roundEntityIds: [] };

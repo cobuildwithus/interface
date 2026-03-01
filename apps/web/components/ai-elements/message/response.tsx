@@ -46,6 +46,7 @@ export const MessageResponse = memo(
         const handleClick = () =>
           imageDialog.openImage(images.length > 0 ? images : [src], imageIndex);
         return (
+          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             alt={alt ?? ""}
             src={src}

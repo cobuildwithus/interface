@@ -1,6 +1,3 @@
-#!/bin/sh
-set -e
-
-bash scripts/doc-gardening.sh
-
+bash scripts/doc-gardening.sh --fail-on-issues
+git add agent-docs/generated/doc-inventory.md agent-docs/generated/doc-gardening-report.md
 pnpm exec lint-staged

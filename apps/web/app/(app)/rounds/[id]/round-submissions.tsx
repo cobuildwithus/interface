@@ -19,7 +19,7 @@ export async function RoundSubmissions({
   userAddress,
   variant,
 }: RoundSubmissionsProps) {
-  const { submissions, roundEntityIds } = await getSubmissionsByRoundWithAiOutputs(roundId, ruleId);
+  const { submissions, roundEntityIds } = await getSubmissionsByRoundWithAiOutputs(roundId);
 
   if (submissions.length === 0) {
     return (

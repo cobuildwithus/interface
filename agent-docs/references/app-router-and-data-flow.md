@@ -38,6 +38,8 @@ Representative route responsibilities:
 - app AI context snapshot: `app/api/cobuild/ai-context/route.ts`
 - cast view anti-abuse + counters: `app/api/cast/[hash]/view/route.ts`
 - image uploads: `app/api/images/upload/route.ts`
+- build-bot PAT + wallet execution surface: `app/api/buildbot/{token,wallet,exec}/route.ts`
+- build-bot CLI tools/docs gateway surface: `app/api/docs/search/route.ts`, `app/api/buildbot/tools/{get-user,get-cast,cast-preview,cobuild-ai-context}/route.ts`
 
 ## Critical Invariants
 

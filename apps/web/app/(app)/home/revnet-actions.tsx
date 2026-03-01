@@ -20,7 +20,7 @@ function normalizeSymbol(symbol?: string | null) {
 
 export async function RevnetActions() {
   const summary = await getRevnetSummary();
-  const isConnected = !!summary.address;
+  const isAuthenticated = !!summary.address;
   const tokenSymbol = normalizeSymbol(summary.tokenSymbol) || "Token";
   const baseTokenSymbol = normalizeSymbol(summary.baseTokenSymbol) || "Token";
   const tokenLogoUrl = summary.tokenLogoUrl ?? null;
@@ -30,7 +30,7 @@ export async function RevnetActions() {
 
   return (
     <RevnetBalanceCard
-      isConnected={isConnected}
+      isAuthenticated={isAuthenticated}
       tokenSymbol={tokenSymbol}
       baseTokenSymbol={baseTokenSymbol}
       tokenLogoUrl={tokenLogoUrl}

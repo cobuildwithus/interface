@@ -32,6 +32,7 @@ export function PostAttachmentsGrid({
               className="block w-full cursor-zoom-in"
               aria-label={`Preview attached image ${index + 1}`}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={previewSrc}
                 alt={`Attached image ${index + 1} preview`}

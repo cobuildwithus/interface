@@ -42,11 +42,11 @@ describe("parsePostInput", () => {
 
     it("detects Farcaster URLs with full hash and username", () => {
       const hash = `0x${"a".repeat(40)}`;
-      const parsed = parsePostInput(`https://farcaster.xyz/sampleuser/${hash}`);
+      const parsed = parsePostInput(`https://farcaster.xyz/exampleuser/${hash}`);
       expect(parsed?.platform).toBe("farcaster");
       expect(parsed?.candidate.kind).toBe("ready");
       if (parsed?.candidate.kind === "ready") {
-        expect(parsed.candidate.username).toBe("sampleuser");
+        expect(parsed.candidate.username).toBe("exampleuser");
       }
     });
 

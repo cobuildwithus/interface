@@ -1037,7 +1037,6 @@ describe("farcaster casts", () => {
 
   it("uses root focus hash for pagination", async () => {
     const rootHash = `0x${"a".repeat(40)}`;
-    const replyHash = `0x${"b".repeat(40)}`;
     const rootRow = {
       ...baseThreadRow,
       hash: Buffer.from("a".repeat(40), "hex"),

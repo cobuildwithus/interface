@@ -128,6 +128,7 @@ export const QueueItemAttachment = ({ className, ...props }: QueueItemAttachment
 export type QueueItemImageProps = ComponentProps<"img">;
 
 export const QueueItemImage = ({ className, ...props }: QueueItemImageProps) => (
+  /* eslint-disable-next-line @next/next/no-img-element */
   <img
     alt=""
     className={cn("h-8 w-8 rounded border object-cover", className)}

@@ -26,6 +26,10 @@ describe("isWalletAccount", () => {
   it("returns false for non-string address", () => {
     expect(isWalletAccount({ type: "wallet", address: 123 } as LinkedAccount)).toBe(false);
   });
+
+  it("returns false for null value", () => {
+    expect(isWalletAccount(null as unknown as LinkedAccount)).toBe(false);
+  });
 });
 
 describe("isFarcasterAccount", () => {
@@ -110,6 +114,10 @@ describe("parseLinkedAccountsJson", () => {
   it("handles empty array", () => {
     expect(parseLinkedAccountsJson("[]")).toEqual([]);
   });
+
+  it("returns undefined when an element is malformed", () => {
+    expect(parseLinkedAccountsJson('[{"type":"wallet","address":"0x123"},null]')).toBeUndefined();
+  });
 });
 
 describe("extractAccounts", () => {
@@ -145,13 +153,13 @@ describe("extractAccounts", () => {
     expect(result.twitter?.username).toBe("alice");
   });
 
-  it("returns first of each type when duplicates exist", () => {
+  it("returns undefined wallet when multiple wallet accounts exist", () => {
     const accounts: LinkedAccount[] = [
       { type: "wallet", address: "0x111" },
       { type: "wallet", address: "0x222" },
     ];
     const result = extractAccounts(accounts);
-    expect(result.wallet?.address).toBe("0x111");
+    expect(result.wallet).toBeUndefined();
   });
 
   it("returns empty object for empty array", () => {

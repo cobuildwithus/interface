@@ -33,11 +33,15 @@
 
 - Treat user as unauthenticated and require login.
 
-2. Connected wallet changes mid-session:
+2. Multiple linked wallets in the auth token:
+
+- Reject the session as unauthenticated (fail closed; multi-wallet sessions are unsupported).
+
+3. Connected wallet changes mid-session:
 
 - Trigger logout/re-auth via `WalletIdentityGuard`.
 
-3. Auth-required action bypasses auth guard:
+4. Auth-required action bypasses auth guard:
 
 - Route all user-triggered privileged actions through `AuthButton` and auth-click hooks.
 
@@ -45,6 +49,13 @@
 
 - Linked account state types/parsing: `lib/domains/auth/linked-accounts/**`.
 - API surface for linked accounts: `app/api/linked-accounts/route.ts`.
+
+## Build-bot Token Model
+
+- Build-bot API PAT mint/revoke is session-authenticated (`app/api/buildbot/token/route.ts`).
+- Build-bot bearer auth resolves to `{ ownerAddress, agentKey }`; wallet/exec routes derive `agentKey` from PAT auth context rather than request bodies.
+- Wallet provisioning is keyed by `(ownerAddress, agentKey)` and currently defaults PAT `agentKey` to `"default"` for MVP.
+- Build-bot CLI docs/tools routes (`app/api/docs/search/route.ts`, `app/api/buildbot/tools/**`) are PAT-authenticated and proxied through interface -> chat-api server calls so `x-chat-internal-key` stays server-only.
 
 ## Risk Points
 

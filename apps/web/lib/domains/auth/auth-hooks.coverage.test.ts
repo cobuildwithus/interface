@@ -122,6 +122,21 @@ describe("useLogin", () => {
     expect(result.current.error).toBe("Failed to connect");
   });
 
+  it("routes authenticated connectWallet through logout+login", async () => {
+    usePrivyMock.mockReturnValue({ ready: true, authenticated: true });
+
+    const { result } = renderHook(() => useLogin());
+
+    await act(async () => {
+      result.current.connectWallet();
+      await flushPromises();
+    });
+
+    expect(privyConnectWalletMock).not.toHaveBeenCalled();
+    expect(privyLogoutMock).toHaveBeenCalled();
+    expect(privyLoginMock).toHaveBeenCalled();
+  });
+
   it("switchWallet logs out before triggering login", async () => {
     privyLogoutMock.mockResolvedValue(undefined);
 

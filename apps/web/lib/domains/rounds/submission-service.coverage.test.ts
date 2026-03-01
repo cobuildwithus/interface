@@ -38,7 +38,7 @@ describe("submission service", () => {
   });
 
   it("returns empty for invalid round", async () => {
-    const result = await getSubmissionsByRoundWithAiOutputs("bad", 1);
+    const result = await getSubmissionsByRoundWithAiOutputs("bad");
     expect(result).toEqual({ submissions: [], roundEntityIds: [] });
   });
 
@@ -84,7 +84,7 @@ describe("submission service", () => {
       },
     ]);
 
-    const result = await getSubmissionsByRoundWithAiOutputs("1", 1);
+    const result = await getSubmissionsByRoundWithAiOutputs("1");
     expect(result.submissions).toHaveLength(2);
     expect(result.roundEntityIds).toHaveLength(2);
   });

@@ -3,13 +3,13 @@ import type { NextConfig } from "next";
 /**
  * Content Security Policy
  *
- * Why unsafe-eval and unsafe-inline are needed:
- * - unsafe-eval: Required by Turbopack during development for HMR
+ * Why unsafe-inline is needed:
  * - unsafe-inline: Required by Privy auth modal and Next.js hydration scripts
  *
- * Production consideration: Consider using nonces for stricter CSP if needed.
+ * Why unsafe-eval is development-only:
+ * - Required by Turbopack during development for HMR
  */
-const chatApiOrigin = (() => {
+const resolveChatApiOrigin = () => {
   const value = process.env.NEXT_PUBLIC_CHAT_API_URL;
   if (!value) return null;
   try {
@@ -17,49 +17,66 @@ const chatApiOrigin = (() => {
   } catch {
     return null;
   }
-})();
+};
 
-const connectSrc = [
-  "'self'",
-  "https://co.build",
-  "https://docs.co.build",
-  "https://*.vercel.app",
-  "https://*.vercel-insights.com",
-  "https://vitals.vercel-insights.com",
-  "https://auth.privy.io",
-  "wss://relay.walletconnect.com",
-  "wss://relay.walletconnect.org",
-  "wss://www.walletlink.org",
-  "https://*.rpc.privy.systems",
-  "https://explorer-api.walletconnect.com",
-  "https://*.g.alchemy.com",
-  "wss://*.g.alchemy.com",
-  "https://chat-api.co.build",
-  "http://localhost:4000",
-  "http://127.0.0.1:4000",
-  chatApiOrigin,
-]
-  .filter(Boolean)
-  .join(" ");
+const buildConnectSrc = () =>
+  [
+    "'self'",
+    "https://co.build",
+    "https://docs.co.build",
+    "https://*.vercel.app",
+    "https://*.vercel-insights.com",
+    "https://vitals.vercel-insights.com",
+    "https://auth.privy.io",
+    "wss://relay.walletconnect.com",
+    "wss://relay.walletconnect.org",
+    "wss://www.walletlink.org",
+    "https://*.rpc.privy.systems",
+    "https://explorer-api.walletconnect.com",
+    "https://*.g.alchemy.com",
+    "wss://*.g.alchemy.com",
+    "https://chat-api.co.build",
+    // Build Bot setup uses a one-time localhost callback listener on an ephemeral port.
+    "http://localhost:*",
+    "http://127.0.0.1:*",
+    "http://[::1]:*",
+    resolveChatApiOrigin(),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" ");
 
-const cspHeader = `
-  default-src 'self';
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://challenges.cloudflare.com https://va.vercel-scripts.com;
-  style-src 'self' 'unsafe-inline';
-  img-src 'self' data: blob: https:;
-  font-src 'self';
-  object-src 'none';
-  base-uri 'self';
-  form-action 'self';
-  frame-ancestors 'self' https://auth.privy.io;
-  child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org;
-  frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com;
-  connect-src ${connectSrc};
-  worker-src 'self' blob:;
-  manifest-src 'self';
-`
-  .replace(/\s{2,}/g, " ")
-  .trim();
+type CspOptions = {
+  nodeEnv?: string;
+};
+
+export const buildContentSecurityPolicy = ({ nodeEnv = process.env.NODE_ENV }: CspOptions = {}) => {
+  const scriptSrc = [
+    "'self'",
+    "'unsafe-inline'",
+    ...(nodeEnv === "development" ? ["'unsafe-eval'"] : []),
+    "https://challenges.cloudflare.com",
+    "https://va.vercel-scripts.com",
+  ].join(" ");
+
+  return `
+    default-src 'self';
+    script-src ${scriptSrc};
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: blob: https:;
+    font-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+    frame-ancestors 'self' https://auth.privy.io;
+    child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org;
+    frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com;
+    connect-src ${buildConnectSrc()};
+    worker-src 'self' blob:;
+    manifest-src 'self';
+  `
+    .replace(/\s{2,}/g, " ")
+    .trim();
+};
 
 const nextConfig: NextConfig = {
   cacheComponents: false,
@@ -101,7 +118,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: cspHeader,
+            value: buildContentSecurityPolicy(),
           },
           {
             key: "X-Frame-Options",

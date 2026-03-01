@@ -36,6 +36,8 @@
 - `app/api/onramp-status/route.ts`
 - `app/api/images/upload/route.ts`
 - `app/api/cast/[hash]/view/route.ts`
+- `app/api/docs/search/route.ts`
+- `app/api/buildbot/tools/**/route.ts`
 - `lib/domains/auth/session.ts`
 - `lib/server/kv/encryption.ts`
 
@@ -45,6 +47,8 @@
 - Avoid logging secrets or raw auth headers.
 - Keep signed-token checks and same-origin constraints for sensitive counters/views.
 - Keep encrypted storage keys validated and size-checked.
+- Reject ambiguous auth identities (for example, sessions with multiple linked wallets).
+- In production, require immutable Git refs for runtime-fetched external prompt content.
 
 ## Current Watchlist
 

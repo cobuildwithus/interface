@@ -6,7 +6,6 @@ cd "$ROOT_DIR"
 
 INDEX_FILE="agent-docs/index.md"
 GENERATED_DIR="agent-docs/generated"
-README_FILE="$GENERATED_DIR/README.md"
 INVENTORY_FILE="$GENERATED_DIR/doc-inventory.md"
 REPORT_FILE="$GENERATED_DIR/doc-gardening-report.md"
 
@@ -22,22 +21,9 @@ fi
 
 mkdir -p "$GENERATED_DIR"
 
-if [[ ! -f "$README_FILE" ]]; then
-  cat > "$README_FILE" <<'EOF'
-# Generated Agent Docs Artifacts
-
-This directory contains generated outputs from `scripts/doc-gardening.sh`.
-
-Current generated files:
-- `agent-docs/generated/doc-inventory.md`
-- `agent-docs/generated/doc-gardening-report.md`
-EOF
-fi
-
 tracked_docs="$({
   find agent-docs -type f -name '*.md' \
     ! -path 'agent-docs/index.md' \
-    ! -path 'agent-docs/generated/README.md' \
     ! -path 'agent-docs/generated/doc-inventory.md' \
     ! -path 'agent-docs/generated/doc-gardening-report.md'
   find agent-docs/references -type f -name '*-llms.txt'

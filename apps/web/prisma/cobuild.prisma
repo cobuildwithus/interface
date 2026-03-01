@@ -942,3 +942,62 @@ model DonorAllocationRule {
   @@map("donor_allocation_rule")
   @@schema("cobuild")
 }
+
+/**
+ * ---------- Build-bot wallet broker ----------
+ */
+
+model BuildBotCliToken {
+  id           BigInt    @id @default(autoincrement())
+  ownerAddress String    @map("owner_address") @db.VarChar(42)
+  agentKey     String    @default("default") @map("agent_key") @db.VarChar(64)
+  tokenHash    String    @unique @map("token_hash") @db.VarChar(64)
+  label        String?   @db.VarChar(128)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt   DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  @@index([ownerAddress])
+  @@index([ownerAddress, revokedAt], map: "build_bot_cli_tokens_owner_revoked_idx")
+  @@map("build_bot_cli_tokens")
+  @@schema("cobuild")
+}
+
+model BuildBotAgentWallet {
+  id             BigInt   @id @default(autoincrement())
+  ownerAddress   String   @map("owner_address") @db.VarChar(42)
+  agentKey       String   @map("agent_key") @db.VarChar(64)
+  cdpAccountName String   @unique @map("cdp_account_name") @db.VarChar(64)
+  address        String   @db.VarChar(42)
+  defaultNetwork String   @default("base") @map("default_network") @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([ownerAddress, agentKey], map: "build_bot_agent_wallets_owner_agent_key_uidx")
+  @@index([ownerAddress], map: "build_bot_agent_wallets_owner_idx")
+  @@map("build_bot_agent_wallets")
+  @@schema("cobuild")
+}
+
+model BuildBotTxLog {
+  id           BigInt   @id @default(autoincrement())
+  ownerAddress String   @map("owner_address") @db.VarChar(42)
+  agentKey     String   @map("agent_key") @db.VarChar(64)
+  idempotencyKey String? @map("idempotency_key") @db.VarChar(128)
+  kind         String   @db.VarChar(32)
+  network      String   @db.VarChar(64)
+  to           String   @db.VarChar(42)
+  token        String?  @db.VarChar(42)
+  amount       String?  @db.VarChar(120)
+  decimals     Int?
+  valueEth     String?  @map("value_eth") @db.VarChar(120)
+  data         String?  @db.VarChar(8192)
+  txHash       String?  @map("tx_hash") @db.VarChar(66)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([ownerAddress, agentKey, idempotencyKey], map: "build_bot_tx_logs_owner_agent_idempotency_uidx")
+  @@index([ownerAddress], map: "build_bot_tx_logs_owner_idx")
+  @@index([txHash], map: "build_bot_tx_logs_hash_idx")
+  @@map("build_bot_tx_logs")
+  @@schema("cobuild")
+}

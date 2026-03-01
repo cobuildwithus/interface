@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/domains/auth/session";
-import { validateImageFile } from "@/lib/integrations/images/upload-rules";
+import {
+  getImageRejectionMessage,
+  isSupportedImageBytes,
+  validateImageFile,
+} from "@/lib/integrations/images/upload-rules";
 
 type ErrorBody = { error: string };
 
@@ -10,7 +14,33 @@ function jsonError(message: string, status: number) {
   return NextResponse.json<ErrorBody>({ error: message }, { status });
 }
 
+function isSameOriginRequest(request: Request): boolean {
+  const requestOrigin = new URL(request.url).origin;
+  const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
+  if (origin) {
+    if (origin !== requestOrigin) return false;
+  } else if (referer) {
+    try {
+      if (new URL(referer).origin !== requestOrigin) return false;
+    } catch {
+      return false;
+    }
+  } else {
+    return false;
+  }
+
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin") return false;
+
+  return true;
+}
+
 export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return jsonError("Forbidden.", 403);
+  }
+
   const session = await getSession();
   if (!session.address) {
     return jsonError("Connect a wallet to upload an image.", 401);
@@ -39,6 +69,12 @@ export async function POST(request: Request) {
   const validation = validateImageFile(file);
   if (!validation.ok) {
     return jsonError(validation.message, 400);
+  }
+  const headerBytes = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+  if (!isSupportedImageBytes(file.type, headerBytes)) {
+    const invalidTypeMessage =
+      getImageRejectionMessage("file-invalid-type") ?? "Unsupported file type.";
+    return jsonError(invalidTypeMessage, 400);
   }
 
   const uploadForm = new FormData();

@@ -85,6 +85,7 @@ Builders + eligibility
 - `apps/web/lib/server/db/*`: Prisma client with read replica setup.
 - `apps/web/lib/server/kv/*`: KV encryption + store helpers.
 - `apps/web/lib/server/*`: server-only actions (onramp URL, Farcaster profile updates, etc.).
+- `apps/web/lib/server/build-bot/*`: build-bot PAT auth, CDP client, wallet provisioning, execution policy helpers.
 
 ## Hooks (client-side)
 

@@ -23,6 +23,7 @@ export function InlineReplyAttachmentPreview({
           className="block w-full cursor-zoom-in"
           aria-label="Preview attached image"
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={previewSrc} alt="Attached image preview" className="h-24 w-full object-cover" />
         </button>
         {isUploading && (
