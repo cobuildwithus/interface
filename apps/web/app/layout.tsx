@@ -30,6 +30,9 @@ export const metadata = buildPageMetadata({
 export default function RootLayout({ children }: Readonly<PropsWithChildren>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <meta name="base:app_id" content="69a6131ea0fdf68983d307cf" />
+      </head>
       <body
         className={`${jetbrainsMono.variable} ${publicSans.variable} bg-background text-foreground selection:bg-foreground selection:text-background font-sans antialiased`}
       >

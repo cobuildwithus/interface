@@ -13,9 +13,6 @@ export const metadata = buildPageMetadata({
   title: "Cobuild | Crowdfund Autonomous Treasuries",
   description:
     "Cobuild coordinates funding for community-built goals with transparent rules and open participation.",
-  other: {
-    "base:app_id": "69a6131ea0fdf68983d307cf",
-  },
 });
 
 const whatIsCobuildDocsUrl = `${docsUrl}/quickstart/what-is-cobuild`;
