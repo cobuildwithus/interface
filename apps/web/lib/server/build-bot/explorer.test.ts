@@ -30,5 +30,11 @@ describe("build-bot explorer", () => {
     expect(getBuildBotExplorerTxUrl("SEPOLIA", "0xsepolia")).toBe(
       "https://sepolia.etherscan.io/tx/0xsepolia"
     );
+    expect(getBuildBotExplorerTxUrl("optimism", "0xop")).toBe(
+      "https://optimistic.etherscan.io/tx/0xop"
+    );
+    expect(getBuildBotExplorerTxUrl("OPTIMISM-SEPOLIA", "0xopsepolia")).toBe(
+      "https://sepolia-optimism.etherscan.io/tx/0xopsepolia"
+    );
   });
 });

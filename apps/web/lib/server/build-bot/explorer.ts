@@ -8,6 +8,9 @@ const EXPLORER_BY_NETWORK: Record<string, string> = {
   "ethereum-mainnet": "https://etherscan.io",
   "ethereum-sepolia": "https://sepolia.etherscan.io",
   sepolia: "https://sepolia.etherscan.io",
+  optimism: "https://optimistic.etherscan.io",
+  "optimism-mainnet": "https://optimistic.etherscan.io",
+  "optimism-sepolia": "https://sepolia-optimism.etherscan.io",
 };
 
 export function getBuildBotExplorerTxUrl(
