@@ -1,20 +1,5 @@
--- Build-bot wallet broker tables
-
-CREATE TABLE IF NOT EXISTS cobuild.build_bot_cli_tokens (
-  id BIGSERIAL PRIMARY KEY,
-  owner_address VARCHAR(42) NOT NULL,
-  token_hash VARCHAR(64) NOT NULL UNIQUE,
-  label VARCHAR(128),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_used_at TIMESTAMPTZ,
-  revoked_at TIMESTAMPTZ
-);
-
-CREATE INDEX IF NOT EXISTS build_bot_cli_tokens_owner_idx
-  ON cobuild.build_bot_cli_tokens (owner_address);
-
-CREATE INDEX IF NOT EXISTS build_bot_cli_tokens_owner_revoked_idx
-  ON cobuild.build_bot_cli_tokens (owner_address, revoked_at);
+-- Build-bot wallet broker tables.
+-- NOTE: `cobuild.build_bot_cli_tokens` is owned by chat-api migrations.
 
 CREATE TABLE IF NOT EXISTS cobuild.build_bot_agent_wallets (
   id BIGSERIAL PRIMARY KEY,

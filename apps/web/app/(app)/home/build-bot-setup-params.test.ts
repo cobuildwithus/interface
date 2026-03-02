@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseBuildBotSetupRequest } from "./build-bot-setup-params";
+import { mergeBuildBotSetupParams, parseBuildBotSetupRequest } from "./build-bot-setup-params";
 
 const VALID_STATE = "state123_state123_state123_state123";
 
@@ -142,5 +142,45 @@ describe("parseBuildBotSetupRequest", () => {
       network: null,
       agent: null,
     });
+  });
+});
+
+describe("mergeBuildBotSetupParams", () => {
+  it("merges callback and state from URL hash when missing in query params", () => {
+    const queryParams = createParams({
+      buildBotSetup: "1",
+      buildBotNetwork: "base-sepolia",
+      buildBotAgent: "default",
+    });
+    const hash = `#buildBotState=${VALID_STATE}&buildBotCallback=${encodeURIComponent(
+      `http://127.0.0.1:4011/api/buildbot/cli/callback/${VALID_STATE}`
+    )}`;
+
+    const merged = mergeBuildBotSetupParams(queryParams, hash);
+
+    expect(merged.get("buildBotSetup")).toBe("1");
+    expect(merged.get("buildBotState")).toBe(VALID_STATE);
+    expect(merged.get("buildBotCallback")).toBe(
+      `http://127.0.0.1:4011/api/buildbot/cli/callback/${VALID_STATE}`
+    );
+    expect(merged.get("buildBotNetwork")).toBe("base-sepolia");
+    expect(merged.get("buildBotAgent")).toBe("default");
+  });
+
+  it("keeps query params when query and hash both contain the same key", () => {
+    const queryParams = createParams({
+      buildBotSetup: "1",
+      buildBotState: VALID_STATE,
+      buildBotCallback: `http://127.0.0.1:4011/api/buildbot/cli/callback/${VALID_STATE}`,
+    });
+    const hash =
+      "#buildBotState=hash_state&buildBotCallback=http%3A%2F%2F127.0.0.1%3A9999%2Fapi%2Fbuildbot%2Fcli%2Fcallback%2Fhash_state";
+
+    const merged = mergeBuildBotSetupParams(queryParams, hash);
+
+    expect(merged.get("buildBotState")).toBe(VALID_STATE);
+    expect(merged.get("buildBotCallback")).toBe(
+      `http://127.0.0.1:4011/api/buildbot/cli/callback/${VALID_STATE}`
+    );
   });
 });

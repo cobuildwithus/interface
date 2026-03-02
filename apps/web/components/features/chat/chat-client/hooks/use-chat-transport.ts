@@ -16,6 +16,7 @@ type UseChatTransportOptions = {
   chatId: string;
   type: string;
   data?: JsonRecord;
+  context?: string;
   clientDevice?: "mobile" | "desktop";
   activeIdentityToken?: string;
   onAuthExpired: () => void;
@@ -25,6 +26,7 @@ export function useChatTransport({
   chatId,
   type,
   data,
+  context,
   clientDevice,
   activeIdentityToken,
   onAuthExpired,
@@ -46,9 +48,14 @@ export function useChatTransport({
   }, [activeIdentityToken, chatId, clientDevice]);
 
   const resolveBody = useCallback(() => {
-    const body = { type, id: chatId };
+    const trimmedContext = context?.trim();
+    const body = {
+      type,
+      id: chatId,
+      ...(trimmedContext ? { context: trimmedContext } : {}),
+    };
     return data ? { ...body, data } : body;
-  }, [chatId, data, type]);
+  }, [chatId, context, data, type]);
 
   const fetchWithGrant = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {

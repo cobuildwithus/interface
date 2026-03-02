@@ -1,8 +1,9 @@
 import type { GoalAiContextResponse } from "@/lib/domains/goals/ai-context/context";
 import { getCobuildAiContext } from "@/lib/domains/goals/ai-context/context";
+import { chatApiBase } from "@/lib/domains/chat/api";
 
 const statsEndpoint = "/api/cobuild/ai-context";
-const publicEndpoint = `https://co.build${statsEndpoint}`;
+const publicEndpoint = `${chatApiBase}${statsEndpoint}`;
 
 export async function getStatsContent(
   statsPromise?: Promise<GoalAiContextResponse>

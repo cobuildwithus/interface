@@ -28,12 +28,8 @@ export const fetchChatApi = async (path: string, options: ChatApiFetchOptions = 
   const resolvedCache = init?.cache ?? "no-store";
   const url = resolveChatApiUrl(path);
   const mergedHeaders = mergeHeaders(init?.headers, headers);
-  const internalKey = process.env.CHAT_API_INTERNAL_KEY;
   if (identityToken) {
     mergedHeaders.set("privy-id-token", identityToken);
-  }
-  if (internalKey) {
-    mergedHeaders.set("x-chat-internal-key", internalKey);
   }
   try {
     const response = await fetch(url, {

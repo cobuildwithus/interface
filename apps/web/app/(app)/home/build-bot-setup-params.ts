@@ -22,6 +22,32 @@ export type BuildBotSetupRequest = {
   agent: string | null;
 };
 
+export function mergeBuildBotSetupParams(
+  searchParams: URLSearchParams,
+  hashValue: string | null | undefined
+): URLSearchParams {
+  const merged = new URLSearchParams(searchParams.toString());
+  if (!hashValue) {
+    return merged;
+  }
+
+  const normalizedHash = hashValue.startsWith("#") ? hashValue.slice(1) : hashValue;
+  if (!normalizedHash.trim()) {
+    return merged;
+  }
+
+  const hashParams = new URLSearchParams(normalizedHash);
+  for (const key of BUILD_BOT_SETUP_QUERY_KEYS) {
+    if (merged.get(key) !== null) continue;
+    const value = hashParams.get(key);
+    if (value !== null) {
+      merged.set(key, value);
+    }
+  }
+
+  return merged;
+}
+
 function sanitizeOptional(value: string | null, pattern: RegExp): string | null {
   if (!value) return null;
   const trimmed = value.trim();

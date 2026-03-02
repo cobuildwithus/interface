@@ -16,7 +16,11 @@ import {
 } from "@/components/ui/dialog";
 import { useUserContext } from "@/lib/domains/auth/user-context";
 import { useLogin } from "@/lib/domains/auth/use-login";
-import { BUILD_BOT_SETUP_QUERY_KEYS, parseBuildBotSetupRequest } from "./build-bot-setup-params";
+import {
+  BUILD_BOT_SETUP_QUERY_KEYS,
+  mergeBuildBotSetupParams,
+  parseBuildBotSetupRequest,
+} from "./build-bot-setup-params";
 
 type BuildBotTokenResponse = { ok: true; token: string } | { ok: false; error?: string };
 
@@ -38,7 +42,13 @@ export function BuildBotSetupDialog() {
   const { ready, authenticated } = useLogin();
   const hasAuth = Boolean(user?.address) || (ready && authenticated);
 
-  const setupRequest = useMemo(() => parseBuildBotSetupRequest(searchParams), [searchParams]);
+  const setupRequest = useMemo(() => {
+    const mergedParams = mergeBuildBotSetupParams(
+      new URLSearchParams(searchParams.toString()),
+      typeof window !== "undefined" ? window.location.hash : null
+    );
+    return parseBuildBotSetupRequest(mergedParams);
+  }, [searchParams]);
   const [isApproving, setIsApproving] = useState(false);
 
   const clearSetupQuery = useCallback(() => {

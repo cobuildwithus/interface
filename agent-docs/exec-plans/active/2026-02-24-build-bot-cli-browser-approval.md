@@ -7,6 +7,7 @@ Updated: 2026-02-24
 ## Goal
 
 Add a secure browser-mediated setup flow so `build-bot setup` can generate a PAT without manual copy/paste:
+
 - CLI opens `/home` with setup query params.
 - Home shows an approval dialog.
 - User approves once.
@@ -24,11 +25,13 @@ Add a secure browser-mediated setup flow so `build-bot setup` can generate a PAT
 ## Scope
 
 In scope:
+
 - `build-bot` secure localhost callback session and setup URL generation.
 - `interface/apps/web` home dialog and query-parameter parser.
 - Tests/docs updates for new setup flow.
 
 Out of scope:
+
 - New server API routes.
 - Multi-device account linking/OAuth exchange changes.
 

@@ -1,7 +1,5 @@
 -- Build-bot hardening updates
-
-ALTER TABLE IF EXISTS cobuild.build_bot_cli_tokens
-  ADD COLUMN IF NOT EXISTS agent_key VARCHAR(64) NOT NULL DEFAULT 'default';
+-- NOTE: build_bot_cli_tokens schema changes are owned by chat-api migrations.
 
 ALTER TABLE IF EXISTS cobuild.build_bot_tx_logs
   ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128);

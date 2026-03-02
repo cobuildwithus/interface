@@ -7,6 +7,7 @@ export type ChatClientProps = {
   identityToken?: string;
   type?: string;
   data?: JsonRecord;
+  context?: string;
   initialMessages?: UIMessage[];
   initialGrant?: string | null;
   showConnectOnUnauthed?: boolean;

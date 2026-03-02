@@ -35,11 +35,10 @@ Representative route responsibilities:
 - linked accounts state: `app/api/linked-accounts/route.ts`
 - profile lookup: `app/api/profile/route.ts`
 - onchain revnet data: `app/api/revnet/route.ts`
-- app AI context snapshot: `app/api/cobuild/ai-context/route.ts`
 - cast view anti-abuse + counters: `app/api/cast/[hash]/view/route.ts`
 - image uploads: `app/api/images/upload/route.ts`
 - build-bot PAT + wallet execution surface: `app/api/buildbot/{token,wallet,exec}/route.ts`
-- build-bot CLI tools/docs gateway surface: `app/api/docs/search/route.ts`, `app/api/buildbot/tools/{get-user,get-cast,cast-preview,cobuild-ai-context}/route.ts`
+- build-bot canonical tools gateway surface: `app/v1/tools/route.ts`, `app/v1/tools/[name]/route.ts`, `app/v1/tool-executions/route.ts`
 
 ## Critical Invariants
 

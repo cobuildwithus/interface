@@ -68,12 +68,29 @@ function setValidSetupParams() {
   return state;
 }
 
+function setValidSetupParamsWithHashStateAndCallback() {
+  const state = "state123_state123_state123_state123";
+  searchParams = new URLSearchParams();
+  searchParams.set("buildBotSetup", "1");
+  searchParams.set("buildBotNetwork", "base-sepolia");
+  searchParams.set("buildBotAgent", "default");
+  window.history.replaceState(
+    {},
+    "",
+    `http://localhost:3000/home#buildBotState=${state}&buildBotCallback=${encodeURIComponent(
+      `http://127.0.0.1:4011/api/buildbot/cli/callback/${state}`
+    )}`
+  );
+  return state;
+}
+
 describe("BuildBotSetupDialog", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
   beforeEach(() => {
+    window.history.replaceState({}, "", "http://localhost:3000/home");
     searchParams = new URLSearchParams();
     useLoginMock.mockReset();
     useUserContextMock.mockReset();
@@ -89,6 +106,16 @@ describe("BuildBotSetupDialog", () => {
   it("does not render when setup params are not present", () => {
     render(<BuildBotSetupDialog />);
     expect(screen.queryByText("Finish Build Bot setup")).not.toBeInTheDocument();
+  });
+
+  it("parses callback and state from hash params", () => {
+    const state = setValidSetupParamsWithHashStateAndCallback();
+
+    render(<BuildBotSetupDialog />);
+
+    expect(screen.getByText("Finish Build Bot setup")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve setup" })).toBeInTheDocument();
+    expect(state).toBe("state123_state123_state123_state123");
   });
 
   it("does not render when callback uses the legacy build-bot prefix", () => {

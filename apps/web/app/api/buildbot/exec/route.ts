@@ -169,7 +169,7 @@ function toErrorResponse(error: unknown) {
       {
         ok: false,
         error: "Invalid request body",
-        details: z.flattenError(error),
+        details: error.flatten(),
       },
       { status: 400, headers: NO_STORE_HEADERS }
     );

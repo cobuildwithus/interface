@@ -30,7 +30,9 @@
 
 - Client reads: wagmi/viem hooks and quote helpers.
 - Server cached reads: revnet/project stats/ETH price helpers.
-- Server writes (build-bot API): `app/api/buildbot/exec/route.ts` via CDP smart-account user operations (`transfer` / `sendUserOperation` + `waitForUserOperation`), currently scoped to `base` and `base-sepolia`.
+- Server writes (build-bot API):
+  - `app/api/buildbot/exec/route.ts` via CDP smart-account user operations (`transfer` / `sendUserOperation` + `waitForUserOperation`), currently scoped to `base` and `base-sepolia`.
+  - `app/api/buildbot/farcaster/signup/route.ts` via CDP smart-account user operations on `optimism` for Farcaster `IdGateway.register` and `KeyGateway.add`, including smart-account EIP-712 typed-data signing for SignedKeyRequest metadata.
 
 ## Auth and Wallet Gating
 

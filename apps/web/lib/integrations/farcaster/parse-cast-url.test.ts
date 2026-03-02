@@ -208,7 +208,9 @@ describe("extractUsernameFromCastUrl", () => {
   });
 
   it("extracts username from warpcast.com URL", () => {
-    expect(extractUsernameFromCastUrl(`https://warpcast.com/exampleuser/${FULL_HASH}`)).toBe("exampleuser");
+    expect(extractUsernameFromCastUrl(`https://warpcast.com/exampleuser/${FULL_HASH}`)).toBe(
+      "exampleuser"
+    );
   });
 
   it("returns null for raw hash", () => {

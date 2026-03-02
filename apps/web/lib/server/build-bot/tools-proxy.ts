@@ -16,7 +16,8 @@ const BUILD_BOT_TOOLS_RATE_LIMIT_ERROR = "Too many Build Bot tool requests. Plea
 const BUILD_BOT_TOOLS_RATE_LIMIT_UNAVAILABLE_ERROR =
   "Build Bot tool rate limiting is temporarily unavailable. Please retry.";
 const BUILD_BOT_TOOLS_RATE_LIMIT_MODE_ENV = "BUILD_BOT_TOOLS_RATE_LIMIT_MODE";
-const TOOL_EXECUTIONS_MAX_BODY_BYTES = 64 * 1024;
+const PROXY_DEFAULT_MAX_BODY_BYTES = 64 * 1024;
+const TOOL_EXECUTIONS_MAX_BODY_BYTES = PROXY_DEFAULT_MAX_BODY_BYTES;
 const TOOL_EXECUTIONS_BODY_TOO_LARGE_ERROR = "Tool execution request body exceeds the 64KB limit.";
 
 class RequestValidationError extends Error {}
@@ -110,8 +111,8 @@ function readClientIpFromHeaders(headers: Headers): string | null {
   return null;
 }
 
-async function parseJsonOrEmpty(request: Request): Promise<unknown> {
-  const rawBody = await request.text();
+async function parseJsonOrEmpty(request: Request, maxBytes?: number): Promise<unknown> {
+  const rawBody = await readRequestTextWithLimit(request, maxBytes);
   if (!rawBody.trim()) {
     return {};
   }
@@ -316,7 +317,9 @@ export async function proxyBuildBotToolsRequest<T, U = T>(
 ): Promise<Response> {
   try {
     const tokenHash = getRateLimitTokenHash(options.request.headers);
-    const parsed = options.schema.parse(await parseJsonOrEmpty(options.request));
+    const parsed = options.schema.parse(
+      await parseJsonOrEmpty(options.request, PROXY_DEFAULT_MAX_BODY_BYTES)
+    );
 
     const rateLimit = await enforceRouteRateLimit({
       request: options.request,

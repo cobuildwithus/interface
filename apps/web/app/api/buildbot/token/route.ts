@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getPrivyIdToken } from "@/lib/domains/auth/session";
+import { fetchChatApi } from "@/lib/domains/chat/server-api";
 import { requireBuildBotSessionAddress } from "@/lib/server/build-bot/auth";
-import {
-  createBuildBotCliToken,
-  listBuildBotCliTokens,
-  revokeBuildBotCliToken,
-} from "@/lib/server/build-bot/token-store";
 import { BuildBotAuthError } from "@/lib/server/build-bot/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 class RequestValidationError extends Error {}
+class UpstreamRequestError extends Error {}
 
 const CreateTokenSchema = z.object({
   label: z.string().trim().min(1).max(128).optional(),
@@ -25,38 +23,12 @@ const CreateTokenSchema = z.object({
       "agentKey must contain only letters, numbers, dots, underscores, or dashes"
     )
     .optional(),
+  canWrite: z.boolean().optional(),
 });
 
 const RevokeTokenSchema = z.object({
   tokenId: z.string().trim().min(1),
 });
-
-const NO_STORE_HEADERS = {
-  "Cache-Control": "no-store",
-} as const;
-
-const MISSING_BUILD_BOT_TABLES_ERROR =
-  "Build Bot database tables are missing. Run the build-bot SQL migrations before running setup.";
-
-type PrismaMissingTableError = {
-  code?: unknown;
-  meta?: {
-    table?: unknown;
-  } | null;
-};
-
-function isMissingBuildBotTableError(error: unknown): boolean {
-  const prismaError = error as PrismaMissingTableError | null;
-  return (
-    prismaError?.code === "P2021" &&
-    typeof prismaError.meta?.table === "string" &&
-    prismaError.meta.table.includes("build_bot_cli_tokens")
-  );
-}
-
-function jsonNoStore(body: unknown) {
-  return NextResponse.json(body, { headers: NO_STORE_HEADERS });
-}
 
 function isSameOriginRequest(request: Request): boolean {
   const requestOrigin = new URL(request.url).origin;
@@ -93,19 +65,19 @@ function toErrorResponse(error: unknown) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
   }
 
+  if (error instanceof UpstreamRequestError) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 502 });
+  }
+
   if (error instanceof z.ZodError) {
     return NextResponse.json(
       {
         ok: false,
         error: "Invalid request body",
-        details: z.flattenError(error),
+        details: error.flatten(),
       },
       { status: 400 }
     );
-  }
-
-  if (isMissingBuildBotTableError(error)) {
-    return NextResponse.json({ ok: false, error: MISSING_BUILD_BOT_TABLES_ERROR }, { status: 500 });
   }
 
   console.error("[build-bot][token] unexpected error", error);
@@ -125,14 +97,44 @@ async function parseJsonOrEmpty(request: Request): Promise<unknown> {
   }
 }
 
+async function proxyTokensRequest(init: RequestInit): Promise<Response> {
+  const identityToken = await getPrivyIdToken();
+  if (!identityToken) {
+    throw new BuildBotAuthError(401, "Unauthorized");
+  }
+
+  let upstream: Response;
+  try {
+    upstream = await fetchChatApi("/v1/tokens", {
+      identityToken,
+      init: {
+        ...init,
+        cache: "no-store",
+      },
+    });
+  } catch {
+    throw new UpstreamRequestError("Upstream request failed.");
+  }
+
+  const body = await upstream.text();
+  const headers = new Headers(upstream.headers);
+  headers.set("Cache-Control", "no-store");
+  headers.delete("content-length");
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+
+  return new Response(body, {
+    status: upstream.status,
+    headers,
+  });
+}
+
 export async function GET() {
   try {
-    const ownerAddress = await requireBuildBotSessionAddress();
-    const tokens = await listBuildBotCliTokens(ownerAddress);
-
-    return jsonNoStore({
-      ok: true,
-      tokens,
+    await requireBuildBotSessionAddress();
+    return await proxyTokensRequest({
+      method: "GET",
     });
   } catch (error) {
     return toErrorResponse(error);
@@ -146,18 +148,14 @@ export async function POST(request: Request) {
       return forbiddenResponse;
     }
 
-    const ownerAddress = await requireBuildBotSessionAddress();
+    await requireBuildBotSessionAddress();
     const input = CreateTokenSchema.parse(await parseJsonOrEmpty(request));
-    const created = await createBuildBotCliToken({
-      ownerAddress,
-      label: input.label,
-      agentKey: input.agentKey,
-    });
-
-    return jsonNoStore({
-      ok: true,
-      token: created.token,
-      tokenInfo: created.tokenInfo,
+    return await proxyTokensRequest({
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(input),
     });
   } catch (error) {
     return toErrorResponse(error);
@@ -171,16 +169,14 @@ export async function DELETE(request: Request) {
       return forbiddenResponse;
     }
 
-    const ownerAddress = await requireBuildBotSessionAddress();
+    await requireBuildBotSessionAddress();
     const input = RevokeTokenSchema.parse(await parseJsonOrEmpty(request));
-    const revoked = await revokeBuildBotCliToken({
-      ownerAddress,
-      tokenId: input.tokenId,
-    });
-
-    return jsonNoStore({
-      ok: true,
-      revoked,
+    return await proxyTokensRequest({
+      method: "DELETE",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(input),
     });
   } catch (error) {
     return toErrorResponse(error);

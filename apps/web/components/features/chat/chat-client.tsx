@@ -25,6 +25,7 @@ type ChatClientProps = {
   identityToken?: string;
   type?: string;
   data?: JsonRecord;
+  context?: string;
   initialMessages?: UIMessage[];
   initialGrant?: string | null;
   clientDevice?: "mobile" | "desktop";
@@ -35,6 +36,7 @@ export function ChatClient({
   identityToken,
   type = DEFAULT_CHAT_TYPE,
   data,
+  context,
   initialMessages,
   initialGrant,
   clientDevice,
@@ -68,6 +70,7 @@ export function ChatClient({
     chatId,
     type,
     data,
+    context,
     clientDevice,
     activeIdentityToken,
     onAuthExpired: handleAuthExpiredRef,

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import type { EvmSmartAccount } from "@coinbase/cdp-sdk";
 import prisma from "@/lib/server/db/cobuild-db-client";
 import { normalizeAddress } from "@/lib/shared/address";
@@ -102,14 +102,6 @@ function deterministicSmartCdpAccountName(params: {
   return `${BUILD_BOT_SMART_ACCOUNT_PREFIX}-${deterministicAccountSuffix(params)}`;
 }
 
-function createAccountIdempotencyKey(cdpAccountName: string): string {
-  return `build-bot-account-${cdpAccountName}`;
-}
-
-function applyPolicyIdempotencyKey(cdpAccountName: string): string {
-  return `build-bot-account-policy-${cdpAccountName}`;
-}
-
 async function getOrCreateCdpAccountWithPolicy(params: {
   ownerCdpAccountName: string;
   accountPolicyId: string | null;
@@ -124,7 +116,7 @@ async function getOrCreateCdpAccountWithPolicy(params: {
     return await cdp.evm.createAccount({
       name: params.ownerCdpAccountName,
       accountPolicy: params.accountPolicyId,
-      idempotencyKey: createAccountIdempotencyKey(params.ownerCdpAccountName),
+      idempotencyKey: randomUUID(),
     });
   } catch {
     const account = await cdp.evm.getOrCreateAccount({ name: params.ownerCdpAccountName });
@@ -133,7 +125,7 @@ async function getOrCreateCdpAccountWithPolicy(params: {
       update: {
         accountPolicy: params.accountPolicyId,
       },
-      idempotencyKey: applyPolicyIdempotencyKey(params.ownerCdpAccountName),
+      idempotencyKey: randomUUID(),
     });
   }
 }
@@ -251,4 +243,27 @@ export async function getOrCreateBuildBotAgentSmartAccount(params: {
     smartCdpAccountName,
     accountPolicyId,
   });
+}
+
+export async function getOrCreateBuildBotAgentOwnerAccount(params: {
+  ownerAddress: string;
+  agentKey: string;
+}): Promise<{
+  address: `0x${string}`;
+  cdpAccountName: string;
+}> {
+  const ownerAddress = normalizeAddress(params.ownerAddress);
+  const agentKey = params.agentKey;
+  const ownerCdpAccountName = deterministicOwnerCdpAccountName({ ownerAddress, agentKey });
+  const accountPolicyId = resolveAccountPolicyId();
+
+  const ownerAccount = await getOrCreateCdpAccountWithPolicy({
+    ownerCdpAccountName,
+    accountPolicyId,
+  });
+
+  return {
+    address: normalizeAddress(ownerAccount.address),
+    cdpAccountName: ownerCdpAccountName,
+  };
 }

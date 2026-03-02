@@ -10,7 +10,6 @@ const loadModule = async () => {
 const env = process.env as Record<string, string | undefined>;
 const originalEnv = {
   chatApiUrl: env.NEXT_PUBLIC_CHAT_API_URL,
-  internalKey: env.CHAT_API_INTERNAL_KEY,
 };
 
 afterEach(() => {
@@ -18,11 +17,6 @@ afterEach(() => {
     delete env.NEXT_PUBLIC_CHAT_API_URL;
   } else {
     env.NEXT_PUBLIC_CHAT_API_URL = originalEnv.chatApiUrl;
-  }
-  if (originalEnv.internalKey === undefined) {
-    delete env.CHAT_API_INTERNAL_KEY;
-  } else {
-    env.CHAT_API_INTERNAL_KEY = originalEnv.internalKey;
   }
   vi.unstubAllGlobals();
 });
@@ -78,19 +72,5 @@ describe("fetchChatApi", () => {
     expect(resolvedHeaders.get("x-init")).toBe("present");
     expect(resolvedHeaders.get("x-extra")).toBe("override");
     expect(resolvedHeaders.get("privy-id-token")).toBe("token-2");
-  });
-
-  it("adds the internal key header when configured", async () => {
-    env.NEXT_PUBLIC_CHAT_API_URL = "https://chat.example.com";
-    env.CHAT_API_INTERNAL_KEY = "secret-1";
-    const { fetchChatApi } = await loadModule();
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
-    vi.stubGlobal("fetch", fetchMock);
-
-    await fetchChatApi("/api/chats");
-
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const resolvedHeaders = new Headers(init?.headers);
-    expect(resolvedHeaders.get("x-chat-internal-key")).toBe("secret-1");
   });
 });

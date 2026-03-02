@@ -60,6 +60,7 @@ import {
 } from "@/lib/server/build-bot/wallet-store";
 
 const ORIGINAL_ENV = { ...process.env };
+const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function expectedAccountSuffix(ownerAddress: string, agentKey: string): string {
   return createHash("sha256").update(`${ownerAddress}:${agentKey}`).digest("hex").slice(0, 20);
@@ -259,7 +260,7 @@ describe("build-bot wallet store", () => {
     expect(createAccountMock).toHaveBeenCalledWith({
       name: ownerAccountName,
       accountPolicy: "policy-123",
-      idempotencyKey: `build-bot-account-${ownerAccountName}`,
+      idempotencyKey: expect.stringMatching(UUID_V4_REGEX),
     });
     expect(getOrCreateSmartAccountMock).toHaveBeenCalledWith({
       name: smartAccountName,
@@ -302,7 +303,7 @@ describe("build-bot wallet store", () => {
       update: {
         accountPolicy: "policy-123",
       },
-      idempotencyKey: `build-bot-account-policy-${ownerAccountName}`,
+      idempotencyKey: expect.stringMatching(UUID_V4_REGEX),
     });
   });
 
