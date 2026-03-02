@@ -77,6 +77,7 @@ describe("build-bot auth", () => {
       ownerAddress: "0x0000000000000000000000000000000000000001",
       tokenId: "1",
       agentKey: "default",
+      canWrite: true,
     });
 
     const request = new Request("http://localhost", {
@@ -88,7 +89,29 @@ describe("build-bot auth", () => {
       ownerAddress: "0x0000000000000000000000000000000000000001",
       tokenId: "1",
       agentKey: "default",
+      canWrite: true,
     });
+  });
+
+  it("throws when write scope is required but token is read-only", async () => {
+    authenticateBuildBotCliTokenMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+      canWrite: false,
+    });
+
+    const request = new Request("http://localhost", {
+      method: "POST",
+      headers: { authorization: "Bearer read-only-token" },
+    });
+
+    await expect(requireBuildBotBearerAuth(request, { requireWrite: true })).rejects.toEqual(
+      expect.objectContaining({
+        status: 403,
+        message: "Write scope required",
+      })
+    );
   });
 
   it("uses BuildBotAuthError for auth failures", async () => {

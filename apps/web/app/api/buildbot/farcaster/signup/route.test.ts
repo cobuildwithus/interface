@@ -81,6 +81,7 @@ describe("build-bot farcaster signup route", () => {
         txHash: "0xsignup",
       },
     });
+    expect(requireBuildBotBearerAuthMock).toHaveBeenCalledWith(request, { requireWrite: true });
     expect(signupBuildBotFarcasterMock).toHaveBeenCalledWith({
       ownerAddress: "0x0000000000000000000000000000000000000001",
       agentKey: "default",

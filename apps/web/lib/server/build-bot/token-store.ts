@@ -126,6 +126,7 @@ export async function authenticateBuildBotCliToken(rawToken: string): Promise<{
   tokenId: string;
   ownerAddress: `0x${string}`;
   agentKey: string;
+  canWrite: boolean;
 } | null> {
   const tokenHash = hashBuildBotToken(rawToken);
   const db = buildBotPrimaryDb();
@@ -144,14 +145,26 @@ export async function authenticateBuildBotCliToken(rawToken: string): Promise<{
 
     if (touched.count === 0) return null;
 
-    return tx.buildBotCliToken.findFirst({
-      where,
-      select: {
-        id: true,
-        ownerAddress: true,
-        agentKey: true,
-      },
-    });
+    const rows = await tx.$queryRaw<
+      Array<{
+        id: bigint;
+        ownerAddress: string;
+        agentKey: string;
+        canWrite: boolean;
+      }>
+    >`
+      SELECT
+        t.id AS id,
+        t.owner_address AS "ownerAddress",
+        t.agent_key AS "agentKey",
+        COALESCE((to_jsonb(t) ->> 'can_write')::boolean, true) AS "canWrite"
+      FROM cobuild.build_bot_cli_tokens t
+      WHERE t.token_hash = ${tokenHash}
+        AND t.revoked_at IS NULL
+      LIMIT 1
+    `;
+
+    return rows[0] ?? null;
   });
 
   if (!token) return null;
@@ -160,5 +173,6 @@ export async function authenticateBuildBotCliToken(rawToken: string): Promise<{
     tokenId: token.id.toString(),
     ownerAddress: normalizeAddress(token.ownerAddress),
     agentKey: token.agentKey,
+    canWrite: token.canWrite !== false,
   };
 }

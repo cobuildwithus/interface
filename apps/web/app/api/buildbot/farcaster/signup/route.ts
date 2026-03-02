@@ -129,7 +129,7 @@ function toErrorResponse(error: unknown) {
 
 export async function POST(request: Request) {
   try {
-    const auth = await requireBuildBotBearerAuth(request);
+    const auth = await requireBuildBotBearerAuth(request, { requireWrite: true });
     const input = SignupRequestSchema.parse(await parseJsonOrEmpty(request));
 
     const recoveryAddress =

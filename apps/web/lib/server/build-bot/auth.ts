@@ -12,6 +12,17 @@ function parseBearerToken(value: string | null): string | null {
   return match[1]?.trim() || null;
 }
 
+type BuildBotBearerAuth = {
+  ownerAddress: `0x${string}`;
+  tokenId: string;
+  agentKey: string;
+  canWrite: boolean;
+};
+
+type RequireBuildBotBearerAuthOptions = {
+  requireWrite?: boolean;
+};
+
 export async function requireBuildBotSessionAddress(): Promise<`0x${string}`> {
   const session = await getSession();
   if (!session.address) {
@@ -21,11 +32,10 @@ export async function requireBuildBotSessionAddress(): Promise<`0x${string}`> {
   return normalizeAddress(session.address);
 }
 
-export async function requireBuildBotBearerAuth(req: Request): Promise<{
-  ownerAddress: `0x${string}`;
-  tokenId: string;
-  agentKey: string;
-}> {
+export async function requireBuildBotBearerAuth(
+  req: Request,
+  options?: RequireBuildBotBearerAuthOptions
+): Promise<BuildBotBearerAuth> {
   const rawToken = parseBearerToken(req.headers.get("authorization"));
   if (!rawToken) {
     throw new BuildBotAuthError(401, "Unauthorized");
@@ -34,6 +44,10 @@ export async function requireBuildBotBearerAuth(req: Request): Promise<{
   const auth = await authenticateBuildBotCliToken(rawToken);
   if (!auth) {
     throw new BuildBotAuthError(401, "Unauthorized");
+  }
+
+  if (options?.requireWrite && !auth.canWrite) {
+    throw new BuildBotAuthError(403, "Write scope required");
   }
 
   return auth;

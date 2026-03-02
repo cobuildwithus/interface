@@ -9,7 +9,7 @@ type BuildBotCliTokenTxClient = {
   $queryRaw: (...args: unknown[]) => unknown;
 };
 
-const { updateManyMock, queryRawMock, transactionMock, primaryMock } = vi.hoisted(() => {
+const { updateManyMock, queryRawMock, primaryMock } = vi.hoisted(() => {
   const updateManyMock = vi.fn();
   const queryRawMock = vi.fn();
   const transactionMock = vi.fn(
@@ -28,7 +28,6 @@ const { updateManyMock, queryRawMock, transactionMock, primaryMock } = vi.hoiste
   return {
     updateManyMock,
     queryRawMock,
-    transactionMock,
     primaryMock,
   };
 });

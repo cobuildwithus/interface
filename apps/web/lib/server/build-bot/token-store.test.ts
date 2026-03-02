@@ -5,23 +5,23 @@ vi.mock("server-only", () => ({}));
 type BuildBotCliTokenTxClient = {
   buildBotCliToken: {
     updateMany: (...args: unknown[]) => unknown;
-    findFirst: (...args: unknown[]) => unknown;
   };
+  $queryRaw: (...args: unknown[]) => unknown;
 };
 
-const { findManyMock, createMock, updateManyMock, findFirstMock, transactionMock, primaryMock } =
+const { findManyMock, createMock, updateManyMock, queryRawMock, transactionMock, primaryMock } =
   vi.hoisted(() => {
     const findManyMock = vi.fn();
     const createMock = vi.fn();
     const updateManyMock = vi.fn();
-    const findFirstMock = vi.fn();
+    const queryRawMock = vi.fn();
     const transactionMock = vi.fn(
       async (callback: (tx: BuildBotCliTokenTxClient) => unknown | Promise<unknown>) =>
         callback({
           buildBotCliToken: {
             updateMany: (...args: unknown[]) => updateManyMock(...args),
-            findFirst: (...args: unknown[]) => findFirstMock(...args),
           },
+          $queryRaw: (...args: unknown[]) => queryRawMock(...args),
         })
     );
     const primaryMock = vi.fn(() => ({
@@ -32,7 +32,7 @@ const { findManyMock, createMock, updateManyMock, findFirstMock, transactionMock
       findManyMock,
       createMock,
       updateManyMock,
-      findFirstMock,
+      queryRawMock,
       transactionMock,
       primaryMock,
     };
@@ -44,7 +44,6 @@ vi.mock("@/lib/server/db/cobuild-db-client", () => ({
       findMany: (...args: unknown[]) => findManyMock(...args),
       create: (...args: unknown[]) => createMock(...args),
       updateMany: (...args: unknown[]) => updateManyMock(...args),
-      findFirst: (...args: unknown[]) => findFirstMock(...args),
     },
     $primary: () => primaryMock(),
   },
@@ -206,16 +205,20 @@ describe("build-bot token store", () => {
     updateManyMock.mockResolvedValue({
       count: 1,
     });
-    findFirstMock.mockResolvedValue({
-      id: 11n,
-      ownerAddress: "0x000000000000000000000000000000000000dEaD",
-      agentKey: "default",
-    });
+    queryRawMock.mockResolvedValue([
+      {
+        id: 11n,
+        ownerAddress: "0x000000000000000000000000000000000000dEaD",
+        agentKey: "default",
+        canWrite: true,
+      },
+    ]);
 
     await expect(authenticateBuildBotCliToken(rawToken)).resolves.toEqual({
       tokenId: "11",
       ownerAddress: "0x000000000000000000000000000000000000dead",
       agentKey: "default",
+      canWrite: true,
     });
 
     expect(primaryMock).toHaveBeenCalledTimes(1);
@@ -230,17 +233,7 @@ describe("build-bot token store", () => {
       },
     });
 
-    expect(findFirstMock).toHaveBeenCalledWith({
-      where: {
-        tokenHash: hashBuildBotToken(rawToken),
-        revokedAt: null,
-      },
-      select: {
-        id: true,
-        ownerAddress: true,
-        agentKey: true,
-      },
-    });
+    expect(queryRawMock).toHaveBeenCalledTimes(1);
   });
 
   it("returns null and skips update for invalid tokens", async () => {
@@ -249,6 +242,6 @@ describe("build-bot token store", () => {
     });
 
     await expect(authenticateBuildBotCliToken("bbt_missing")).resolves.toBeNull();
-    expect(findFirstMock).not.toHaveBeenCalled();
+    expect(queryRawMock).not.toHaveBeenCalled();
   });
 });
