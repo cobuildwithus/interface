@@ -27,7 +27,6 @@ describe("build-bot farcaster signup service", () => {
   const getBalanceMock = vi.fn();
   const sendUserOperationMock = vi.fn();
   const waitForUserOperationMock = vi.fn();
-  const signTypedDataMock = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -41,7 +40,6 @@ describe("build-bot farcaster signup service", () => {
       address: "0x00000000000000000000000000000000000000aa",
       sendUserOperation: (...args: unknown[]) => sendUserOperationMock(...args),
       waitForUserOperation: (...args: unknown[]) => waitForUserOperationMock(...args),
-      signTypedData: (...args: unknown[]) => signTypedDataMock(...args),
     });
   });
 
@@ -90,15 +88,11 @@ describe("build-bot farcaster signup service", () => {
       .mockResolvedValueOnce(7_000_000_000_000_000n)
       .mockResolvedValueOnce(555n);
     getBalanceMock.mockResolvedValueOnce(9_000_000_000_000_000n);
-    sendUserOperationMock
-      .mockResolvedValueOnce({ userOpHash: "0xregister" })
-      .mockResolvedValueOnce({ userOpHash: "0xaddkey" });
-    waitForUserOperationMock
-      .mockResolvedValueOnce({ status: "complete", transactionHash: "0xaaa" })
-      .mockResolvedValueOnce({ status: "complete", transactionHash: "0xbbb" });
-    signTypedDataMock.mockResolvedValueOnce(
-      "0xsigned111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
-    );
+    sendUserOperationMock.mockResolvedValueOnce({ userOpHash: "0xsignup" });
+    waitForUserOperationMock.mockResolvedValueOnce({
+      status: "complete",
+      transactionHash: "0xaaa",
+    });
 
     const result = await signupBuildBotFarcaster({
       ownerAddress: "0x0000000000000000000000000000000000000001",
@@ -115,18 +109,17 @@ describe("build-bot farcaster signup service", () => {
       recoveryAddress: "0x0000000000000000000000000000000000000009",
       fid: "555",
       idGatewayPriceWei: "7000000000000000",
-      registerTxHash: "0xaaa",
-      addKeyTxHash: "0xbbb",
+      txHash: "0xaaa",
     });
 
-    expect(sendUserOperationMock).toHaveBeenCalledTimes(2);
-    expect(signTypedDataMock).toHaveBeenCalledOnce();
+    expect(sendUserOperationMock).toHaveBeenCalledTimes(1);
+    expect(waitForUserOperationMock).toHaveBeenCalledTimes(1);
   });
 
   it("throws when user operation does not complete", async () => {
     readContractMock.mockResolvedValueOnce(0n).mockResolvedValueOnce(7_000_000_000_000_000n);
     getBalanceMock.mockResolvedValueOnce(9_000_000_000_000_000n);
-    sendUserOperationMock.mockResolvedValueOnce({ userOpHash: "0xregister" });
+    sendUserOperationMock.mockResolvedValueOnce({ userOpHash: "0xsignup" });
     waitForUserOperationMock.mockResolvedValueOnce({ status: "failed", transactionHash: null });
 
     await expect(

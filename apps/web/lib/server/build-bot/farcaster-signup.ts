@@ -3,6 +3,7 @@ import "server-only";
 import type { EvmSmartAccount } from "@coinbase/cdp-sdk";
 import type { Hash } from "viem";
 import { encodeAbiParameters, encodeFunctionData, formatEther } from "viem";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { optimism } from "viem/chains";
 import { getClient } from "@/lib/domains/token/onchain/clients";
 import { normalizeAddress } from "@/lib/shared/address";
@@ -87,8 +88,7 @@ export type BuildBotFarcasterSignupCompletedResult = {
   recoveryAddress: `0x${string}`;
   fid: string;
   idGatewayPriceWei: string;
-  registerTxHash: `0x${string}`;
-  addKeyTxHash: `0x${string}`;
+  txHash: `0x${string}`;
 };
 
 export type BuildBotFarcasterSignupResult =
@@ -123,7 +123,7 @@ async function readFidByCustodyAddress(params: { custodyAddress: `0x${string}` }
 async function waitForUserOperation(params: {
   smartAccount: EvmSmartAccount;
   userOpHash: `0x${string}`;
-  step: "register" | "add-key";
+  step: "signup";
 }): Promise<`0x${string}`> {
   const settled = await params.smartAccount.waitForUserOperation({
     userOpHash: params.userOpHash,
@@ -193,31 +193,9 @@ export async function signupBuildBotFarcaster(params: {
     };
   }
 
-  const registerData = encodeFunctionData({
-    abi: idGatewayAbi,
-    functionName: "register",
-    args: [recoveryAddress, extraStorage],
-  });
-  const registerUserOp = await smartAccount.sendUserOperation({
-    network: "optimism",
-    calls: [{ to: FARCASTER_CONTRACTS.idGateway, data: registerData, value: priceWei }],
-  });
-  const registerTxHash = await waitForUserOperation({
-    smartAccount,
-    userOpHash: registerUserOp.userOpHash,
-    step: "register",
-  });
-
-  const fid = await readFidByCustodyAddress({ custodyAddress });
-  if (fid === 0n) {
-    throw new BuildBotFarcasterUserOperationError(
-      "Farcaster register confirmed but FID was not assigned to custody address"
-    );
-  }
-
   const deadline = BigInt(Math.floor(Date.now() / 1000) + SIGNED_KEY_REQUEST_DEADLINE_SECONDS);
-  const signedKeyRequestSignature = await smartAccount.signTypedData({
-    network: "optimism",
+  const requestSigner = privateKeyToAccount(generatePrivateKey());
+  const signedKeyRequestSignature = await requestSigner.signTypedData({
     domain: {
       name: "Farcaster SignedKeyRequestValidator",
       version: "1",
@@ -233,7 +211,7 @@ export async function signupBuildBotFarcaster(params: {
     },
     primaryType: "SignedKeyRequest",
     message: {
-      requestFid: fid,
+      requestFid: 0n,
       key: signerPublicKey,
       deadline,
     },
@@ -253,28 +231,43 @@ export async function signupBuildBotFarcaster(params: {
     ],
     [
       {
-        requestFid: fid,
-        requestSigner: custodyAddress,
+        requestFid: 0n,
+        requestSigner: requestSigner.address,
         signature: signedKeyRequestSignature,
         deadline,
       },
     ]
   );
 
+  const registerData = encodeFunctionData({
+    abi: idGatewayAbi,
+    functionName: "register",
+    args: [recoveryAddress, extraStorage],
+  });
   const addKeyData = encodeFunctionData({
     abi: keyGatewayAbi,
     functionName: "add",
     args: [1, signerPublicKey, 1, metadata],
   });
-  const addKeyUserOp = await smartAccount.sendUserOperation({
+  const signupUserOp = await smartAccount.sendUserOperation({
     network: "optimism",
-    calls: [{ to: FARCASTER_CONTRACTS.keyGateway, data: addKeyData, value: 0n }],
+    calls: [
+      { to: FARCASTER_CONTRACTS.idGateway, data: registerData, value: priceWei },
+      { to: FARCASTER_CONTRACTS.keyGateway, data: addKeyData, value: 0n },
+    ],
   });
-  const addKeyTxHash = await waitForUserOperation({
+  const txHash = await waitForUserOperation({
     smartAccount,
-    userOpHash: addKeyUserOp.userOpHash,
-    step: "add-key",
+    userOpHash: signupUserOp.userOpHash,
+    step: "signup",
   });
+
+  const fid = await readFidByCustodyAddress({ custodyAddress });
+  if (fid === 0n) {
+    throw new BuildBotFarcasterUserOperationError(
+      "Farcaster signup confirmed but FID was not assigned to custody address"
+    );
+  }
 
   return {
     status: "complete",
@@ -284,7 +277,6 @@ export async function signupBuildBotFarcaster(params: {
     recoveryAddress,
     fid: fid.toString(),
     idGatewayPriceWei: priceWei.toString(),
-    registerTxHash,
-    addKeyTxHash,
+    txHash,
   };
 }

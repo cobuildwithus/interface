@@ -54,8 +54,7 @@ describe("build-bot farcaster signup route", () => {
       recoveryAddress: "0x0000000000000000000000000000000000000001",
       fid: "123",
       idGatewayPriceWei: "7000000000000000",
-      registerTxHash: "0xregister",
-      addKeyTxHash: "0xadd",
+      txHash: "0xsignup",
     });
 
     const request = new Request("http://localhost/api/buildbot/farcaster/signup", {
@@ -79,8 +78,7 @@ describe("build-bot farcaster signup route", () => {
         recoveryAddress: "0x0000000000000000000000000000000000000001",
         fid: "123",
         idGatewayPriceWei: "7000000000000000",
-        registerTxHash: "0xregister",
-        addKeyTxHash: "0xadd",
+        txHash: "0xsignup",
       },
     });
     expect(signupBuildBotFarcasterMock).toHaveBeenCalledWith({
@@ -187,7 +185,7 @@ describe("build-bot farcaster signup route", () => {
     });
     signupBuildBotFarcasterMock.mockRejectedValue(
       new BuildBotFarcasterUserOperationError(
-        "Farcaster register user operation failed before confirmation"
+        "Farcaster signup user operation failed before confirmation"
       )
     );
 
@@ -203,7 +201,7 @@ describe("build-bot farcaster signup route", () => {
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({
       ok: false,
-      error: "Farcaster register user operation failed before confirmation",
+      error: "Farcaster signup user operation failed before confirmation",
     });
   });
 });
