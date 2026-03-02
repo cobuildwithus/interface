@@ -144,6 +144,30 @@ describe("build-bot farcaster signup route", () => {
     expect(signupBuildBotFarcasterMock).not.toHaveBeenCalled();
   });
 
+  it("returns 400 when extraStorage exceeds the allowed cap", async () => {
+    requireBuildBotBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+
+    const request = new Request("http://localhost/api/buildbot/farcaster/signup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        signerPublicKey: "0x1111111111111111111111111111111111111111111111111111111111111111",
+        extraStorage: 11,
+      }),
+    });
+
+    const response = await POST(request);
+    const payload = (await response.json()) as { ok?: boolean; error?: string; details?: unknown };
+    expect(response.status).toBe(400);
+    expect(payload.ok).toBe(false);
+    expect(payload.error).toBe("Invalid request body");
+    expect(signupBuildBotFarcasterMock).not.toHaveBeenCalled();
+  });
+
   it("returns 409 when wallet already has a Farcaster account", async () => {
     requireBuildBotBearerAuthMock.mockResolvedValue({
       ownerAddress: "0x0000000000000000000000000000000000000001",

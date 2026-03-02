@@ -25,7 +25,19 @@ const SignupRequestSchema = z.object({
     .trim()
     .regex(/^0x[0-9a-fA-F]{64}$/, "signerPublicKey must be 32-byte hex (0x + 64 hex chars)"),
   recoveryAddress: z.string().trim().optional(),
-  extraStorage: z.union([z.string().trim(), z.number().int().nonnegative()]).optional(),
+  extraStorage: z
+    .union([z.string().trim(), z.number().int().nonnegative()])
+    .optional()
+    .refine(
+      (value) => {
+        if (value === undefined) return true;
+        if (typeof value === "number") {
+          return value <= 10;
+        }
+        return /^\d+$/.test(value) ? BigInt(value) <= 10n : true;
+      },
+      { message: "extraStorage max is 10" }
+    ),
 });
 
 const NO_STORE_HEADERS = {
@@ -47,13 +59,23 @@ function jsonError(status: number, error: string, details?: unknown) {
 
 function parseExtraStorage(value: string | number | undefined): bigint {
   if (value === undefined) return 0n;
-  if (typeof value === "number") return BigInt(value);
+  if (typeof value === "number") {
+    if (value > 10) {
+      throw new RequestValidationError("extraStorage max is 10");
+    }
+    return BigInt(value);
+  }
 
   if (!/^\d+$/.test(value)) {
     throw new RequestValidationError("extraStorage must be a non-negative integer");
   }
 
-  return BigInt(value);
+  const parsed = BigInt(value);
+  if (parsed > 10n) {
+    throw new RequestValidationError("extraStorage max is 10");
+  }
+
+  return parsed;
 }
 
 async function parseJsonOrEmpty(request: Request): Promise<unknown> {
@@ -98,7 +120,7 @@ function toErrorResponse(error: unknown) {
   }
 
   if (error instanceof z.ZodError) {
-    return jsonError(400, "Invalid request body", z.flattenError(error));
+    return jsonError(400, "Invalid request body", error.flatten());
   }
 
   console.error("[build-bot][farcaster][signup] unexpected error", error);
