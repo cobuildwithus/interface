@@ -1,3 +1,9 @@
+import { cjk } from "@streamdown/cjk";
+import { code } from "@streamdown/code";
+import { math } from "@streamdown/math";
+import { mermaid } from "@streamdown/mermaid";
+import type { PluginConfig } from "streamdown";
+
 export const STREAMDOWN_BASE_CLASS =
   "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 " +
   "[&_code]:whitespace-pre-wrap [&_code]:break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto " +
@@ -6,3 +12,5 @@ export const STREAMDOWN_BASE_CLASS =
   "[&_li]:leading-relaxed";
 
 export const STREAMDOWN_COMPACT_CLASS = `${STREAMDOWN_BASE_CLASS} [&_p]:my-0`;
+
+export const STREAMDOWN_PLUGINS = { cjk, code, math, mermaid } satisfies PluginConfig;

@@ -8,7 +8,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { createContext, memo, useContext, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { Shimmer } from "./shimmer";
-import { STREAMDOWN_COMPACT_CLASS } from "./streamdown";
+import { STREAMDOWN_COMPACT_CLASS, STREAMDOWN_PLUGINS } from "./streamdown";
 
 type ReasoningContextValue = {
   isStreaming: boolean;
@@ -171,7 +171,9 @@ export const ReasoningContent = memo(({ className, children, ...props }: Reasoni
     {...props}
   >
     <div className="border-border/50 bg-muted/30 max-h-48 overflow-y-auto rounded-md border p-2.5 text-[11px] **:text-[11px]">
-      <Streamdown className={STREAMDOWN_COMPACT_CLASS}>{children}</Streamdown>
+      <Streamdown className={STREAMDOWN_COMPACT_CLASS} plugins={STREAMDOWN_PLUGINS}>
+        {children}
+      </Streamdown>
     </div>
   </CollapsibleContent>
 ));

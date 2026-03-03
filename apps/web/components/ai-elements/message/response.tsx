@@ -6,7 +6,7 @@ import type { ComponentProps } from "react";
 import { memo, useCallback, useMemo } from "react";
 import { CornerUpLeft } from "lucide-react";
 import { Streamdown } from "streamdown";
-import { STREAMDOWN_BASE_CLASS } from "../streamdown";
+import { STREAMDOWN_BASE_CLASS, STREAMDOWN_PLUGINS } from "../streamdown";
 
 export type MessageResponseProps = ComponentProps<typeof Streamdown>;
 type ImageComponentProps = ComponentProps<"img"> & { node?: object };
@@ -35,7 +35,7 @@ const extractImageUrls = (content: string) => {
 };
 
 export const MessageResponse = memo(
-  ({ className, children, ...props }: MessageResponseProps) => {
+  ({ className, children, plugins, ...props }: MessageResponseProps) => {
     const imageDialog = useImageDialog();
     const content = typeof children === "string" ? children : "";
     const images = useMemo(() => extractImageUrls(content), [content]);
@@ -79,6 +79,7 @@ export const MessageResponse = memo(
         <Streamdown
           className={cn(STREAMDOWN_BASE_CLASS, className)}
           components={components}
+          plugins={plugins ?? STREAMDOWN_PLUGINS}
           {...props}
         >
           {children}

@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { buildContentSecurityPolicy } from "./next.config";
@@ -34,5 +37,55 @@ describe("buildContentSecurityPolicy", () => {
     expect(getDirective(productionPolicy, "frame-ancestors")).toBe(
       "frame-ancestors 'self' https://auth.privy.io"
     );
+  });
+});
+
+const RUNTIME_SCRIPT_FILE_PATTERN = /\.(?:c|m)?js$/;
+const EVAL_LIKE_PATTERN = /\b(?:new\s+Function|Function|eval)\s*\(/;
+
+const STREAMDOWN_RUNTIME_PACKAGES = [
+  { name: "streamdown", resolveFrom: "streamdown" },
+  { name: "@streamdown/cjk", resolveFrom: "@streamdown/cjk" },
+  { name: "@streamdown/code", resolveFrom: "@streamdown/code" },
+  { name: "@streamdown/math", resolveFrom: "@streamdown/math" },
+  { name: "@streamdown/mermaid", resolveFrom: "@streamdown/mermaid" },
+] as const;
+
+const collectRuntimeScriptFiles = (dir: string): string[] => {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const resolved = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectRuntimeScriptFiles(resolved));
+      continue;
+    }
+    if (entry.isFile() && RUNTIME_SCRIPT_FILE_PATTERN.test(resolved)) {
+      files.push(resolved);
+    }
+  }
+
+  return files;
+};
+
+describe("streamdown package runtime", () => {
+  it("does not include eval-like constructs in streamdown runtime packages", () => {
+    const offenders: string[] = [];
+
+    for (const runtimePackage of STREAMDOWN_RUNTIME_PACKAGES) {
+      const packageEntryPath = fileURLToPath(import.meta.resolve(runtimePackage.resolveFrom));
+      const scriptRoot = path.dirname(packageEntryPath);
+      const scriptFiles = collectRuntimeScriptFiles(scriptRoot);
+
+      expect(scriptFiles.length).toBeGreaterThan(0);
+
+      for (const filePath of scriptFiles) {
+        if (!EVAL_LIKE_PATTERN.test(fs.readFileSync(filePath, "utf8"))) continue;
+        offenders.push(`${runtimePackage.name}:${path.relative(scriptRoot, filePath)}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
   });
 });
