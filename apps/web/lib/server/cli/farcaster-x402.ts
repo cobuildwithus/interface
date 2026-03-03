@@ -2,7 +2,6 @@ import "server-only";
 
 import { randomBytes } from "crypto";
 import type { Address } from "viem";
-import { normalizeAddress as normalizeEvmAddress } from "@/lib/shared/address";
 import { CliPolicyError } from "./errors";
 import { getCliCdpClient } from "./cdp-client";
 import { getCliAccountPolicyId, getCliEnv, parseCliBoolean } from "./env";
@@ -11,7 +10,8 @@ import { getOrCreateCliAgentOwnerAccount } from "./wallet-store";
 const X402_PAYMENT_VERSION = 1 as const;
 const X402_SCHEME = "exact" as const;
 const X402_NETWORK = "base" as const;
-const X402_VALIDITY_SECONDS = 60;
+// Keep this aligned with local CLI x402 auth TTL to avoid cross-surface drift.
+const X402_VALIDITY_SECONDS = 300;
 
 const USDC_BASE: Address = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 const NEYNAR_PAY_TO: Address = "0xa6a8736f18f383f1cc2d938576933e5ea7df01a1";
@@ -75,14 +75,6 @@ export type CliFarcasterX402PaymentResult = {
 
 export class CliFarcasterX402SigningError extends Error {}
 
-function normalizeAddress(value: string, label: string): Address {
-  try {
-    return normalizeEvmAddress(value);
-  } catch {
-    throw new CliPolicyError(`${label} must be a 20-byte hex address`);
-  }
-}
-
 function parsePositiveInteger(value: string, label: string): string {
   const trimmed = value.trim();
   if (!/^[1-9]\d*$/.test(trimmed)) {
@@ -92,15 +84,11 @@ function parsePositiveInteger(value: string, label: string): string {
 }
 
 type X402Policy = {
-  requiredToken: Address;
-  requiredPayTo: Address;
   maxAmountMicroUsdc: string;
   requireAccountPolicy: boolean;
 };
 
 function resolveX402Policy(): X402Policy {
-  const token = getCliEnv("FARCASTER_X402_ALLOWED_TOKEN");
-  const payTo = getCliEnv("FARCASTER_X402_ALLOWED_PAY_TO");
   const maxAmount = getCliEnv("FARCASTER_X402_MAX_AMOUNT_MICRO_USDC");
   const requireAccountPolicyEnv = getCliEnv("FARCASTER_X402_REQUIRE_ACCOUNT_POLICY");
   const requireAccountPolicy =
@@ -109,8 +97,6 @@ function resolveX402Policy(): X402Policy {
       : parseCliBoolean("FARCASTER_X402_REQUIRE_ACCOUNT_POLICY");
 
   return {
-    requiredToken: token ? normalizeAddress(token, "FARCASTER_X402_ALLOWED_TOKEN") : USDC_BASE,
-    requiredPayTo: payTo ? normalizeAddress(payTo, "FARCASTER_X402_ALLOWED_PAY_TO") : NEYNAR_PAY_TO,
     maxAmountMicroUsdc: maxAmount
       ? parsePositiveInteger(maxAmount, "FARCASTER_X402_MAX_AMOUNT_MICRO_USDC")
       : X402_AMOUNT_MICRO_USDC,
@@ -125,11 +111,11 @@ function assertPolicyPreconditions(policy: X402Policy): void {
   if (X402_TYPED_DATA_DOMAIN.chainId !== BASE_CHAIN_ID) {
     throw new CliPolicyError("x402 signing policy violation: chainId is not Base mainnet");
   }
-  if (X402_TYPED_DATA_DOMAIN.verifyingContract !== policy.requiredToken) {
-    throw new CliPolicyError("x402 signing policy violation: token contract is not allowlisted");
+  if (X402_TYPED_DATA_DOMAIN.verifyingContract !== USDC_BASE) {
+    throw new CliPolicyError("x402 signing policy violation: token contract must be USDC on Base");
   }
-  if (NEYNAR_PAY_TO !== policy.requiredPayTo) {
-    throw new CliPolicyError("x402 signing policy violation: recipient is not allowlisted");
+  if (NEYNAR_PAY_TO !== "0xa6a8736f18f383f1cc2d938576933e5ea7df01a1") {
+    throw new CliPolicyError("x402 signing policy violation: pay-to must be Neynar");
   }
   if (BigInt(X402_AMOUNT_MICRO_USDC) > BigInt(policy.maxAmountMicroUsdc)) {
     throw new CliPolicyError("x402 signing policy violation: amount exceeds configured cap");
