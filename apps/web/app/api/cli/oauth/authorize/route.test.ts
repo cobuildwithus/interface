@@ -38,6 +38,24 @@ describe("cli oauth authorize route", () => {
     vi.clearAllMocks();
   });
 
+  it("returns 403 for cross-origin requests before auth", async () => {
+    const request = new Request("https://co.build/api/cli/oauth/authorize", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://evil.example",
+      },
+      body: JSON.stringify(BASE_BODY),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "Forbidden" });
+    expect(requireCliSessionAddressMock).not.toHaveBeenCalled();
+    expect(getPrivyIdTokenMock).not.toHaveBeenCalled();
+    expect(fetchChatApiMock).not.toHaveBeenCalled();
+  });
+
   it("builds redirect using validated request redirect/state values", async () => {
     requireCliSessionAddressMock.mockResolvedValue("0x0000000000000000000000000000000000000001");
     getPrivyIdTokenMock.mockResolvedValue("id-token");
@@ -76,6 +94,37 @@ describe("cli oauth authorize route", () => {
     expect(redirect.pathname).toBe("/auth/callback");
     expect(redirect.searchParams.get("code")).toBe("auth-code-1");
     expect(redirect.searchParams.get("state")).toBe("state1234");
+  });
+
+  it("allows missing origin and referer to preserve CLI behavior", async () => {
+    requireCliSessionAddressMock.mockResolvedValue("0x0000000000000000000000000000000000000001");
+    getPrivyIdTokenMock.mockResolvedValue("id-token");
+    fetchChatApiMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: "auth-code-3",
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      )
+    );
+
+    const request = new Request("https://co.build/api/cli/oauth/authorize", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(BASE_BODY),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(requireCliSessionAddressMock).toHaveBeenCalledOnce();
+    expect(fetchChatApiMock).toHaveBeenCalledOnce();
+    const payload = await response.json();
+    expect(payload.ok).toBe(true);
   });
 
   it("rejects upstream mismatched redirect_uri/state", async () => {
