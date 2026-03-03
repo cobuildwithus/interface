@@ -4,6 +4,7 @@ import { fetchChatApi } from "@/lib/domains/chat/server-api";
 import { requireCliSessionAddress } from "@/lib/server/cli/auth";
 import { CliAuthError } from "@/lib/server/cli/errors";
 import { cliErrorResponse, parseJsonStrict } from "@/lib/server/cli/http";
+import { forbiddenCrossOriginResponse } from "@/lib/server/http/same-origin";
 import { validateCliOauthAuthorizeRequest } from "@/lib/shared/cli-oauth";
 
 export const runtime = "nodejs";
@@ -34,26 +35,6 @@ class UpstreamRequestError extends Error {
     super(message);
     this.status = status;
   }
-}
-
-function isSameOriginRequest(request: Request): boolean {
-  const requestOrigin = new URL(request.url).origin;
-  const origin = request.headers.get("origin");
-  if (origin && origin !== requestOrigin) return false;
-
-  const referer = request.headers.get("referer");
-  if (!origin && referer) {
-    try {
-      if (new URL(referer).origin !== requestOrigin) return false;
-    } catch {
-      return false;
-    }
-  }
-
-  const fetchSite = request.headers.get("sec-fetch-site");
-  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "same-site") return false;
-
-  return true;
 }
 
 function oauthAuthorizeErrorResponse(error: unknown) {
@@ -175,8 +156,9 @@ async function requestAuthorizationCode(body: OauthAuthorizeBody): Promise<strin
 
 export async function POST(request: Request) {
   try {
-    if (!isSameOriginRequest(request)) {
-      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    const forbiddenResponse = forbiddenCrossOriginResponse(request);
+    if (forbiddenResponse) {
+      return forbiddenResponse;
     }
 
     await requireCliSessionAddress();
