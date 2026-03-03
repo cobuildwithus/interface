@@ -8,7 +8,23 @@ import { TreasuryChartSkeleton } from "@/components/common/skeletons/treasury-ch
 import { RevnetActions } from "./revnet-actions";
 import { RevnetActionsSkeleton } from "@/components/common/skeletons/revnet-actions-skeleton";
 import { buildPageMetadata } from "@/lib/shared/page-metadata";
-import { BuildBotSetupDialog } from "./build-bot-setup-dialog";
+import { parseCliOauthAuthorizeQuery, type CliOauthAuthorizeRequest } from "@/lib/shared/cli-oauth";
+import { CliOauthAuthorizeModal } from "./cli-oauth-authorize-modal";
+import { CliSetupCompleteModal } from "./cli-setup-complete-modal";
+
+type HomePageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function toSingleValue(value: string | string[] | undefined): string | null {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0];
+  }
+  return null;
+}
 
 export const metadata = buildPageMetadata({
   title: "Home | Cobuild",
@@ -16,10 +32,39 @@ export const metadata = buildPageMetadata({
   robots: { index: false, follow: false },
 });
 
-export default function HomePage() {
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const raw = await searchParams;
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(raw)) {
+    const parsed = toSingleValue(value);
+    if (parsed !== null) {
+      query.set(key, parsed);
+    }
+  }
+
+  let oauthRequest: CliOauthAuthorizeRequest | null = null;
+  let oauthError: string | undefined;
+  const rawPayerMode = query.get("payer_mode");
+  const setupPayerMode =
+    rawPayerMode === "hosted" ||
+    rawPayerMode === "local-generate" ||
+    rawPayerMode === "local-key" ||
+    rawPayerMode === "skip"
+      ? rawPayerMode
+      : null;
+  const showSetupCompleteModal = query.get("cli_setup_complete") === "1";
+  const setupAgentKey = query.get("agent_key")?.trim() || "default";
+  if (query.get("oauth_authorize") === "1" || query.has("response_type")) {
+    const parsed = parseCliOauthAuthorizeQuery(query);
+    if (parsed.ok) {
+      oauthRequest = parsed.value;
+    } else {
+      oauthError = parsed.error;
+    }
+  }
+
   return (
     <main className="w-full p-4 md:p-6">
-      <BuildBotSetupDialog />
       <PageHeader title="Home" />
 
       <MillionMemberGoal />
@@ -50,6 +95,12 @@ export default function HomePage() {
           </section>
         </aside>
       </div>
+
+      {oauthRequest || oauthError ? (
+        <CliOauthAuthorizeModal request={oauthRequest} error={oauthError} />
+      ) : showSetupCompleteModal ? (
+        <CliSetupCompleteModal agentKey={setupAgentKey} payerMode={setupPayerMode} />
+      ) : null}
     </main>
   );
 }

@@ -36,7 +36,7 @@ const buildConnectSrc = () =>
     "https://*.g.alchemy.com",
     "wss://*.g.alchemy.com",
     "https://chat-api.co.build",
-    // Build Bot setup uses a one-time localhost callback listener on an ephemeral port.
+    // CLI setup uses a one-time localhost callback listener on an ephemeral port.
     "http://localhost:*",
     "http://127.0.0.1:*",
     "http://[::1]:*",
@@ -135,6 +135,24 @@ const nextConfig: NextConfig = {
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
+          },
+        ],
+      },
+      {
+        source: "/home",
+        headers: [
+          {
+            key: "X-Frame-Options",
+            value: "DENY",
+          },
+        ],
+      },
+      {
+        source: "/oauth/authorize",
+        headers: [
+          {
+            key: "X-Frame-Options",
+            value: "DENY",
           },
         ],
       },

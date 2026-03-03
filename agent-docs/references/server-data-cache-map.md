@@ -11,8 +11,8 @@
 - `apps/web/lib/server/db/cobuild-db-client.ts`
 - `apps/web/lib/server/kv/kv-store.ts`
 - `apps/web/lib/server/kv/encryption.ts`
-- `apps/web/lib/server/build-bot/token-store.ts`
-- `apps/web/lib/server/build-bot/wallet-store.ts`
+- `apps/web/lib/server/cli/token-store.ts`
+- `apps/web/lib/server/cli/wallet-store.ts`
 - `apps/web/lib/domains/goals/action-card-read.ts`
 - `apps/web/lib/domains/token/onchain/revnet-data.ts`
 - `apps/web/lib/domains/token/onchain/project-stats.ts`

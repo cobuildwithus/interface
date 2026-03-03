@@ -37,8 +37,8 @@ Representative route responsibilities:
 - onchain revnet data: `app/api/revnet/route.ts`
 - cast view anti-abuse + counters: `app/api/cast/[hash]/view/route.ts`
 - image uploads: `app/api/images/upload/route.ts`
-- build-bot PAT + wallet execution surface: `app/api/buildbot/{token,wallet,exec}/route.ts`
-- build-bot canonical tools runtime (`/v1/tools*`, `/v1/tool-executions`) is served by chat-api and routed at the edge/gateway (no Next.js handlers in this repo)
+- cli PAT + wallet execution surface: `app/api/cli/{token,wallet,exec}/route.ts`
+- cli canonical tools runtime (`/v1/tools*`, `/v1/tool-executions`) is served by chat-api and routed at the edge/gateway (no Next.js handlers in this repo)
 
 ## Critical Invariants
 

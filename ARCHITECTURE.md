@@ -48,7 +48,7 @@ Representative handlers:
 - `apps/web/app/api/revnet/route.ts`
 - `apps/web/app/api/cast/[hash]/view/route.ts`
 - `apps/web/app/api/images/upload/route.ts`
-- `apps/web/app/api/buildbot/{token,wallet,exec,farcaster/signup}/route.ts`
+- `apps/web/app/api/cli/{token,wallet,exec,farcaster/signup}/route.ts`
 
 Build-bot note:
 

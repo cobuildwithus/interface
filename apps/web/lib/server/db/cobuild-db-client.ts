@@ -79,4 +79,9 @@ const prisma = globalForPrisma.prisma ?? createPrisma();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
+export function prismaPrimary<TClient extends object>(client: TClient): TClient {
+  const withPrimary = client as TClient & { $primary?: () => TClient };
+  return typeof withPrimary.$primary === "function" ? withPrimary.$primary() : client;
+}
+
 export default prisma;

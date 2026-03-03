@@ -37,7 +37,7 @@
 - Paths: `apps/web/lib/server/**`
 - Responsibility: DB clients, KV/cache adapters, privileged side effects, server-only execution.
 - Rule: never import server modules into client components; keep read/write consistency choices explicit.
-- Example privileged path: `apps/web/lib/server/build-bot/**` for PAT auth and CDP wallet execution.
+- Example privileged path: `apps/web/lib/server/cli/**` for PAT auth and CDP wallet execution.
 
 ### Shared utility boundary
 

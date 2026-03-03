@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { buildContentSecurityPolicy } from "./next.config";
+import nextConfig, { buildContentSecurityPolicy } from "./next.config";
 
 const getDirective = (policy: string, directive: string) =>
   policy
@@ -37,6 +37,24 @@ describe("buildContentSecurityPolicy", () => {
     expect(getDirective(productionPolicy, "frame-ancestors")).toBe(
       "frame-ancestors 'self' https://auth.privy.io"
     );
+  });
+});
+
+describe("next headers", () => {
+  it("adds clickjacking protection for oauth consent paths", async () => {
+    const headers = await nextConfig.headers?.();
+    const homeHeaders = headers?.find((entry) => entry.source === "/home")?.headers ?? [];
+    const oauthAuthorizeHeaders =
+      headers?.find((entry) => entry.source === "/oauth/authorize")?.headers ?? [];
+
+    expect(homeHeaders).toContainEqual({
+      key: "X-Frame-Options",
+      value: "DENY",
+    });
+    expect(oauthAuthorizeHeaders).toContainEqual({
+      key: "X-Frame-Options",
+      value: "DENY",
+    });
   });
 });
 
