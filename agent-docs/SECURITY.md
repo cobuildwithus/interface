@@ -36,11 +36,9 @@
 - `app/api/onramp-status/route.ts`
 - `app/api/images/upload/route.ts`
 - `app/api/cast/[hash]/view/route.ts`
-- `app/v1/tools/route.ts`
-- `app/v1/tools/[name]/route.ts`
-- `app/v1/tool-executions/route.ts`
 - `lib/domains/auth/session.ts`
 - `lib/server/kv/encryption.ts`
+- `chat-api` `/v1/tools*` and `/v1/tool-executions` routes (outside this repo; reached via edge/gateway routing)
 
 ## Defensive Rules
 

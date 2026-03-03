@@ -55,7 +55,8 @@
 - Build-bot API PAT mint/revoke is session-authenticated (`app/api/buildbot/token/route.ts`).
 - Build-bot bearer auth resolves to `{ ownerAddress, agentKey }`; wallet/exec routes derive `agentKey` from PAT auth context rather than request bodies.
 - Wallet provisioning is keyed by `(ownerAddress, agentKey)` and currently defaults PAT `agentKey` to `"default"` for MVP.
-- Build-bot CLI docs/tools routes (`app/api/docs/search/route.ts`, `app/api/buildbot/tools/**`) are PAT-authenticated and proxied through interface -> chat-api server calls so `x-chat-internal-key` stays server-only.
+- Build-bot CLI docs/tools routes use canonical chat-api `/v1/tools*` and `/v1/tool-executions` surfaces through edge/gateway routing.
+- Interface keeps PAT mint/revoke and build-bot wallet/exec APIs in-repo (`app/api/buildbot/**`) while chat-api owns canonical tool-runtime execution.
 
 ## Risk Points
 

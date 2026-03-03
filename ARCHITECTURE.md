@@ -49,9 +49,11 @@ Representative handlers:
 - `apps/web/app/api/cast/[hash]/view/route.ts`
 - `apps/web/app/api/images/upload/route.ts`
 - `apps/web/app/api/buildbot/{token,wallet,exec,farcaster/signup}/route.ts`
-- `apps/web/app/v1/tools/route.ts`
-- `apps/web/app/v1/tools/[name]/route.ts`
-- `apps/web/app/v1/tool-executions/route.ts`
+
+Build-bot note:
+
+- Canonical tools runtime paths (`/v1/tools*`, `/v1/tool-executions`) are owned by chat-api.
+- Interface no longer serves Next.js handlers for these paths; edge/gateway routing forwards `/v1/*` directly to chat-api.
 
 ## Layering Model
 
