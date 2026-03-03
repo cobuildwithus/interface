@@ -22,11 +22,13 @@ type CliBearerAuth = {
   agentKey: string;
   scope: string;
   scopes: string[];
-  canWrite: boolean;
+  hasToolsWrite: boolean;
+  hasWalletExecute: boolean;
+  hasAnyWriteScope: boolean;
 };
 
 type RequireCliBearerAuthOptions = {
-  requireWrite?: boolean;
+  requireWalletExecute?: boolean;
   requiredScopes?: string[];
 };
 
@@ -95,9 +97,18 @@ function hasScope(scopes: string[], requiredScope: string): boolean {
   return scopes.includes(requiredScope);
 }
 
-function canWriteFromScope(scope: string): boolean {
-  const scopes = splitScope(scope);
-  return scopes.includes("tools:write") || scopes.includes("wallet:execute");
+function deriveWriteCapabilities(scopes: string[]): {
+  hasToolsWrite: boolean;
+  hasWalletExecute: boolean;
+  hasAnyWriteScope: boolean;
+} {
+  const hasToolsWrite = scopes.includes("tools:write");
+  const hasWalletExecute = scopes.includes("wallet:execute");
+  return {
+    hasToolsWrite,
+    hasWalletExecute,
+    hasAnyWriteScope: hasToolsWrite || hasWalletExecute,
+  };
 }
 
 export async function requireCliSessionAddress(): Promise<`0x${string}`> {
@@ -154,7 +165,7 @@ async function verifyCliAccessToken(rawToken: string): Promise<CliBearerAuth | n
     agentKey,
     scope,
     scopes,
-    canWrite: canWriteFromScope(scope),
+    ...deriveWriteCapabilities(scopes),
   };
 }
 
@@ -173,7 +184,7 @@ export async function requireCliBearerAuth(
   }
 
   const requiredScopes = [...(options?.requiredScopes ?? [])];
-  if (options?.requireWrite) {
+  if (options?.requireWalletExecute) {
     requiredScopes.push("wallet:execute");
   }
 

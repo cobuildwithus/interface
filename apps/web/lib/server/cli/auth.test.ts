@@ -95,7 +95,9 @@ describe("cli auth", () => {
       agentKey: "default",
       scope: "tools:read tools:write wallet:read wallet:execute offline_access",
       scopes: ["tools:read", "tools:write", "wallet:read", "wallet:execute", "offline_access"],
-      canWrite: true,
+      hasToolsWrite: true,
+      hasWalletExecute: true,
+      hasAnyWriteScope: true,
     });
     expect(jwtVerifyMock).toHaveBeenCalledWith(
       "good-token",
@@ -122,7 +124,7 @@ describe("cli auth", () => {
       headers: { authorization: "Bearer read-only-token" },
     });
 
-    await expect(requireCliBearerAuth(request, { requireWrite: true })).rejects.toEqual(
+    await expect(requireCliBearerAuth(request, { requireWalletExecute: true })).rejects.toEqual(
       expect.objectContaining({
         status: 403,
         message: "wallet:execute scope required",

@@ -46,7 +46,9 @@ describe("cli auth write-scope audit", () => {
       agentKey: "default",
       scope: "tools:read wallet:read offline_access",
       scopes: ["tools:read", "wallet:read", "offline_access"],
-      canWrite: false,
+      hasToolsWrite: false,
+      hasWalletExecute: false,
+      hasAnyWriteScope: false,
     });
   });
 });
