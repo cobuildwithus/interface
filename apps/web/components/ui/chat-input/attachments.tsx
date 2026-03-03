@@ -1,6 +1,9 @@
 "use client";
 
-import { MessageAttachment, MessageAttachments } from "@/components/ai-elements/message";
+import {
+  MessageAttachment,
+  MessageAttachments,
+} from "@/components/ai-elements/message/attachments";
 import type { AttachmentState } from "./types";
 
 const UploadProgressRing = ({ progress }: { progress: number }) => {
