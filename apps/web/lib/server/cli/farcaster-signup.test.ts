@@ -157,10 +157,7 @@ describe("cli farcaster signup service", () => {
       data: registerCall.data,
     });
     expect(decodedRegisterCall.functionName).toBe("register");
-    expect(decodedRegisterCall.args).toEqual([
-      "0x0000000000000000000000000000000000000009",
-      0n,
-    ]);
+    expect(decodedRegisterCall.args).toEqual(["0x0000000000000000000000000000000000000009", 0n]);
 
     const addKeyCall = userOperation.calls[1];
     expect(addKeyCall.to).toBe(FARCASTER_CONTRACTS.keyGateway);

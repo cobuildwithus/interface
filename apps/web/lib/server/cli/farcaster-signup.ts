@@ -1,5 +1,18 @@
 import "server-only";
 
+import {
+  FARCASTER_CONTRACTS,
+  FARCASTER_ID_GATEWAY_ABI,
+  FARCASTER_ID_REGISTRY_ABI,
+  FARCASTER_KEY_GATEWAY_ABI,
+  FARCASTER_SIGNUP_NETWORK,
+  buildFarcasterSignedKeyRequestMetadata,
+  buildFarcasterSignedKeyRequestTypedData,
+  buildFarcasterSignupCallPlan,
+  computeFarcasterSignedKeyRequestDeadline,
+  evaluateFarcasterSignupPreflight,
+  type FarcasterSignedKeyRequestMetadata,
+} from "@cobuild/wire";
 import { encodeAbiParameters, encodeFunctionData, formatEther } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { optimism } from "viem/chains";
@@ -8,62 +21,7 @@ import { normalizeAddress } from "@/lib/shared/address";
 import { waitForUserOperationComplete } from "./user-operation";
 import { getOrCreateCliAgentSmartAccount } from "./wallet-store";
 
-const FARCASTER_CONTRACTS = {
-  idGateway: "0x00000000fc25870c6ed6b6c7e41fb078b7656f69",
-  keyGateway: "0x00000000fc56947c7e7183f8ca4b62398caadf0b",
-  idRegistry: "0x00000000fc6c5f01fc30151999387bb99a9f489b",
-  signedKeyRequestValidator: "0x00000000fc700472606ed4fa22623acf62c60553",
-} as const;
-
-const idGatewayAbi = [
-  {
-    type: "function",
-    name: "price",
-    stateMutability: "view",
-    inputs: [{ name: "extraStorage", type: "uint256" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "register",
-    stateMutability: "payable",
-    inputs: [
-      { name: "recovery", type: "address" },
-      { name: "extraStorage", type: "uint256" },
-    ],
-    outputs: [{ name: "fid", type: "uint256" }],
-  },
-] as const;
-
-const keyGatewayAbi = [
-  {
-    type: "function",
-    name: "add",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "keyType", type: "uint32" },
-      { name: "key", type: "bytes" },
-      { name: "metadataType", type: "uint8" },
-      { name: "metadata", type: "bytes" },
-    ],
-    outputs: [],
-  },
-] as const;
-
-const idRegistryAbi = [
-  {
-    type: "function",
-    name: "idOf",
-    stateMutability: "view",
-    inputs: [{ name: "owner", type: "address" }],
-    outputs: [{ name: "fid", type: "uint256" }],
-  },
-] as const;
-
-const REGISTER_GAS_BUFFER_WEI = 200_000_000_000_000n;
-const SIGNED_KEY_REQUEST_DEADLINE_SECONDS = 60 * 60;
-
-type CliFarcasterNetwork = "optimism";
+type CliFarcasterNetwork = typeof FARCASTER_SIGNUP_NETWORK;
 
 export type CliFarcasterSignupNeedsFundingResult = {
   status: "needs_funding";
@@ -109,11 +67,30 @@ export class CliFarcasterAlreadyRegisteredError extends Error {
 
 export class CliFarcasterUserOperationError extends Error {}
 
+function encodeSignedKeyRequestMetadata(
+  metadata: FarcasterSignedKeyRequestMetadata
+): `0x${string}` {
+  return encodeAbiParameters(
+    [
+      {
+        type: "tuple",
+        components: [
+          { name: "requestFid", type: "uint256" },
+          { name: "requestSigner", type: "address" },
+          { name: "signature", type: "bytes" },
+          { name: "deadline", type: "uint256" },
+        ],
+      },
+    ],
+    [metadata]
+  );
+}
+
 async function readFidByCustodyAddress(params: { custodyAddress: `0x${string}` }): Promise<bigint> {
   const client = getClient(optimism.id);
   return client.readContract({
     address: FARCASTER_CONTRACTS.idRegistry,
-    abi: idRegistryAbi,
+    abi: FARCASTER_ID_REGISTRY_ABI,
     functionName: "idOf",
     args: [params.custodyAddress],
   });
@@ -139,96 +116,91 @@ export async function signupCliFarcaster(params: {
   const client = getClient(optimism.id);
 
   const existingFid = await readFidByCustodyAddress({ custodyAddress });
-  if (existingFid !== 0n) {
+  if (existingFid > 0n) {
     throw new CliFarcasterAlreadyRegisteredError({ fid: existingFid, custodyAddress });
   }
 
   const priceWei = await client.readContract({
     address: FARCASTER_CONTRACTS.idGateway,
-    abi: idGatewayAbi,
+    abi: FARCASTER_ID_GATEWAY_ABI,
     functionName: "price",
     args: [extraStorage],
   });
   const balanceWei = await client.getBalance({ address: custodyAddress });
-  const requiredWei = priceWei + REGISTER_GAS_BUFFER_WEI;
+  const preflight = evaluateFarcasterSignupPreflight({
+    custodyAddress,
+    existingFid,
+    idGatewayPriceWei: priceWei,
+    balanceWei,
+  });
 
-  if (balanceWei < requiredWei) {
+  if (preflight.status === "needs_funding") {
+    const requiredWei = BigInt(preflight.requiredWei);
     return {
       status: "needs_funding",
-      network: "optimism",
+      network: FARCASTER_SIGNUP_NETWORK,
       ownerAddress,
       custodyAddress,
       recoveryAddress,
-      idGatewayPriceWei: priceWei.toString(),
+      idGatewayPriceWei: preflight.idGatewayPriceWei,
       idGatewayPriceEth: formatEther(priceWei),
-      balanceWei: balanceWei.toString(),
+      balanceWei: preflight.balanceWei,
       balanceEth: formatEther(balanceWei),
-      requiredWei: requiredWei.toString(),
+      requiredWei: preflight.requiredWei,
       requiredEth: formatEther(requiredWei),
     };
   }
 
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + SIGNED_KEY_REQUEST_DEADLINE_SECONDS);
+  const deadline = computeFarcasterSignedKeyRequestDeadline();
   const requestSigner = privateKeyToAccount(generatePrivateKey());
+  const typedData = buildFarcasterSignedKeyRequestTypedData({
+    requestFid: 0n,
+    signerPublicKey,
+    deadline,
+  });
   const signedKeyRequestSignature = await requestSigner.signTypedData({
-    domain: {
-      name: "Farcaster SignedKeyRequestValidator",
-      version: "1",
-      chainId: optimism.id,
-      verifyingContract: FARCASTER_CONTRACTS.signedKeyRequestValidator,
-    },
-    types: {
-      SignedKeyRequest: [
-        { name: "requestFid", type: "uint256" },
-        { name: "key", type: "bytes" },
-        { name: "deadline", type: "uint256" },
-      ],
-    },
-    primaryType: "SignedKeyRequest",
-    message: {
-      requestFid: 0n,
-      key: signerPublicKey,
-      deadline,
-    },
+    domain: typedData.domain,
+    types: { SignedKeyRequest: typedData.types.SignedKeyRequest },
+    primaryType: typedData.primaryType,
+    message: typedData.message,
+  });
+  const signedKeyRequestMetadata = buildFarcasterSignedKeyRequestMetadata({
+    requestFid: typedData.message.requestFid,
+    requestSigner: requestSigner.address,
+    signature: signedKeyRequestSignature,
+    deadline: typedData.message.deadline,
   });
 
-  const metadata = encodeAbiParameters(
-    [
-      {
-        type: "tuple",
-        components: [
-          { name: "requestFid", type: "uint256" },
-          { name: "requestSigner", type: "address" },
-          { name: "signature", type: "bytes" },
-          { name: "deadline", type: "uint256" },
-        ],
-      },
-    ],
-    [
-      {
-        requestFid: 0n,
-        requestSigner: requestSigner.address,
-        signature: signedKeyRequestSignature,
-        deadline,
-      },
-    ]
-  );
+  const signupCallPlan = buildFarcasterSignupCallPlan({
+    recoveryAddress,
+    extraStorage,
+    idGatewayPriceWei: priceWei,
+    signerPublicKey,
+    signedKeyRequestMetadata,
+  });
+  const registerCall = signupCallPlan.calls[0];
+  const addKeyCall = signupCallPlan.calls[1];
 
   const registerData = encodeFunctionData({
-    abi: idGatewayAbi,
-    functionName: "register",
-    args: [recoveryAddress, extraStorage],
+    abi: FARCASTER_ID_GATEWAY_ABI,
+    functionName: registerCall.functionName,
+    args: [registerCall.args.recoveryAddress, registerCall.args.extraStorage],
   });
   const addKeyData = encodeFunctionData({
-    abi: keyGatewayAbi,
-    functionName: "add",
-    args: [1, signerPublicKey, 1, metadata],
+    abi: FARCASTER_KEY_GATEWAY_ABI,
+    functionName: addKeyCall.functionName,
+    args: [
+      addKeyCall.args.keyType,
+      addKeyCall.args.key,
+      addKeyCall.args.metadataType,
+      encodeSignedKeyRequestMetadata(addKeyCall.args.metadata),
+    ],
   });
   const signupUserOp = await smartAccount.sendUserOperation({
-    network: "optimism",
+    network: signupCallPlan.network,
     calls: [
-      { to: FARCASTER_CONTRACTS.idGateway, data: registerData, value: priceWei },
-      { to: FARCASTER_CONTRACTS.keyGateway, data: addKeyData, value: 0n },
+      { to: registerCall.to, data: registerData, value: registerCall.value },
+      { to: addKeyCall.to, data: addKeyData, value: addKeyCall.value },
     ],
   });
   const txHash = await waitForUserOperationComplete({
@@ -248,7 +220,7 @@ export async function signupCliFarcaster(params: {
 
   return {
     status: "complete",
-    network: "optimism",
+    network: FARCASTER_SIGNUP_NETWORK,
     ownerAddress,
     custodyAddress,
     recoveryAddress,
