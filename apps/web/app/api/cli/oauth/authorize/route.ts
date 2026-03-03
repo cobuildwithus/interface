@@ -156,7 +156,9 @@ async function requestAuthorizationCode(body: OauthAuthorizeBody): Promise<strin
 
 export async function POST(request: Request) {
   try {
-    const forbiddenResponse = forbiddenCrossOriginResponse(request);
+    const forbiddenResponse = forbiddenCrossOriginResponse(request, {
+      requireOriginHeader: true,
+    });
     if (forbiddenResponse) {
       return forbiddenResponse;
     }

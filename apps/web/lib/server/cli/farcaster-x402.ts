@@ -1,66 +1,46 @@
 import "server-only";
 
 import { randomBytes } from "crypto";
+import {
+  BASE_CHAIN_ID,
+  USDC_EIP712_DOMAIN_NAME,
+  USDC_EIP712_DOMAIN_VERSION,
+  X402_AUTH_TTL_SECONDS,
+  X402_NETWORK,
+  X402_PAY_TO_ADDRESS,
+  X402_SCHEME,
+  X402_TRANSFER_PRIMARY_TYPE,
+  X402_USDC_CONTRACT,
+  X402_VALUE_MICRO_USDC,
+  X402_VERSION,
+  buildX402TypedDataDomain,
+  buildX402TypedDataTypes,
+  encodeX402PaymentPayload,
+  type X402AuthorizationPayload,
+  type X402PaymentPayload,
+} from "@cobuild/wire";
 import type { Address } from "viem";
 import { CliPolicyError } from "./errors";
 import { getCliCdpClient } from "./cdp-client";
 import { getCliAccountPolicyId, getCliEnv, parseCliBoolean } from "./env";
 import { getOrCreateCliAgentOwnerAccount } from "./wallet-store";
 
-const X402_PAYMENT_VERSION = 1 as const;
-const X402_SCHEME = "exact" as const;
-const X402_NETWORK = "base" as const;
 // Keep this aligned with local CLI x402 auth TTL to avoid cross-surface drift.
-const X402_VALIDITY_SECONDS = 300;
+const X402_VALIDITY_SECONDS = X402_AUTH_TTL_SECONDS;
 
-const USDC_BASE: Address = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
-const NEYNAR_PAY_TO: Address = "0xa6a8736f18f383f1cc2d938576933e5ea7df01a1";
-const X402_AMOUNT_MICRO_USDC = "1000";
-const X402_TRANSFER_PRIMARY_TYPE = "TransferWithAuthorization";
-const BASE_CHAIN_ID = 8453;
+const X402_PAYMENT_VERSION: 1 = X402_VERSION;
+const USDC_BASE: Address = X402_USDC_CONTRACT;
+const NEYNAR_PAY_TO: Address = X402_PAY_TO_ADDRESS;
+const X402_AMOUNT_MICRO_USDC = X402_VALUE_MICRO_USDC;
 
-const X402_TYPED_DATA_DOMAIN = {
-  name: "USD Coin",
-  version: "2",
+const X402_TYPED_DATA_DOMAIN = buildX402TypedDataDomain({
+  name: USDC_EIP712_DOMAIN_NAME,
+  version: USDC_EIP712_DOMAIN_VERSION,
   chainId: BASE_CHAIN_ID,
   verifyingContract: USDC_BASE,
-} as const;
+});
 
-const X402_TYPED_DATA_TYPES = {
-  EIP712Domain: [
-    { name: "name", type: "string" },
-    { name: "version", type: "string" },
-    { name: "chainId", type: "uint256" },
-    { name: "verifyingContract", type: "address" },
-  ],
-  TransferWithAuthorization: [
-    { name: "from", type: "address" },
-    { name: "to", type: "address" },
-    { name: "value", type: "uint256" },
-    { name: "validAfter", type: "uint256" },
-    { name: "validBefore", type: "uint256" },
-    { name: "nonce", type: "bytes32" },
-  ],
-} as const;
-
-type X402AuthorizationPayload = {
-  from: Address;
-  to: Address;
-  value: string;
-  validAfter: string;
-  validBefore: string;
-  nonce: `0x${string}`;
-};
-
-type X402PaymentPayload = {
-  x402Version: number;
-  scheme: "exact";
-  network: "base";
-  payload: {
-    signature: `0x${string}`;
-    authorization: X402AuthorizationPayload;
-  };
-};
+const X402_TYPED_DATA_TYPES = buildX402TypedDataTypes();
 
 export type CliFarcasterX402PaymentResult = {
   xPayment: string;
@@ -201,7 +181,7 @@ export async function createCliFarcasterX402Payment(params: {
   }
 
   const paymentPayload = buildX402PaymentPayload({ signature, authorization });
-  const xPayment = Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
+  const xPayment = encodeX402PaymentPayload(paymentPayload);
 
   return {
     xPayment,

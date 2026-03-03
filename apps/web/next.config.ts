@@ -67,7 +67,7 @@ export const buildContentSecurityPolicy = ({ nodeEnv = process.env.NODE_ENV }: C
     object-src 'none';
     base-uri 'self';
     form-action 'self';
-    frame-ancestors 'self' https://auth.privy.io;
+    frame-ancestors 'none';
     child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org;
     frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com;
     connect-src ${buildConnectSrc()};
@@ -122,7 +122,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: "X-Frame-Options",
-            value: "SAMEORIGIN",
+            value: "DENY",
           },
           {
             key: "X-Content-Type-Options",
@@ -135,24 +135,6 @@ const nextConfig: NextConfig = {
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
-          },
-        ],
-      },
-      {
-        source: "/home",
-        headers: [
-          {
-            key: "X-Frame-Options",
-            value: "DENY",
-          },
-        ],
-      },
-      {
-        source: "/oauth/authorize",
-        headers: [
-          {
-            key: "X-Frame-Options",
-            value: "DENY",
           },
         ],
       },

@@ -1,20 +1,25 @@
 import { z } from "zod";
+import {
+  IDEMPOTENCY_DEPRECATED_HEADER,
+  IDEMPOTENCY_KEY_PATTERN,
+  IDEMPOTENCY_PRIMARY_HEADER,
+  isIdempotencyKey,
+} from "@cobuild/wire";
 import { RequestValidationError } from "@/lib/server/cli/http";
 
-export const UUID_V4_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export const UUID_V4_REGEX = IDEMPOTENCY_KEY_PATTERN;
 
 export const IdempotencyKeyValueSchema = z
   .string()
   .trim()
-  .regex(UUID_V4_REGEX, "idempotencyKey must be a UUID v4");
+  .refine(isIdempotencyKey, "idempotencyKey must be a UUID v4");
 
 export const IdempotencyKeySchema = IdempotencyKeyValueSchema.optional();
 
 export function parseIdempotencyKeyHeader(request: Request): string | null {
   const headerValue =
-    request.headers.get("x-idempotency-key")?.trim() ??
-    request.headers.get("idempotency-key")?.trim();
+    request.headers.get(IDEMPOTENCY_DEPRECATED_HEADER.toLowerCase())?.trim() ??
+    request.headers.get(IDEMPOTENCY_PRIMARY_HEADER.toLowerCase())?.trim();
   if (!headerValue) return null;
 
   const parsedHeader = IdempotencyKeyValueSchema.safeParse(headerValue);

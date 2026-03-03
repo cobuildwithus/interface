@@ -34,24 +34,16 @@ describe("buildContentSecurityPolicy", () => {
 
     expect(getDirective(productionPolicy, "object-src")).toBe("object-src 'none'");
     expect(getDirective(productionPolicy, "base-uri")).toBe("base-uri 'self'");
-    expect(getDirective(productionPolicy, "frame-ancestors")).toBe(
-      "frame-ancestors 'self' https://auth.privy.io"
-    );
+    expect(getDirective(productionPolicy, "frame-ancestors")).toBe("frame-ancestors 'none'");
   });
 });
 
 describe("next headers", () => {
-  it("adds clickjacking protection for oauth consent paths", async () => {
+  it("sets DENY clickjacking header globally", async () => {
     const headers = await nextConfig.headers?.();
-    const homeHeaders = headers?.find((entry) => entry.source === "/home")?.headers ?? [];
-    const oauthAuthorizeHeaders =
-      headers?.find((entry) => entry.source === "/oauth/authorize")?.headers ?? [];
+    const globalHeaders = headers?.find((entry) => entry.source === "/:path*")?.headers ?? [];
 
-    expect(homeHeaders).toContainEqual({
-      key: "X-Frame-Options",
-      value: "DENY",
-    });
-    expect(oauthAuthorizeHeaders).toContainEqual({
+    expect(globalHeaders).toContainEqual({
       key: "X-Frame-Options",
       value: "DENY",
     });

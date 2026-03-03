@@ -1,6 +1,7 @@
 import "server-only";
 
 import * as jose from "jose";
+import { parseCliAccessTokenClaims, splitScope } from "@cobuild/wire";
 import { getSession } from "@/lib/domains/auth/session";
 import { normalizeAddress } from "@/lib/shared/address";
 import { parseBearerToken } from "@/lib/shared/parse-bearer-token";
@@ -32,13 +33,6 @@ type RequireCliBearerAuthOptions = {
   requiredScopes?: string[];
 };
 
-type CliAccessTokenClaims = {
-  sub: string;
-  sid: string;
-  agentKey: string;
-  scope: string;
-};
-
 let cachedPublicKey: CryptoKey | undefined;
 let cachedPublicKeySource: string | undefined;
 
@@ -66,31 +60,6 @@ async function getCliJwtPublicKey(): Promise<CryptoKey> {
     cachedPublicKeySource = source;
   }
   return cachedPublicKey;
-}
-
-function parseCliAccessTokenClaims(payload: jose.JWTPayload): CliAccessTokenClaims | null {
-  if (
-    typeof payload.sub !== "string" ||
-    typeof payload.sid !== "string" ||
-    typeof payload.agent_key !== "string" ||
-    typeof payload.scope !== "string"
-  ) {
-    return null;
-  }
-
-  return {
-    sub: payload.sub,
-    sid: payload.sid,
-    agentKey: payload.agent_key,
-    scope: payload.scope,
-  };
-}
-
-function splitScope(scope: string): string[] {
-  return scope
-    .split(/\s+/)
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
 }
 
 function hasScope(scopes: string[], requiredScope: string): boolean {

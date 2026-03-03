@@ -16,29 +16,31 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function useArrowKeyNavigation(options: ArrowKeyNavigationOptions) {
+  const { enabled, onArrowLeft, onArrowRight, onEscape } = options;
+
   useEffect(() => {
-    if (!options.enabled) return;
+    if (!enabled) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
 
-      if (event.key === "ArrowLeft" && options.onArrowLeft) {
+      if (event.key === "ArrowLeft" && onArrowLeft) {
         event.preventDefault();
-        options.onArrowLeft();
+        onArrowLeft();
         return;
       }
-      if (event.key === "ArrowRight" && options.onArrowRight) {
+      if (event.key === "ArrowRight" && onArrowRight) {
         event.preventDefault();
-        options.onArrowRight();
+        onArrowRight();
         return;
       }
-      if (event.key === "Escape" && options.onEscape) {
+      if (event.key === "Escape" && onEscape) {
         event.preventDefault();
-        options.onEscape();
+        onEscape();
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [options.enabled, options.onArrowLeft, options.onArrowRight, options.onEscape]);
+  }, [enabled, onArrowLeft, onArrowRight, onEscape]);
 }

@@ -96,7 +96,7 @@ describe("cli oauth authorize route", () => {
     expect(redirect.searchParams.get("state")).toBe("state1234");
   });
 
-  it("allows missing origin and referer to preserve CLI behavior", async () => {
+  it("rejects requests that omit origin header", async () => {
     requireCliSessionAddressMock.mockResolvedValue("0x0000000000000000000000000000000000000001");
     getPrivyIdTokenMock.mockResolvedValue("id-token");
     fetchChatApiMock.mockResolvedValue(
@@ -120,11 +120,10 @@ describe("cli oauth authorize route", () => {
     });
 
     const response = await POST(request);
-    expect(response.status).toBe(200);
-    expect(requireCliSessionAddressMock).toHaveBeenCalledOnce();
-    expect(fetchChatApiMock).toHaveBeenCalledOnce();
-    const payload = await response.json();
-    expect(payload.ok).toBe(true);
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "Forbidden" });
+    expect(requireCliSessionAddressMock).not.toHaveBeenCalled();
+    expect(fetchChatApiMock).not.toHaveBeenCalled();
   });
 
   it("rejects upstream mismatched redirect_uri/state", async () => {

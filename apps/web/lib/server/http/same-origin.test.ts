@@ -59,4 +59,17 @@ describe("same-origin helpers", () => {
     const request = buildRequest();
     expect(isSameOriginRequest(request)).toBe(true);
   });
+
+  it("rejects missing origin when strict mode requires it", () => {
+    const request = buildRequest();
+    expect(isSameOriginRequest(request, { requireOriginHeader: true })).toBe(false);
+    const response = forbiddenCrossOriginResponse(request, { requireOriginHeader: true });
+    expect(response?.status).toBe(403);
+  });
+
+  it("accepts strict mode when origin is present and same-origin", () => {
+    const request = buildRequest({ origin: BASE_URL });
+    expect(isSameOriginRequest(request, { requireOriginHeader: true })).toBe(true);
+    expect(forbiddenCrossOriginResponse(request, { requireOriginHeader: true })).toBeNull();
+  });
 });

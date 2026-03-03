@@ -56,6 +56,10 @@ function summarizeAccessLevel(request: CliOauthAuthorizeRequest): string {
   return hasWrite ? "Read + write access" : "Read-only access";
 }
 
+function formatScope(scope: string): string {
+  return scope.replace(":", ": ");
+}
+
 export function CliOauthAuthorizeModal(props: {
   request: CliOauthAuthorizeRequest | null;
   error?: string;
@@ -150,6 +154,21 @@ export function CliOauthAuthorizeModal(props: {
                 <div className="mt-2 space-y-2">
                   <p>Access level: {summarizeAccessLevel(props.request)}</p>
                   <p>Session: saved on this machine until revoked.</p>
+                  <div>
+                    <p className="mb-1 font-medium">Granted scopes</p>
+                    <ul className="space-y-1">
+                      {props.request.scopes.map((scope) => (
+                        <li
+                          className={
+                            scope === "wallet:execute" ? "font-semibold text-red-600" : undefined
+                          }
+                          key={scope}
+                        >
+                          {formatScope(scope)}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                   <p className="font-mono break-all">
                     Local callback URL: {props.request.redirectUri}
                   </p>

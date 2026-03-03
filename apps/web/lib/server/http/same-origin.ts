@@ -2,9 +2,14 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 
-export function isSameOriginRequest(request: Request): boolean {
+type SameOriginOptions = {
+  requireOriginHeader?: boolean;
+};
+
+export function isSameOriginRequest(request: Request, options: SameOriginOptions = {}): boolean {
   const requestOrigin = new URL(request.url).origin;
   const origin = request.headers.get("origin");
+  if (options.requireOriginHeader && !origin) return false;
   if (origin && origin !== requestOrigin) return false;
 
   const referer = request.headers.get("referer");
@@ -22,7 +27,10 @@ export function isSameOriginRequest(request: Request): boolean {
   return true;
 }
 
-export function forbiddenCrossOriginResponse(request: Request): NextResponse | null {
-  if (isSameOriginRequest(request)) return null;
+export function forbiddenCrossOriginResponse(
+  request: Request,
+  options: SameOriginOptions = {}
+): NextResponse | null {
+  if (isSameOriginRequest(request, options)) return null;
   return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
 }
