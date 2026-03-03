@@ -3,6 +3,7 @@
 import { Loader2, ShieldCheck, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { CliOAuthAuthorizeRequest } from "@cobuild/wire";
 import { AuthButton } from "@/components/ui/auth-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,15 +15,14 @@ import {
 } from "@/components/ui/dialog";
 import { useLogin } from "@/lib/domains/auth/use-login";
 import { useUserContext } from "@/lib/domains/auth/user-context";
-import type { CliOauthAuthorizeRequest } from "@/lib/shared/cli-oauth";
 
-type CliOauthAuthorizeResult = {
+type CliOAuthAuthorizeResult = {
   ok?: boolean;
   error?: string;
   redirectTo?: string;
 };
 
-function summarizeAuthorizedActions(request: CliOauthAuthorizeRequest): string[] {
+function summarizeAuthorizedActions(request: CliOAuthAuthorizeRequest): string[] {
   const actions: string[] = [];
   const hasWalletRead = request.scopes.includes("wallet:read");
   const hasWalletExecute = request.scopes.includes("wallet:execute");
@@ -50,7 +50,7 @@ function summarizeAuthorizedActions(request: CliOauthAuthorizeRequest): string[]
   return actions;
 }
 
-function summarizeAccessLevel(request: CliOauthAuthorizeRequest): string {
+function summarizeAccessLevel(request: CliOAuthAuthorizeRequest): string {
   const hasWrite =
     request.scopes.includes("wallet:execute") || request.scopes.includes("tools:write");
   return hasWrite ? "Read + write access" : "Read-only access";
@@ -60,8 +60,8 @@ function formatScope(scope: string): string {
   return scope.replace(":", ": ");
 }
 
-export function CliOauthAuthorizeModal(props: {
-  request: CliOauthAuthorizeRequest | null;
+export function CliOAuthAuthorizeModal(props: {
+  request: CliOAuthAuthorizeRequest | null;
   error?: string;
 }) {
   const router = useRouter();
@@ -105,7 +105,7 @@ export function CliOauthAuthorizeModal(props: {
           ...(props.request.label ? { label: props.request.label } : {}),
         }),
       });
-      const payload = (await response.json().catch(() => null)) as CliOauthAuthorizeResult | null;
+      const payload = (await response.json().catch(() => null)) as CliOAuthAuthorizeResult | null;
       if (!response.ok || payload?.ok !== true || typeof payload.redirectTo !== "string") {
         const message =
           typeof payload?.error === "string"

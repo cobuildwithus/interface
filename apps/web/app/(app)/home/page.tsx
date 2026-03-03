@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { parseCliOAuthAuthorizeQuery, type CliOAuthAuthorizeRequest } from "@cobuild/wire";
 import { PageHeader } from "@/components/layout/page-header";
 import { MillionMemberGoal } from "@/components/features/goals/million-member-goal";
 import { PayEventsList } from "./pay-events-list";
@@ -8,8 +9,7 @@ import { TreasuryChartSkeleton } from "@/components/common/skeletons/treasury-ch
 import { RevnetActions } from "./revnet-actions";
 import { RevnetActionsSkeleton } from "@/components/common/skeletons/revnet-actions-skeleton";
 import { buildPageMetadata } from "@/lib/shared/page-metadata";
-import { parseCliOauthAuthorizeQuery, type CliOauthAuthorizeRequest } from "@/lib/shared/cli-oauth";
-import { CliOauthAuthorizeModal } from "./cli-oauth-authorize-modal";
+import { CliOAuthAuthorizeModal } from "./cli-oauth-authorize-modal";
 import { CliSetupCompleteModal } from "./cli-setup-complete-modal";
 
 type HomePageProps = {
@@ -42,7 +42,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     }
   }
 
-  let oauthRequest: CliOauthAuthorizeRequest | null = null;
+  let oauthRequest: CliOAuthAuthorizeRequest | null = null;
   let oauthError: string | undefined;
   const rawPayerMode = query.get("payer_mode");
   const setupPayerMode =
@@ -55,7 +55,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const showSetupCompleteModal = query.get("cli_setup_complete") === "1";
   const setupAgentKey = query.get("agent_key")?.trim() || "default";
   if (query.get("oauth_authorize") === "1" || query.has("response_type")) {
-    const parsed = parseCliOauthAuthorizeQuery(query);
+    const parsed = parseCliOAuthAuthorizeQuery(query);
     if (parsed.ok) {
       oauthRequest = parsed.value;
     } else {
@@ -97,7 +97,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       </div>
 
       {oauthRequest || oauthError ? (
-        <CliOauthAuthorizeModal request={oauthRequest} error={oauthError} />
+        <CliOAuthAuthorizeModal request={oauthRequest} error={oauthError} />
       ) : showSetupCompleteModal ? (
         <CliSetupCompleteModal agentKey={setupAgentKey} payerMode={setupPayerMode} />
       ) : null}

@@ -42,15 +42,17 @@ async function proxySessionsRequest(init: RequestInit): Promise<Response> {
   }
 
   const body = await upstream.text();
+  const status = upstream.status;
+  const responseHasNoBody = status === 204 || status === 205 || status === 304;
   const headers = new Headers(upstream.headers);
   headers.set("Cache-Control", "no-store");
   headers.delete("content-length");
-  if (!headers.has("content-type")) {
+  if (!headers.has("content-type") && !responseHasNoBody && body.trim().length > 0) {
     headers.set("content-type", "application/json");
   }
 
-  return new Response(body, {
-    status: upstream.status,
+  return new Response(responseHasNoBody ? null : body, {
+    status,
     headers,
   });
 }
@@ -72,7 +74,7 @@ export async function GET() {
 
 export async function DELETE(request: Request) {
   try {
-    const forbiddenResponse = forbiddenCrossOriginResponse(request);
+    const forbiddenResponse = forbiddenCrossOriginResponse(request, { requireOriginHeader: true });
     if (forbiddenResponse) {
       return forbiddenResponse;
     }

@@ -81,6 +81,10 @@ describe("cli auth", () => {
         sid: "42",
         agent_key: "default",
         scope: "tools:read tools:write wallet:read wallet:execute offline_access",
+        iat: 1_700_000_000,
+        exp: 1_700_000_600,
+        iss: "cobuild-chat-api",
+        aud: "buildbot",
       },
     });
 
@@ -116,6 +120,10 @@ describe("cli auth", () => {
         sid: "7",
         agent_key: "default",
         scope: "tools:read wallet:read offline_access",
+        iat: 1_700_000_000,
+        exp: 1_700_000_600,
+        iss: "cobuild-chat-api",
+        aud: "buildbot",
       },
     });
 
@@ -136,5 +144,31 @@ describe("cli auth", () => {
     getSessionMock.mockResolvedValue({});
 
     await expect(requireCliSessionAddress()).rejects.toBeInstanceOf(CliAuthError);
+  });
+
+  it("rejects tokens missing exp/iat verified claims", async () => {
+    importSpkiMock.mockResolvedValue({});
+    jwtVerifyMock.mockResolvedValue({
+      payload: {
+        sub: "0x0000000000000000000000000000000000000001",
+        sid: "7",
+        agent_key: "default",
+        scope: "tools:read wallet:read offline_access",
+        iss: "cobuild-chat-api",
+        aud: "buildbot",
+      },
+    });
+
+    const request = new Request("http://localhost", {
+      method: "POST",
+      headers: { authorization: "Bearer missing-exp-token" },
+    });
+
+    await expect(requireCliBearerAuth(request)).rejects.toEqual(
+      expect.objectContaining({
+        status: 401,
+        message: "Unauthorized",
+      })
+    );
   });
 });

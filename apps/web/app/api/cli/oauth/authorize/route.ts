@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
+import { validateCliOAuthAuthorizeRequest } from "@cobuild/wire";
 import { getPrivyIdToken } from "@/lib/domains/auth/session";
 import { fetchChatApi } from "@/lib/domains/chat/server-api";
 import { requireCliSessionAddress } from "@/lib/server/cli/auth";
 import { CliAuthError } from "@/lib/server/cli/errors";
 import { cliErrorResponse, parseJsonStrict } from "@/lib/server/cli/http";
 import { forbiddenCrossOriginResponse } from "@/lib/server/http/same-origin";
-import { validateCliOauthAuthorizeRequest } from "@/lib/shared/cli-oauth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,7 +58,7 @@ function oauthAuthorizeErrorResponse(error: unknown) {
 
 function parseOauthAuthorizeBody(input: unknown) {
   const record = (input ?? {}) as Record<string, unknown>;
-  return validateCliOauthAuthorizeRequest({
+  return validateCliOAuthAuthorizeRequest({
     responseType: typeof record.responseType === "string" ? record.responseType : "",
     clientId: typeof record.clientId === "string" ? record.clientId : "",
     redirectUri: typeof record.redirectUri === "string" ? record.redirectUri : "",

@@ -32,6 +32,10 @@ describe("cli auth write-scope audit", () => {
         sid: "1",
         agent_key: "default",
         scope: "tools:read wallet:read offline_access",
+        iat: 1_700_000_000,
+        exp: 1_700_000_600,
+        iss: "cobuild-chat-api",
+        aud: "buildbot",
       },
     });
 

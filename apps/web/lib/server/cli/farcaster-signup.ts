@@ -4,16 +4,15 @@ import {
   FARCASTER_CONTRACTS,
   FARCASTER_ID_GATEWAY_ABI,
   FARCASTER_ID_REGISTRY_ABI,
-  FARCASTER_KEY_GATEWAY_ABI,
   FARCASTER_SIGNUP_NETWORK,
   buildFarcasterSignedKeyRequestMetadata,
   buildFarcasterSignedKeyRequestTypedData,
   buildFarcasterSignupCallPlan,
+  buildFarcasterSignupExecutableCalls,
   computeFarcasterSignedKeyRequestDeadline,
   evaluateFarcasterSignupPreflight,
-  type FarcasterSignedKeyRequestMetadata,
 } from "@cobuild/wire";
-import { encodeAbiParameters, encodeFunctionData, formatEther } from "viem";
+import { formatEther } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { optimism } from "viem/chains";
 import { getClient } from "@/lib/domains/token/onchain/clients";
@@ -66,25 +65,6 @@ export class CliFarcasterAlreadyRegisteredError extends Error {
 }
 
 export class CliFarcasterUserOperationError extends Error {}
-
-function encodeSignedKeyRequestMetadata(
-  metadata: FarcasterSignedKeyRequestMetadata
-): `0x${string}` {
-  return encodeAbiParameters(
-    [
-      {
-        type: "tuple",
-        components: [
-          { name: "requestFid", type: "uint256" },
-          { name: "requestSigner", type: "address" },
-          { name: "signature", type: "bytes" },
-          { name: "deadline", type: "uint256" },
-        ],
-      },
-    ],
-    [metadata]
-  );
-}
 
 async function readFidByCustodyAddress(params: { custodyAddress: `0x${string}` }): Promise<bigint> {
   const client = getClient(optimism.id);
@@ -178,30 +158,10 @@ export async function signupCliFarcaster(params: {
     signerPublicKey,
     signedKeyRequestMetadata,
   });
-  const registerCall = signupCallPlan.calls[0];
-  const addKeyCall = signupCallPlan.calls[1];
-
-  const registerData = encodeFunctionData({
-    abi: FARCASTER_ID_GATEWAY_ABI,
-    functionName: registerCall.functionName,
-    args: [registerCall.args.recoveryAddress, registerCall.args.extraStorage],
-  });
-  const addKeyData = encodeFunctionData({
-    abi: FARCASTER_KEY_GATEWAY_ABI,
-    functionName: addKeyCall.functionName,
-    args: [
-      addKeyCall.args.keyType,
-      addKeyCall.args.key,
-      addKeyCall.args.metadataType,
-      encodeSignedKeyRequestMetadata(addKeyCall.args.metadata),
-    ],
-  });
+  const executableCalls = buildFarcasterSignupExecutableCalls(signupCallPlan);
   const signupUserOp = await smartAccount.sendUserOperation({
     network: signupCallPlan.network,
-    calls: [
-      { to: registerCall.to, data: registerData, value: registerCall.value },
-      { to: addKeyCall.to, data: addKeyData, value: addKeyCall.value },
-    ],
+    calls: executableCalls,
   });
   const txHash = await waitForUserOperationComplete({
     smartAccount,

@@ -45,7 +45,24 @@ describe("cli sessions route", () => {
     expect(fetchChatApiMock).not.toHaveBeenCalled();
   });
 
-  it("allows delete with missing origin and referer", async () => {
+  it("rejects delete with missing origin header", async () => {
+    const request = new Request("https://co.build/api/cli/sessions", {
+      method: "DELETE",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ sessionId: "session-1" }),
+    });
+
+    const response = await DELETE(request);
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "Forbidden" });
+    expect(requireCliSessionAddressMock).not.toHaveBeenCalled();
+    expect(getPrivyIdTokenMock).not.toHaveBeenCalled();
+    expect(fetchChatApiMock).not.toHaveBeenCalled();
+  });
+
+  it("allows same-origin delete and forwards JSON content-type", async () => {
     requireCliSessionAddressMock.mockResolvedValue("0x0000000000000000000000000000000000000001");
     getPrivyIdTokenMock.mockResolvedValue("id-token");
     fetchChatApiMock.mockResolvedValue(
@@ -59,6 +76,7 @@ describe("cli sessions route", () => {
       method: "DELETE",
       headers: {
         "content-type": "application/json",
+        origin: "https://co.build",
       },
       body: JSON.stringify({ sessionId: "session-1" }),
     });
@@ -77,8 +95,35 @@ describe("cli sessions route", () => {
         init: expect.objectContaining({
           method: "DELETE",
           cache: "no-store",
+          headers: {
+            "content-type": "application/json",
+          },
         }),
       })
     );
+  });
+
+  it("does not force JSON content-type when upstream response body is empty", async () => {
+    requireCliSessionAddressMock.mockResolvedValue("0x0000000000000000000000000000000000000001");
+    getPrivyIdTokenMock.mockResolvedValue("id-token");
+    fetchChatApiMock.mockResolvedValue(
+      new Response(null, {
+        status: 204,
+      })
+    );
+
+    const request = new Request("https://co.build/api/cli/sessions", {
+      method: "DELETE",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://co.build",
+      },
+      body: JSON.stringify({ sessionId: "session-1" }),
+    });
+
+    const response = await DELETE(request);
+    expect(response.status).toBe(204);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("content-type")).toBeNull();
   });
 });

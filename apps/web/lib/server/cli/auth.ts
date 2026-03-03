@@ -1,21 +1,18 @@
 import "server-only";
 
 import * as jose from "jose";
-import { parseCliAccessTokenClaims, splitScope } from "@cobuild/wire";
+import {
+  DEFAULT_BUILD_BOT_JWT_AUDIENCE,
+  DEFAULT_BUILD_BOT_JWT_ISSUER,
+  DEFAULT_DEV_BUILD_BOT_JWT_PUBLIC_KEY,
+  deriveCliScopeCapabilities,
+  parseBearerToken,
+  parseCliJwtVerifiedClaims,
+  splitScope,
+} from "@cobuild/wire";
 import { getSession } from "@/lib/domains/auth/session";
 import { normalizeAddress } from "@/lib/shared/address";
-import { parseBearerToken } from "@/lib/shared/parse-bearer-token";
 import { CliAuthError } from "./errors";
-
-const DEFAULT_BUILD_BOT_JWT_PUBLIC_KEY = [
-  "-----BEGIN PUBLIC KEY-----",
-  "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJez1f0LBeC5VJfNUE7v3bEwk79JO",
-  "itJMKsbBgPEGjEsgKKnjHceciarnRNwVlwSj7Xx7j8gIUKdB+grhzp5jNQ==",
-  "-----END PUBLIC KEY-----",
-].join("\n");
-
-const DEFAULT_BUILD_BOT_JWT_ISSUER = "cobuild-chat-api";
-const DEFAULT_BUILD_BOT_JWT_AUDIENCE = "buildbot";
 
 type CliBearerAuth = {
   ownerAddress: `0x${string}`;
@@ -42,7 +39,7 @@ function getBuildBotJwtPublicKey(): string {
   if (process.env.NODE_ENV === "production") {
     throw new Error("Missing BUILD_BOT_JWT_PUBLIC_KEY");
   }
-  return DEFAULT_BUILD_BOT_JWT_PUBLIC_KEY;
+  return DEFAULT_DEV_BUILD_BOT_JWT_PUBLIC_KEY;
 }
 
 function getBuildBotJwtIssuer(): string {
@@ -60,24 +57,6 @@ async function getCliJwtPublicKey(): Promise<CryptoKey> {
     cachedPublicKeySource = source;
   }
   return cachedPublicKey;
-}
-
-function hasScope(scopes: string[], requiredScope: string): boolean {
-  return scopes.includes(requiredScope);
-}
-
-function deriveWriteCapabilities(scopes: string[]): {
-  hasToolsWrite: boolean;
-  hasWalletExecute: boolean;
-  hasAnyWriteScope: boolean;
-} {
-  const hasToolsWrite = scopes.includes("tools:write");
-  const hasWalletExecute = scopes.includes("wallet:execute");
-  return {
-    hasToolsWrite,
-    hasWalletExecute,
-    hasAnyWriteScope: hasToolsWrite || hasWalletExecute,
-  };
 }
 
 export async function requireCliSessionAddress(): Promise<`0x${string}`> {
@@ -106,7 +85,7 @@ async function verifyCliAccessToken(rawToken: string): Promise<CliBearerAuth | n
     return null;
   }
 
-  const claims = parseCliAccessTokenClaims(payload);
+  const claims = parseCliJwtVerifiedClaims(payload);
   if (!claims) {
     return null;
   }
@@ -134,7 +113,7 @@ async function verifyCliAccessToken(rawToken: string): Promise<CliBearerAuth | n
     agentKey,
     scope,
     scopes,
-    ...deriveWriteCapabilities(scopes),
+    ...deriveCliScopeCapabilities(scope),
   };
 }
 
@@ -158,7 +137,7 @@ export async function requireCliBearerAuth(
   }
 
   for (const requiredScope of requiredScopes) {
-    if (!hasScope(auth.scopes, requiredScope)) {
+    if (!auth.scopes.includes(requiredScope)) {
       throw new CliAuthError(403, `${requiredScope} scope required`);
     }
   }

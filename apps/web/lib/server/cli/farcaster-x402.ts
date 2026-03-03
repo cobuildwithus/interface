@@ -1,6 +1,5 @@
 import "server-only";
 
-import { randomBytes } from "crypto";
 import {
   BASE_CHAIN_ID,
   USDC_EIP712_DOMAIN_NAME,
@@ -8,16 +7,14 @@ import {
   X402_AUTH_TTL_SECONDS,
   X402_NETWORK,
   X402_PAY_TO_ADDRESS,
-  X402_SCHEME,
   X402_TRANSFER_PRIMARY_TYPE,
   X402_USDC_CONTRACT,
   X402_VALUE_MICRO_USDC,
-  X402_VERSION,
+  buildX402AuthorizationPayload,
+  buildX402PaymentPayload,
   buildX402TypedDataDomain,
   buildX402TypedDataTypes,
   encodeX402PaymentPayload,
-  type X402AuthorizationPayload,
-  type X402PaymentPayload,
 } from "@cobuild/wire";
 import type { Address } from "viem";
 import { CliPolicyError } from "./errors";
@@ -28,7 +25,6 @@ import { getOrCreateCliAgentOwnerAccount } from "./wallet-store";
 // Keep this aligned with local CLI x402 auth TTL to avoid cross-surface drift.
 const X402_VALIDITY_SECONDS = X402_AUTH_TTL_SECONDS;
 
-const X402_PAYMENT_VERSION: 1 = X402_VERSION;
 const USDC_BASE: Address = X402_USDC_CONTRACT;
 const NEYNAR_PAY_TO: Address = X402_PAY_TO_ADDRESS;
 const X402_AMOUNT_MICRO_USDC = X402_VALUE_MICRO_USDC;
@@ -109,40 +105,6 @@ function assertPolicyPreconditions(policy: X402Policy): void {
   }
 }
 
-function randomBytes32Hex(): `0x${string}` {
-  return `0x${randomBytes(32).toString("hex")}`;
-}
-
-function buildX402Authorization(params: {
-  from: Address;
-  validAfter: number;
-  validBefore: number;
-}): X402AuthorizationPayload {
-  return {
-    from: params.from,
-    to: NEYNAR_PAY_TO,
-    value: X402_AMOUNT_MICRO_USDC,
-    validAfter: String(params.validAfter),
-    validBefore: String(params.validBefore),
-    nonce: randomBytes32Hex(),
-  };
-}
-
-function buildX402PaymentPayload(params: {
-  signature: `0x${string}`;
-  authorization: X402AuthorizationPayload;
-}): X402PaymentPayload {
-  return {
-    x402Version: X402_PAYMENT_VERSION,
-    scheme: X402_SCHEME,
-    network: X402_NETWORK,
-    payload: {
-      signature: params.signature,
-      authorization: params.authorization,
-    },
-  };
-}
-
 export async function createCliFarcasterX402Payment(params: {
   ownerAddress: `0x${string}`;
   agentKey: string;
@@ -157,7 +119,7 @@ export async function createCliFarcasterX402Payment(params: {
 
   const validAfter = 0;
   const validBefore = Math.floor(Date.now() / 1000) + X402_VALIDITY_SECONDS;
-  const authorization = buildX402Authorization({
+  const authorization = buildX402AuthorizationPayload({
     from: ownerAccount.address,
     validAfter,
     validBefore,
