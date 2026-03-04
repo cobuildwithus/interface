@@ -13,6 +13,7 @@
 - `apps/web/lib/server/kv/encryption.ts`
 - `apps/web/lib/server/cli/token-store.ts`
 - `apps/web/lib/server/cli/wallet-store.ts`
+- `apps/web/lib/domains/goals/goal-data.ts`
 - `apps/web/lib/domains/goals/action-card-read.ts`
 - `apps/web/lib/domains/token/onchain/revnet-data.ts`
 - `apps/web/lib/domains/token/onchain/project-stats.ts`
@@ -31,11 +32,12 @@ Examples:
 - revnet data cache: `lib/domains/token/onchain/revnet-data.ts`
 - project stats cache: `lib/domains/token/onchain/project-stats.ts`
 - ETH price fallback cache: `lib/domains/token/onchain/eth-price.ts`
+- goal page data cache: `lib/domains/goals/goal-data.ts` (`goal_treasury`, `goal_treasury_series`, and related project/activity reads)
 
-Build-bot note:
+CLI note:
 
-- Build-bot token/wallet/tx-log reads and writes are DB-backed only (no cache layer), with bearer-token auth state persisted via hashed token rows.
-- `build_bot_tx_logs` also stores optional idempotency keys and enforces uniqueness on `(ownerAddress, agentKey, idempotencyKey)` for replay-safe exec calls.
+- CLI token/wallet/tx-log reads and writes are DB-backed only (no cache layer), with bearer-token auth state persisted via hashed token rows.
+- `cli_tx_logs` also stores optional idempotency keys and enforces uniqueness on `(ownerAddress, agentKey, idempotencyKey)` for replay-safe exec calls.
 
 ## Consistency Guidance
 
