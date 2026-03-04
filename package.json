@@ -14,6 +14,7 @@
     "test:coverage": "pnpm --filter web test:coverage",
     "typecheck": "pnpm --filter web typecheck",
     "review:gpt": "scripts/chatgpt-oracle-review.sh",
+    "review-gpt:ensure-published": "bash scripts/review-gpt-ensure-published.sh",
     "setup:skills": "pnpm dlx skills add vercel-labs/agent-skills --skill vercel-react-best-practices --skill web-design-guidelines --agent codex --yes",
     "generate:contracts": "pnpm --filter contracts generate",
     "format": "prettier --write .",
@@ -21,7 +22,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@cobuild/review-gpt": "^0.2.7",
+    "@cobuild/review-gpt": "^0.2.8",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.7.4",
