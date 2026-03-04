@@ -62,13 +62,19 @@ type ForceLink = {
 };
 
 export type DaoFlowDiagramOptions = {
-  host: HTMLDivElement;
+  host: HTMLDivElement | null;
   events: DaoEvent[];
   autoMechTemplates?: AutoMechTemplate[];
   autoMechDelay?: number;
   replacementBudgetTitles?: string[];
   flowTasks?: string[];
   roundTasks?: string[];
+};
+
+const loadPixiWithCspSupport = async () => {
+  // Installs PixiJS polyfills that avoid runtime `unsafe-eval`.
+  await import("pixi.js/unsafe-eval");
+  return import("pixi.js");
 };
 
 export function startDaoFlowDiagram({
@@ -92,7 +98,7 @@ export function startDaoFlowDiagram({
   const customRoundTasks = roundTasks && roundTasks.length > 0 ? roundTasks : undefined;
 
   (async () => {
-    const PIXI = await import("pixi.js");
+    const PIXI = await loadPixiWithCspSupport();
     const {
       Application,
       Container,
