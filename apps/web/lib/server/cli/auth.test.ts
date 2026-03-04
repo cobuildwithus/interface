@@ -84,7 +84,7 @@ describe("cli auth", () => {
         iat: 1_700_000_000,
         exp: 1_700_000_600,
         iss: "cobuild-chat-api",
-        aud: "buildbot",
+        aud: "cli",
       },
     });
 
@@ -123,7 +123,7 @@ describe("cli auth", () => {
         iat: 1_700_000_000,
         exp: 1_700_000_600,
         iss: "cobuild-chat-api",
-        aud: "buildbot",
+        aud: "cli",
       },
     });
 
@@ -155,7 +155,7 @@ describe("cli auth", () => {
         agent_key: "default",
         scope: "tools:read wallet:read offline_access",
         iss: "cobuild-chat-api",
-        aud: "buildbot",
+        aud: "cli",
       },
     });
 

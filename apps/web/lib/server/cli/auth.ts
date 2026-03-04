@@ -2,9 +2,9 @@ import "server-only";
 
 import * as jose from "jose";
 import {
-  DEFAULT_BUILD_BOT_JWT_AUDIENCE,
-  DEFAULT_BUILD_BOT_JWT_ISSUER,
-  DEFAULT_DEV_BUILD_BOT_JWT_PUBLIC_KEY,
+  DEFAULT_CLI_JWT_AUDIENCE,
+  DEFAULT_CLI_JWT_ISSUER,
+  DEFAULT_DEV_CLI_JWT_PUBLIC_KEY,
   deriveCliScopeCapabilities,
   parseBearerToken,
   parseCliJwtVerifiedClaims,
@@ -33,25 +33,38 @@ type RequireCliBearerAuthOptions = {
 let cachedPublicKey: CryptoKey | undefined;
 let cachedPublicKeySource: string | undefined;
 
-function getBuildBotJwtPublicKey(): string {
-  const configured = process.env.BUILD_BOT_JWT_PUBLIC_KEY?.trim();
-  if (configured) return configured;
+function allowDevCliKeyFallback(): boolean {
   if (process.env.NODE_ENV === "production") {
-    throw new Error("Missing BUILD_BOT_JWT_PUBLIC_KEY");
+    return false;
   }
-  return DEFAULT_DEV_BUILD_BOT_JWT_PUBLIC_KEY;
+  if (process.env.VITEST === "true") {
+    return true;
+  }
+  const flag = process.env.CLI_ALLOW_DEV_KEYS?.toLowerCase();
+  return flag === "1" || flag === "true" || flag === "yes";
 }
 
-function getBuildBotJwtIssuer(): string {
-  return process.env.BUILD_BOT_JWT_ISSUER?.trim() || DEFAULT_BUILD_BOT_JWT_ISSUER;
+function getCliJwtPublicKeyPem(): string {
+  const configured = process.env.CLI_JWT_PUBLIC_KEY?.trim();
+  if (configured) return configured;
+  if (!allowDevCliKeyFallback()) {
+    throw new Error(
+      "Missing CLI_JWT_PUBLIC_KEY. Configure CLI JWT keys or set CLI_ALLOW_DEV_KEYS=1 for local development only."
+    );
+  }
+  return DEFAULT_DEV_CLI_JWT_PUBLIC_KEY;
 }
 
-function getBuildBotJwtAudience(): string {
-  return process.env.BUILD_BOT_JWT_AUDIENCE?.trim() || DEFAULT_BUILD_BOT_JWT_AUDIENCE;
+function getCliJwtIssuer(): string {
+  return process.env.CLI_JWT_ISSUER?.trim() || DEFAULT_CLI_JWT_ISSUER;
 }
 
-async function getCliJwtPublicKey(): Promise<CryptoKey> {
-  const source = getBuildBotJwtPublicKey().replace(/\\n/g, "\n").trim();
+function getCliJwtAudience(): string {
+  return process.env.CLI_JWT_AUDIENCE?.trim() || DEFAULT_CLI_JWT_AUDIENCE;
+}
+
+async function getCliJwtVerificationKey(): Promise<CryptoKey> {
+  const source = getCliJwtPublicKeyPem().replace(/\\n/g, "\n").trim();
   if (!cachedPublicKey || cachedPublicKeySource !== source) {
     cachedPublicKey = await jose.importSPKI(source, "ES256");
     cachedPublicKeySource = source;
@@ -69,9 +82,9 @@ export async function requireCliSessionAddress(): Promise<`0x${string}`> {
 }
 
 async function verifyCliAccessToken(rawToken: string): Promise<CliBearerAuth | null> {
-  const publicKey = await getCliJwtPublicKey();
-  const issuer = getBuildBotJwtIssuer();
-  const audience = getBuildBotJwtAudience();
+  const publicKey = await getCliJwtVerificationKey();
+  const issuer = getCliJwtIssuer();
+  const audience = getCliJwtAudience();
 
   let payload: jose.JWTPayload;
   try {

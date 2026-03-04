@@ -35,7 +35,7 @@ describe("cli auth write-scope audit", () => {
         iat: 1_700_000_000,
         exp: 1_700_000_600,
         iss: "cobuild-chat-api",
-        aud: "buildbot",
+        aud: "cli",
       },
     });
 
