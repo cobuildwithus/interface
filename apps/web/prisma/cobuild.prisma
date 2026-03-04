@@ -918,28 +918,6 @@ model JuiceboxRulesetActivationState {
   @@schema("cobuild-onchain")
 }
 
-model JuiceboxErc20ToProjectId {
-  erc20     String
-  chainId   Int    @map("chain_id")
-  projectId Int    @map("project_id")
-
-  @@id([erc20, chainId])
-  @@map("_kv_ERC20ToProjectId")
-  @@schema("cobuild-onchain")
-}
-
-model JuiceboxPayEventByTxBeneficiary {
-  chainId     Int    @map("chain_id")
-  txHash      String @map("tx_hash")
-  beneficiary String
-  payEventId  String @map("pay_event_id")
-  payLogIndex Int    @map("pay_log_index")
-
-  @@id([chainId, txHash, beneficiary])
-  @@map("_kv_pay_event_by_tx_beneficiary")
-  @@schema("cobuild-onchain")
-}
-
 model JuiceboxSucker {
   projectId Int    @map("project_id")
   chainId   Int    @map("chain_id")
