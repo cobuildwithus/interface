@@ -287,19 +287,6 @@ model SwapExecuted {
   @@schema("cobuild-onchain")
 }
 
-model ClankerCoin {
-  chainId        Int    @map("chain_id")
-  address        String @db.VarChar(42)
-  factory        String @db.VarChar(42)
-  version        String
-  blockNumber    BigInt @map("block_number")
-  blockTimestamp Int    @map("block_timestamp")
-
-  @@id([chainId, address])
-  @@map("clanker_coin")
-  @@schema("cobuild-onchain")
-}
-
 model BatchReactionSwap {
   id             String @id
   tokenIn        String @map("token_in") @db.VarChar(42)
@@ -712,6 +699,7 @@ model JuiceboxParticipant {
   address       String   @db.VarChar(42)
   firstOwned    Int?     @map("first_owned")
   suckerGroupId String?  @map("sucker_group_id")
+  borrowableAmount Decimal @default(0) @db.Decimal(78, 0) @map("borrowable_amount")
 
   project JuiceboxProject @relation(fields: [chainId, projectId], references: [chainId, projectId])
 
@@ -820,6 +808,593 @@ model JuiceboxCashoutCoefficientSnapshot {
   @@index([suckerGroupId, timestamp])
   @@index([projectId])
   @@map("cashout_coefficient_snapshot")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxLoan {
+  id               Decimal @db.Decimal(78, 0)
+  projectId        Int     @map("project_id")
+  chainId          Int     @map("chain_id")
+  createdAt        Int     @map("created_at")
+  suckerGroupId    String  @map("sucker_group_id")
+  borrowAmount     Decimal @db.Decimal(78, 0) @map("borrow_amount")
+  collateral       Decimal @db.Decimal(78, 0)
+  sourceFeeAmount  Decimal @db.Decimal(78, 0) @map("source_fee_amount")
+  prepaidDuration  Int     @map("prepaid_duration")
+  prepaidFeePercent Int    @map("prepaid_fee_percent")
+  beneficiary      String
+  owner            String
+  token            String
+  terminal         String
+  tokenUri         String? @map("token_uri")
+
+  @@id([id, chainId])
+  @@map("loan")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxBorrowLoanEvent {
+  id               String  @id
+  chainId          Int     @map("chain_id")
+  txHash           String  @map("tx_hash")
+  timestamp        Int
+  caller           String
+  from             String
+  logIndex         Int     @map("log_index")
+  projectId        Int     @map("project_id")
+  suckerGroupId    String  @map("sucker_group_id")
+  borrowAmount     Decimal @db.Decimal(78, 0) @map("borrow_amount")
+  collateral       Decimal @db.Decimal(78, 0)
+  sourceFeeAmount  Decimal @db.Decimal(78, 0) @map("source_fee_amount")
+  prepaidDuration  Int     @map("prepaid_duration")
+  prepaidFeePercent Int    @map("prepaid_fee_percent")
+  beneficiary      String
+  token            String
+  terminal         String
+
+  @@map("borrow_loan_event")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxRepayLoanEvent {
+  id                      String  @id
+  chainId                 Int     @map("chain_id")
+  txHash                  String  @map("tx_hash")
+  timestamp               Int
+  caller                  String
+  from                    String
+  logIndex                Int     @map("log_index")
+  projectId               Int     @map("project_id")
+  suckerGroupId           String  @map("sucker_group_id")
+  loanId                  Decimal @db.Decimal(78, 0) @map("loan_id")
+  paidOffLoanId           Decimal @db.Decimal(78, 0) @map("paid_off_loan_id")
+  repayBorrowAmount       Decimal @db.Decimal(78, 0) @map("repay_borrow_amount")
+  collateralCountToReturn Decimal @db.Decimal(78, 0) @map("collateral_count_to_return")
+
+  @@map("repay_loan_event")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxLiquidateLoanEvent {
+  id            String  @id
+  chainId       Int     @map("chain_id")
+  txHash        String  @map("tx_hash")
+  timestamp     Int
+  caller        String
+  from          String
+  logIndex      Int     @map("log_index")
+  projectId     Int     @map("project_id")
+  suckerGroupId String  @map("sucker_group_id")
+  borrowAmount  Decimal @db.Decimal(78, 0) @map("borrow_amount")
+  collateral    Decimal @db.Decimal(78, 0)
+
+  @@map("liquidate_loan_event")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxReallocateLoanEvent {
+  id                     String  @id
+  chainId                Int     @map("chain_id")
+  txHash                 String  @map("tx_hash")
+  timestamp              Int
+  caller                 String
+  from                   String
+  logIndex               Int     @map("log_index")
+  projectId              Int     @map("project_id")
+  suckerGroupId          String  @map("sucker_group_id")
+  loanId                 Decimal @db.Decimal(78, 0) @map("loan_id")
+  reallocatedLoanId      Decimal @db.Decimal(78, 0) @map("reallocated_loan_id")
+  removedCollateralCount Decimal @db.Decimal(78, 0) @map("removed_collateral_count")
+
+  @@map("reallocate_loan_event")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxRulesetActivationState {
+  chainId     Int     @id @map("chain_id")
+  lastChecked Decimal @db.Decimal(78, 0) @map("last_checked")
+
+  @@map("ruleset_activation_state")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxErc20ToProjectId {
+  erc20     String
+  chainId   Int    @map("chain_id")
+  projectId Int    @map("project_id")
+
+  @@id([erc20, chainId])
+  @@map("_kv_ERC20ToProjectId")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxPayEventByTxBeneficiary {
+  chainId     Int    @map("chain_id")
+  txHash      String @map("tx_hash")
+  beneficiary String
+  payEventId  String @map("pay_event_id")
+  payLogIndex Int    @map("pay_log_index")
+
+  @@id([chainId, txHash, beneficiary])
+  @@map("_kv_pay_event_by_tx_beneficiary")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxSucker {
+  projectId Int    @map("project_id")
+  chainId   Int    @map("chain_id")
+  address   String
+
+  @@id([projectId, chainId, address])
+  @@map("sucker")
+  @@schema("cobuild-onchain")
+}
+
+model JuiceboxActivityLog {
+  id            String @id
+  chainId       Int    @map("chain_id")
+  timestamp     Int
+  txHash        String @map("tx_hash")
+  suckerGroupId String @map("sucker_group_id")
+  type          String
+  user          String
+  amount        String
+  currency      String
+  description   String
+  memo          String?
+
+  @@index([type])
+  @@index([user])
+  @@index([timestamp])
+  @@index([suckerGroupId])
+  @@map("activity_log")
+  @@schema("cobuild-onchain")
+}
+
+model TransactionHashToBatchReactionSwaps {
+  txHash               String   @id @map("tx_hash")
+  batchReactionSwapIds String[] @map("batch_reaction_swap_ids")
+
+  @@map("transaction_hash_to_batch_reaction_swaps")
+  @@schema("cobuild-onchain")
+}
+
+model ProtocolEvent {
+  id              String  @id
+  chainId         Int     @map("chain_id")
+  contractName    String  @map("contract_name")
+  contractAddress String  @map("contract_address")
+  eventName       String  @map("event_name")
+  txHash          String  @map("tx_hash")
+  blockNumber     Decimal @db.Decimal(78, 0) @map("block_number")
+  timestamp       Decimal @db.Decimal(78, 0)
+  logIndex        Int     @map("log_index")
+  args            Json
+
+  @@map("protocol_event")
+  @@schema("cobuild-onchain")
+}
+
+model Flow {
+  id                                String  @id
+  kind                              String?
+  parentFlow                        String? @map("parent_flow")
+  initialOwner                      String? @map("initial_owner")
+  initialFlowImpl                   String? @map("initial_flow_impl")
+  initialRecipientManager           String? @map("initial_recipient_manager")
+  superToken                        String? @map("super_token")
+  distributionPool                  String? @map("distribution_pool")
+  managerRewardPoolFlowRatePercent  Int?    @map("manager_reward_pool_flow_rate_percent")
+  managerRewardPool                 String? @map("manager_reward_pool")
+  allocationPipeline                String? @map("allocation_pipeline")
+  flowOperator                      String? @map("flow_operator")
+  sweeper                           String?
+  strategy                          String?
+  metadataTitle                     String? @map("metadata_title")
+  metadataDescription               String? @map("metadata_description")
+  metadataImage                     String? @map("metadata_image")
+  metadataTagline                   String? @map("metadata_tagline")
+  metadataUrl                       String? @map("metadata_url")
+  currentFlowRate                   Decimal @default(0) @db.Decimal(78, 0) @map("current_flow_rate")
+  targetOutflowRate                 Decimal @default(0) @db.Decimal(78, 0) @map("target_outflow_rate")
+  createdAtBlock                    Decimal @db.Decimal(78, 0) @map("created_at_block")
+  createdAtTimestamp                Decimal @db.Decimal(78, 0) @map("created_at_timestamp")
+  updatedAtBlock                    Decimal @db.Decimal(78, 0) @map("updated_at_block")
+  updatedAtTimestamp                Decimal @db.Decimal(78, 0) @map("updated_at_timestamp")
+
+  @@map("flow")
+  @@schema("cobuild-onchain")
+}
+
+model FlowRecipient {
+  id                                     String  @id
+  flowId                                 String  @map("flow_id")
+  recipientId                            String  @map("recipient_id")
+  recipient                              String
+  approvedBy                             String? @map("approved_by")
+  recipientIndex                         Int     @map("recipient_index")
+  recipientType                          Int     @map("recipient_type")
+  isRemoved                              Boolean @default(false) @map("is_removed")
+  title                                  String?
+  description                            String?
+  image                                  String?
+  tagline                                String?
+  url                                    String?
+  isFlowRecipient                        Boolean @default(false) @map("is_flow_recipient")
+  childDistributionPool                  String? @map("child_distribution_pool")
+  childStrategy                          String? @map("child_strategy")
+  childManagerRewardPoolFlowRatePercent  Int?    @map("child_manager_reward_pool_flow_rate_percent")
+  allocationUnitsSum                     Decimal @default(0) @db.Decimal(78, 0) @map("allocation_units_sum")
+  distributionUnits                      Decimal @default(0) @db.Decimal(78, 0) @map("distribution_units")
+  createdAtBlock                         Decimal @db.Decimal(78, 0) @map("created_at_block")
+  createdAtTimestamp                     Decimal @db.Decimal(78, 0) @map("created_at_timestamp")
+  updatedAtBlock                         Decimal @db.Decimal(78, 0) @map("updated_at_block")
+  updatedAtTimestamp                     Decimal @db.Decimal(78, 0) @map("updated_at_timestamp")
+  removedAtBlock                         Decimal? @db.Decimal(78, 0) @map("removed_at_block")
+  removedAtTimestamp                     Decimal? @db.Decimal(78, 0) @map("removed_at_timestamp")
+
+  @@map("flow_recipient")
+  @@schema("cobuild-onchain")
+}
+
+model AllocationKeyState {
+  id                 String  @id
+  flowId             String  @map("flow_id")
+  strategy           String
+  allocationKey      Decimal @db.Decimal(78, 0) @map("allocation_key")
+  commitment         String
+  weight             Decimal @db.Decimal(78, 0)
+  snapshotVersion    Int     @default(0) @map("snapshot_version")
+  packedSnapshot     String  @map("packed_snapshot")
+  updatedAtBlock     Decimal @db.Decimal(78, 0) @map("updated_at_block")
+  updatedAtTimestamp Decimal @db.Decimal(78, 0) @map("updated_at_timestamp")
+
+  @@map("allocation_key_state")
+  @@schema("cobuild-onchain")
+}
+
+model AllocationEntryState {
+  id                 String  @id
+  flowId             String  @map("flow_id")
+  strategy           String
+  allocationKey      Decimal @db.Decimal(78, 0) @map("allocation_key")
+  recipientId        String  @map("recipient_id")
+  recipient          String
+  recipientIndex     Int     @map("recipient_index")
+  allocationScaled   Int     @map("allocation_scaled")
+  computedUnits      Decimal @db.Decimal(78, 0) @map("computed_units")
+  updatedAtBlock     Decimal @db.Decimal(78, 0) @map("updated_at_block")
+  updatedAtTimestamp Decimal @db.Decimal(78, 0) @map("updated_at_timestamp")
+
+  @@map("allocation_entry_state")
+  @@schema("cobuild-onchain")
+}
+
+model BudgetStack {
+  id                String   @id
+  childFlow         String?  @map("child_flow")
+  budgetTreasury    String?  @map("budget_treasury")
+  premiumEscrow     String?  @map("premium_escrow")
+  strategy          String?
+  status            String?
+  deployedAtBlock   Decimal? @db.Decimal(78, 0) @map("deployed_at_block")
+  deployedAtTimestamp Decimal? @db.Decimal(78, 0) @map("deployed_at_timestamp")
+  updatedAtBlock    Decimal? @db.Decimal(78, 0) @map("updated_at_block")
+  updatedAtTimestamp Decimal? @db.Decimal(78, 0) @map("updated_at_timestamp")
+
+  @@map("budget_stack")
+  @@schema("cobuild-onchain")
+}
+
+model BudgetTreasury {
+  id                           String   @id
+  controller                   String?
+  recipientId                  String?  @map("recipient_id")
+  childFlow                    String?  @map("child_flow")
+  premiumEscrow                String?  @map("premium_escrow")
+  budgetOwner                  String?  @map("budget_owner")
+  strategy                     String?
+  budgetStart                  Decimal? @db.Decimal(78, 0) @map("budget_start")
+  budgetDuration               Decimal? @db.Decimal(78, 0) @map("budget_duration")
+  fundingDeadline              Decimal? @db.Decimal(78, 0) @map("funding_deadline")
+  executionDuration            Decimal? @db.Decimal(78, 0) @map("execution_duration")
+  activationThreshold          Decimal? @db.Decimal(78, 0) @map("activation_threshold")
+  runwayCap                    Decimal? @db.Decimal(78, 0) @map("runway_cap")
+  state                        Int?
+  finalized                    Boolean  @default(false)
+  successAssertionId           String?  @map("success_assertion_id")
+  successAssertionRegisteredAt Decimal? @db.Decimal(78, 0) @map("success_assertion_registered_at")
+  successResolutionDisabled    Boolean  @default(false) @map("success_resolution_disabled")
+  reassertGraceDeadline        Decimal? @db.Decimal(78, 0) @map("reassert_grace_deadline")
+  lastSyncedTargetRate         Decimal? @db.Decimal(78, 0) @map("last_synced_target_rate")
+  lastSyncedAppliedRate        Decimal? @db.Decimal(78, 0) @map("last_synced_applied_rate")
+  lastSyncedTreasuryBalance    Decimal? @db.Decimal(78, 0) @map("last_synced_treasury_balance")
+  lastSyncedTimeRemaining      Decimal? @db.Decimal(78, 0) @map("last_synced_time_remaining")
+  lastSyncAlertFlow            String?  @map("last_sync_alert_flow")
+  lastSyncAlertTargetRate      Decimal? @db.Decimal(78, 0) @map("last_sync_alert_target_rate")
+  lastSyncAlertFallbackRate    Decimal? @db.Decimal(78, 0) @map("last_sync_alert_fallback_rate")
+  lastSyncAlertCurrentRate     Decimal? @db.Decimal(78, 0) @map("last_sync_alert_current_rate")
+  lastResidualDestination      String?  @map("last_residual_destination")
+  lastResidualSettledAmount    Decimal? @db.Decimal(78, 0) @map("last_residual_settled_amount")
+  createdAtBlock               Decimal? @db.Decimal(78, 0) @map("created_at_block")
+  createdAtTimestamp           Decimal? @db.Decimal(78, 0) @map("created_at_timestamp")
+  updatedAtBlock               Decimal? @db.Decimal(78, 0) @map("updated_at_block")
+  updatedAtTimestamp           Decimal? @db.Decimal(78, 0) @map("updated_at_timestamp")
+
+  @@map("budget_treasury")
+  @@schema("cobuild-onchain")
+}
+
+model GoalTreasury {
+  id                             String   @id
+  owner                          String?
+  flowAddress                    String?  @map("flow_address")
+  recipientId                    String?  @map("recipient_id")
+  budgetStakeLedger              String?  @map("budget_stake_ledger")
+  goalToken                      String?  @map("goal_token")
+  cobuildToken                   String?  @map("cobuild_token")
+  stakeVault                     String?  @map("stake_vault")
+  hook                           String?
+  goalRulesets                   String?  @map("goal_rulesets")
+  goalRevnetId                   Decimal? @db.Decimal(78, 0) @map("goal_revnet_id")
+  minRaiseDeadline               Decimal? @db.Decimal(78, 0) @map("min_raise_deadline")
+  deadline                       Decimal? @db.Decimal(78, 0)
+  minRaise                       Decimal? @db.Decimal(78, 0) @map("min_raise")
+  strategy                       String?
+  parentFlow                     String?  @map("parent_flow")
+  state                          Int?
+  finalized                      Boolean  @default(false)
+  successAssertionId             String?  @map("success_assertion_id")
+  successAssertionRegisteredAt   Decimal? @db.Decimal(78, 0) @map("success_assertion_registered_at")
+  reassertGraceDeadline          Decimal? @db.Decimal(78, 0) @map("reassert_grace_deadline")
+  jurorSlasher                   String?  @map("juror_slasher")
+  jurorSlasherAuthority          String?  @map("juror_slasher_authority")
+  underwriterSlasher             String?  @map("underwriter_slasher")
+  underwriterSlasherAuthority    String?  @map("underwriter_slasher_authority")
+  successAt                      Decimal? @db.Decimal(78, 0) @map("success_at")
+  lastSyncedTargetRate           Decimal? @db.Decimal(78, 0) @map("last_synced_target_rate")
+  lastSyncedAppliedRate          Decimal? @db.Decimal(78, 0) @map("last_synced_applied_rate")
+  lastSyncedTreasuryBalance      Decimal? @db.Decimal(78, 0) @map("last_synced_treasury_balance")
+  lastSyncedTimeRemaining        Decimal? @db.Decimal(78, 0) @map("last_synced_time_remaining")
+  lastSyncAlertFlow              String?  @map("last_sync_alert_flow")
+  lastSyncAlertTargetRate        Decimal? @db.Decimal(78, 0) @map("last_sync_alert_target_rate")
+  lastSyncAlertFallbackRate      Decimal? @db.Decimal(78, 0) @map("last_sync_alert_fallback_rate")
+  lastSyncAlertCurrentRate       Decimal? @db.Decimal(78, 0) @map("last_sync_alert_current_rate")
+  lastResidualFinalState         Int?     @map("last_residual_final_state")
+  lastResidualSettledAmount      Decimal? @db.Decimal(78, 0) @map("last_residual_settled_amount")
+  lastResidualControllerBurnAmount Decimal? @db.Decimal(78, 0) @map("last_residual_controller_burn_amount")
+  createdAtBlock                 Decimal? @db.Decimal(78, 0) @map("created_at_block")
+  createdAtTimestamp             Decimal? @db.Decimal(78, 0) @map("created_at_timestamp")
+  updatedAtBlock                 Decimal? @db.Decimal(78, 0) @map("updated_at_block")
+  updatedAtTimestamp             Decimal? @db.Decimal(78, 0) @map("updated_at_timestamp")
+
+  @@map("goal_treasury")
+  @@schema("cobuild-onchain")
+}
+
+model StakeVault {
+  id                  String   @id
+  kind                String?
+  treasury            String?
+  goalTotalStaked     Decimal  @default(0) @db.Decimal(78, 0) @map("goal_total_staked")
+  cobuildTotalStaked  Decimal  @default(0) @db.Decimal(78, 0) @map("cobuild_total_staked")
+  goalTotalWithdrawn  Decimal  @default(0) @db.Decimal(78, 0) @map("goal_total_withdrawn")
+  cobuildTotalWithdrawn Decimal @default(0) @db.Decimal(78, 0) @map("cobuild_total_withdrawn")
+  resolved            Boolean  @default(false)
+  updatedAtBlock      Decimal? @db.Decimal(78, 0) @map("updated_at_block")
+  updatedAtTimestamp  Decimal? @db.Decimal(78, 0) @map("updated_at_timestamp")
+
+  @@map("stake_vault")
+  @@schema("cobuild-onchain")
+}
+
+model StakePosition {
+  id                String  @id
+  vault             String
+  account           String
+  tokenKind         String  @map("token_kind")
+  staked            Decimal @default(0) @db.Decimal(78, 0)
+  withdrawn         Decimal @default(0) @db.Decimal(78, 0)
+  updatedAtBlock    Decimal @db.Decimal(78, 0) @map("updated_at_block")
+  updatedAtTimestamp Decimal @db.Decimal(78, 0) @map("updated_at_timestamp")
+
+  @@map("stake_position")
+  @@schema("cobuild-onchain")
+}
+
+model Juror {
+  id                String  @id
+  vault             String
+  jurorAddress      String  @map("juror_address")
+  optedIn           Boolean @default(false) @map("opted_in")
+  exitTime          Decimal? @db.Decimal(78, 0) @map("exit_time")
+  delegate          String?
+  slasher           String?
+  slashedTotal      Decimal @default(0) @db.Decimal(78, 0) @map("slashed_total")
+  updatedAtBlock    Decimal @db.Decimal(78, 0) @map("updated_at_block")
+  updatedAtTimestamp Decimal @db.Decimal(78, 0) @map("updated_at_timestamp")
+
+  @@map("juror")
+  @@schema("cobuild-onchain")
+}
+
+model PremiumEscrow {
+  id                       String   @id
+  budgetStackId            String?  @map("budget_stack_id")
+  childFlow                String?  @map("child_flow")
+  budgetTreasury           String?  @map("budget_treasury")
+  managerRewardPool        String?  @map("manager_reward_pool")
+  baselineReceived         Decimal  @default(0) @db.Decimal(78, 0) @map("baseline_received")
+  latestDistributedPremium Decimal? @db.Decimal(78, 0) @map("latest_distributed_premium")
+  latestTotalCoverage      Decimal? @db.Decimal(78, 0) @map("latest_total_coverage")
+  latestPremiumIndex       Decimal? @db.Decimal(78, 0) @map("latest_premium_index")
+  lastIndexedAtBlock       Decimal? @db.Decimal(78, 0) @map("last_indexed_at_block")
+  lastIndexedAtTimestamp   Decimal? @db.Decimal(78, 0) @map("last_indexed_at_timestamp")
+  closed                   Boolean  @default(false)
+  finalState               Int?     @map("final_state")
+  activatedAt              Decimal? @db.Decimal(78, 0) @map("activated_at")
+  closedAt                 Decimal? @db.Decimal(78, 0) @map("closed_at")
+  updatedAtBlock           Decimal? @db.Decimal(78, 0) @map("updated_at_block")
+  updatedAtTimestamp       Decimal? @db.Decimal(78, 0) @map("updated_at_timestamp")
+
+  @@map("premium_escrow")
+  @@schema("cobuild-onchain")
+}
+
+model PremiumAccount {
+  id                     String  @id
+  escrow                 String
+  account                String
+  currentCoverage        Decimal @default(0) @db.Decimal(78, 0) @map("current_coverage")
+  claimableAmount        Decimal @default(0) @db.Decimal(78, 0) @map("claimable_amount")
+  exposureIntegral       Decimal @default(0) @db.Decimal(78, 0) @map("exposure_integral")
+  slashed                Boolean @default(false)
+  lastSlashWeight        Decimal? @db.Decimal(78, 0) @map("last_slash_weight")
+  lastSlashDuration      Decimal? @db.Decimal(78, 0) @map("last_slash_duration")
+  lastCheckpointBlock    Decimal? @db.Decimal(78, 0) @map("last_checkpoint_block")
+  lastCheckpointTimestamp Decimal? @db.Decimal(78, 0) @map("last_checkpoint_timestamp")
+  updatedAtBlock         Decimal @db.Decimal(78, 0) @map("updated_at_block")
+  updatedAtTimestamp     Decimal @db.Decimal(78, 0) @map("updated_at_timestamp")
+
+  @@map("premium_account")
+  @@schema("cobuild-onchain")
+}
+
+model PremiumClaim {
+  id          String  @id
+  escrow      String
+  account     String
+  to          String
+  amount      Decimal @db.Decimal(78, 0)
+  txHash      String  @map("tx_hash")
+  blockNumber Decimal @db.Decimal(78, 0) @map("block_number")
+  timestamp   Decimal @db.Decimal(78, 0)
+
+  @@map("premium_claim")
+  @@schema("cobuild-onchain")
+}
+
+model Donation {
+  id               String   @id
+  kind             String
+  treasury         String
+  donor            String
+  amount           Decimal  @db.Decimal(78, 0)
+  token            String
+  memo             String?
+  metadata         String?
+  sourceAmount     Decimal? @db.Decimal(78, 0) @map("source_amount")
+  superTokenAmount Decimal? @db.Decimal(78, 0) @map("super_token_amount")
+  totalRaised      Decimal? @db.Decimal(78, 0) @map("total_raised")
+  txHash           String   @map("tx_hash")
+  blockNumber      Decimal  @db.Decimal(78, 0) @map("block_number")
+  timestamp        Decimal  @db.Decimal(78, 0)
+
+  @@map("donation")
+  @@schema("cobuild-onchain")
+}
+
+model HookFunding {
+  id                      String   @id
+  goalTreasury            String   @map("goal_treasury")
+  kind                    String
+  amount                  Decimal  @db.Decimal(78, 0)
+  token                   String?
+  sourceAmount            Decimal? @db.Decimal(78, 0) @map("source_amount")
+  superTokenAmount        Decimal? @db.Decimal(78, 0) @map("super_token_amount")
+  totalRaised             Decimal? @db.Decimal(78, 0) @map("total_raised")
+  deferredSuperTokenAmount Decimal? @db.Decimal(78, 0) @map("deferred_super_token_amount")
+  controllerBurnAmount    Decimal? @db.Decimal(78, 0) @map("controller_burn_amount")
+  finalState              Int?     @map("final_state")
+  beneficiary             String?
+  txHash                  String   @map("tx_hash")
+  blockNumber             Decimal  @db.Decimal(78, 0) @map("block_number")
+  timestamp               Decimal  @db.Decimal(78, 0)
+
+  @@map("hook_funding")
+  @@schema("cobuild-onchain")
+}
+
+model PipelineSync {
+  id                 String   @id
+  eventName          String   @map("event_name")
+  childRecipientId   String?  @map("child_recipient_id")
+  childFlow          String?  @map("child_flow")
+  strategy           String?
+  allocationKey      Decimal? @db.Decimal(78, 0) @map("allocation_key")
+  parentRecipientId  String?  @map("parent_recipient_id")
+  parentFlow         String?  @map("parent_flow")
+  parentStrategy     String?  @map("parent_strategy")
+  parentAllocationKey Decimal? @db.Decimal(78, 0) @map("parent_allocation_key")
+  commitment         String?
+  weight             Decimal? @db.Decimal(78, 0)
+  childAllocationKey Decimal? @db.Decimal(78, 0) @map("child_allocation_key")
+  budgetTreasury     String?  @map("budget_treasury")
+  success            Boolean?
+  reason             String?
+  txHash             String   @map("tx_hash")
+  blockNumber        Decimal  @db.Decimal(78, 0) @map("block_number")
+  timestamp          Decimal  @db.Decimal(78, 0)
+
+  @@map("pipeline_sync")
+  @@schema("cobuild-onchain")
+}
+
+model AllocationCheckpoint {
+  id                  String  @id
+  account             String
+  budget              String
+  allocatedStake      Decimal @db.Decimal(78, 0) @map("allocated_stake")
+  checkpointTimestamp Decimal @db.Decimal(78, 0) @map("checkpoint_timestamp")
+  txHash              String  @map("tx_hash")
+  blockNumber         Decimal @db.Decimal(78, 0) @map("block_number")
+  timestamp           Decimal @db.Decimal(78, 0)
+
+  @@map("allocation_checkpoint")
+  @@schema("cobuild-onchain")
+}
+
+model HookProcess {
+  id               String   @id
+  eventName        String   @map("event_name")
+  projectId        Decimal? @db.Decimal(78, 0) @map("project_id")
+  sourceToken      String?  @map("source_token")
+  sourceAmount     Decimal? @db.Decimal(78, 0) @map("source_amount")
+  superTokenAmount Decimal? @db.Decimal(78, 0) @map("super_token_amount")
+  accepted         Boolean?
+  action           Int?
+  burnAmount       Decimal? @db.Decimal(78, 0) @map("burn_amount")
+  recipientId      String?  @map("recipient_id")
+  caller           String?
+  amount           Decimal? @db.Decimal(78, 0)
+  token            String?
+  beneficiary      String?
+  succeeded        Boolean?
+  txHash           String   @map("tx_hash")
+  blockNumber      Decimal  @db.Decimal(78, 0) @map("block_number")
+  timestamp        Decimal  @db.Decimal(78, 0)
+
+  @@map("hook_process")
   @@schema("cobuild-onchain")
 }
 
@@ -944,7 +1519,7 @@ model DonorAllocationRule {
 }
 
 /**
- * ---------- Build-bot wallet broker ----------
+ * ---------- CLI wallet broker ----------
  */
 
 model CliAgentWallet {
@@ -957,9 +1532,9 @@ model CliAgentWallet {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@unique([ownerAddress, agentKey], map: "build_bot_agent_wallets_owner_agent_key_uidx")
-  @@index([ownerAddress], map: "build_bot_agent_wallets_owner_idx")
-  @@map("build_bot_agent_wallets")
+  @@unique([ownerAddress, agentKey], map: "cli_agent_wallets_owner_agent_key_uidx")
+  @@index([ownerAddress], map: "cli_agent_wallets_owner_idx")
+  @@map("cli_agent_wallets")
   @@schema("cobuild")
 }
 
@@ -979,9 +1554,9 @@ model CliTxLog {
   txHash       String?  @map("tx_hash") @db.VarChar(66)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  @@unique([ownerAddress, agentKey, idempotencyKey], map: "build_bot_tx_logs_owner_agent_idempotency_uidx")
-  @@index([ownerAddress], map: "build_bot_tx_logs_owner_idx")
-  @@index([txHash], map: "build_bot_tx_logs_hash_idx")
-  @@map("build_bot_tx_logs")
+  @@unique([ownerAddress, agentKey, idempotencyKey], map: "cli_tx_logs_owner_agent_idempotency_uidx")
+  @@index([ownerAddress], map: "cli_tx_logs_owner_idx")
+  @@index([txHash], map: "cli_tx_logs_hash_idx")
+  @@map("cli_tx_logs")
   @@schema("cobuild")
 }
