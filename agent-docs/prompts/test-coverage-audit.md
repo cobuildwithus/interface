@@ -21,6 +21,8 @@ Execution requirements:
 - Prioritize impact: implement the smallest test set that materially reduces regression risk.
 - Rank impact by security/auth boundaries, cache/data consistency risks, onchain execution correctness, user-facing blast radius, and likelihood of regression on critical paths.
 - Prefer deterministic tests first; add broader/fuzz-style coverage where unit tests are insufficient.
+- Apply this repo preference by default: do not add new tests for purely presentational frontend components in this pass unless explicitly requested.
+- Prefer adding tests for non-UI logic, including hooks with business logic, `lib/**` utilities, database/query layers, API/server handlers, auth/policy boundaries, and other backend-adjacent paths.
 - Do not change production behavior in this pass; only add/adjust tests unless explicitly instructed otherwise.
 - After implementing tests, run the narrowest relevant verification command first (or `pnpm test` when scope is broad/unclear), then report outcomes.
 - If a required test is blocked by ambiguity, state the blocker and what assumption would unblock implementation.
