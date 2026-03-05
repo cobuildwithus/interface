@@ -7,6 +7,9 @@
   ],
   "scripts": {
     "dev:web": "pnpm --filter web dev",
+    "dev:web:local-db": "WEB_DB_TARGET=local pnpm --filter web dev",
+    "dev:web:prod-db": "WEB_DB_TARGET=prod pnpm --filter web dev",
+    "db:sync:local-from-prod": "bash scripts/sync-local-db-from-prod.sh",
     "lint": "pnpm --filter web lint",
     "build:web": "pnpm --filter web build",
     "build": "pnpm build:web",

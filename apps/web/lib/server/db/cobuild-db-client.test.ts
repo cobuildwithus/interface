@@ -38,21 +38,58 @@ describe("cobuild-db-client", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prismaInstances.length = 0;
-    setEnv({ DATABASE_URL: undefined, DATABASE_REPLICA_URL: undefined, NODE_ENV: "test" });
+    setEnv({
+      DATABASE_URL: undefined,
+      DATABASE_REPLICA_URL: undefined,
+      LOCAL_DATABASE_URL: undefined,
+      WEB_DB_TARGET: undefined,
+      NODE_ENV: "test",
+    });
     const globalAny = global as typeof global & { prisma?: object };
     delete globalAny.prisma;
   });
 
   it("throws when DATABASE_URL missing", async () => {
-    setEnv({ DATABASE_URL: undefined, DATABASE_REPLICA_URL: "postgres://replica" });
+    setEnv({
+      WEB_DB_TARGET: "prod",
+      DATABASE_URL: undefined,
+      DATABASE_REPLICA_URL: "postgres://replica",
+    });
     await vi.resetModules();
     await expect(import("./cobuild-db-client")).rejects.toThrow("DATABASE_URL is not set");
   });
 
   it("throws when DATABASE_REPLICA_URL missing", async () => {
-    setEnv({ DATABASE_URL: "postgres://primary", DATABASE_REPLICA_URL: undefined });
+    setEnv({
+      WEB_DB_TARGET: "prod",
+      DATABASE_URL: "postgres://primary",
+      DATABASE_REPLICA_URL: undefined,
+    });
     await vi.resetModules();
     await expect(import("./cobuild-db-client")).rejects.toThrow("DATABASE_REPLICA_URL is not set");
+  });
+
+  it("throws when WEB_DB_TARGET is invalid", async () => {
+    setEnv({
+      WEB_DB_TARGET: "staging",
+      DATABASE_URL: "postgres://primary",
+      DATABASE_REPLICA_URL: "postgres://replica",
+    });
+    await vi.resetModules();
+    await expect(import("./cobuild-db-client")).rejects.toThrow(
+      "WEB_DB_TARGET must be either 'prod' or 'local'"
+    );
+  });
+
+  it("throws when LOCAL_DATABASE_URL is missing in local mode", async () => {
+    setEnv({
+      WEB_DB_TARGET: "local",
+      LOCAL_DATABASE_URL: undefined,
+      DATABASE_URL: "postgres://primary",
+      DATABASE_REPLICA_URL: "postgres://replica",
+    });
+    await vi.resetModules();
+    await expect(import("./cobuild-db-client")).rejects.toThrow("LOCAL_DATABASE_URL is not set");
   });
 
   it("uses DATABASE_POOL_MAX when positive", async () => {
@@ -151,6 +188,69 @@ describe("cobuild-db-client", () => {
     expect(dbModule.default).toBeTruthy();
     const globalAny = global as typeof global & { prisma?: object };
     expect(globalAny.prisma).toBe(dbModule.default);
+  });
+
+  it("defaults to prod routing when WEB_DB_TARGET is unset", async () => {
+    setEnv({
+      LOCAL_DATABASE_URL: "postgres://local",
+      DATABASE_URL: "postgres://primary",
+      DATABASE_REPLICA_URL: "postgres://replica",
+      WEB_DB_TARGET: undefined,
+    });
+    await vi.resetModules();
+    await import("./cobuild-db-client");
+
+    expect(Pool).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        connectionString: "postgres://primary",
+      })
+    );
+    expect(Pool).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        connectionString: "postgres://replica",
+      })
+    );
+    expect(Pool).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionString: "postgres://local",
+      })
+    );
+  });
+
+  it("uses LOCAL_DATABASE_URL for primary and replica in local mode", async () => {
+    setEnv({
+      WEB_DB_TARGET: "local",
+      LOCAL_DATABASE_URL: "postgres://local",
+      DATABASE_URL: "postgres://primary",
+      DATABASE_REPLICA_URL: undefined,
+    });
+    await vi.resetModules();
+    await import("./cobuild-db-client");
+
+    expect(Pool).toHaveBeenCalledWith({
+      connectionString: "postgres://local",
+      max: 10,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
+    });
+    expect(Pool).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        connectionString: "postgres://local",
+      })
+    );
+    expect(Pool).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionString: "postgres://primary",
+      })
+    );
+    expect(Pool).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionString: "postgres://replica",
+      })
+    );
   });
 
   it("logs when pool emits error events", async () => {
