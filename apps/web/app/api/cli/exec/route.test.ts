@@ -60,6 +60,9 @@ vi.mock("@/lib/server/db/cobuild-db-client", () => ({
 import { CliAuthError, CliConfigError, CliPolicyError } from "@/lib/server/cli/errors";
 import { POST } from "./route";
 
+const BASE_BUILDER_SUFFIX = "0x0b62635f64647972736c69780080218021802180218021802180218021";
+const TX_DATA_WITH_BUILDER_SUFFIX = `0x12345678${BASE_BUILDER_SUFFIX.slice(2)}`;
+
 describe("cli exec route", () => {
   function setSmartAccountMocks(params: {
     transferMock?: ReturnType<typeof vi.fn>;
@@ -100,11 +103,11 @@ describe("cli exec route", () => {
   });
 
   it("executes transfer", async () => {
-    const transferMock = vi.fn().mockResolvedValue({ userOpHash: "0xtransfer-op" });
+    const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xtransfer-op" });
     const waitForUserOperationMock = vi
       .fn()
       .mockResolvedValue({ status: "complete", transactionHash: "0xtx" });
-    setSmartAccountMocks({ transferMock, waitForUserOperationMock });
+    setSmartAccountMocks({ sendUserOperationMock, waitForUserOperationMock });
 
     requireCliBearerAuthMock.mockResolvedValue({
       ownerAddress: "0x0000000000000000000000000000000000000001",
@@ -139,16 +142,16 @@ describe("cli exec route", () => {
     expect(body.ok).toBe(true);
     expect(body.kind).toBe("transfer");
     expect(body.transactionHash).toBe("0xtx");
-    expect(transferMock).toHaveBeenCalled();
+    expect(sendUserOperationMock).toHaveBeenCalledTimes(1);
     expect(txLogCreateMock).toHaveBeenCalled();
   });
 
   it("returns success when transfer log persistence fails", async () => {
-    const transferMock = vi.fn().mockResolvedValue({ userOpHash: "0xtransfer-op" });
+    const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xtransfer-op" });
     const waitForUserOperationMock = vi
       .fn()
       .mockResolvedValue({ status: "complete", transactionHash: "0xtx" });
-    setSmartAccountMocks({ transferMock, waitForUserOperationMock });
+    setSmartAccountMocks({ sendUserOperationMock, waitForUserOperationMock });
 
     requireCliBearerAuthMock.mockResolvedValue({
       ownerAddress: "0x0000000000000000000000000000000000000001",
@@ -177,7 +180,7 @@ describe("cli exec route", () => {
       const response = await POST(request);
       expect(response.status).toBe(200);
       expect((await response.json()).ok).toBe(true);
-      expect(transferMock).toHaveBeenCalled();
+      expect(sendUserOperationMock).toHaveBeenCalledTimes(1);
       expect(errorSpy).toHaveBeenCalled();
     } finally {
       errorSpy.mockRestore();
@@ -287,6 +290,50 @@ describe("cli exec route", () => {
     expect(body.transactionHash).toBe("0xabc");
     expect(sendUserOperationMock).toHaveBeenCalled();
     expect(txLogCreateMock).toHaveBeenCalled();
+  });
+
+  it("keeps empty tx calldata and forwards builder suffix at user-op level", async () => {
+    const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xtx-empty-user-op" });
+    const waitForUserOperationMock = vi
+      .fn()
+      .mockResolvedValue({ status: "complete", transactionHash: "0xempty" });
+    setSmartAccountMocks({ sendUserOperationMock, waitForUserOperationMock });
+
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base-sepolia",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "tx",
+        to: "0x000000000000000000000000000000000000dEaD",
+        data: "0x",
+        valueEth: "0",
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(sendUserOperationMock).toHaveBeenCalledWith({
+      network: "base-sepolia",
+      calls: [
+        {
+          to: "0x000000000000000000000000000000000000dead",
+          value: 0n,
+          data: "0x",
+        },
+      ],
+      dataSuffix: BASE_BUILDER_SUFFIX,
+      idempotencyKey: undefined,
+    });
   });
 
   it("returns success when tx log persistence fails", async () => {
@@ -498,8 +545,8 @@ describe("cli exec route", () => {
   });
 
   it("executes ERC-20 transfer with normalized addresses and atomic amount", async () => {
-    const transferMock = vi.fn().mockResolvedValue({ userOpHash: "0xtransfer-op" });
-    setSmartAccountMocks({ transferMock });
+    const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xtransfer-op" });
+    setSmartAccountMocks({ sendUserOperationMock });
     requireCliBearerAuthMock.mockResolvedValue({
       ownerAddress: "0x0000000000000000000000000000000000000001",
       tokenId: "1",
@@ -530,12 +577,21 @@ describe("cli exec route", () => {
       token: "0x000000000000000000000000000000000000beef",
       amountAtomic: parseUnits("1.5", 18),
     });
-    expect(transferMock).toHaveBeenCalledWith({
-      to: "0x000000000000000000000000000000000000dead",
-      amount: parseUnits("1.5", 18),
-      token: "0x000000000000000000000000000000000000beef",
+    expect(sendUserOperationMock).toHaveBeenCalledWith({
       network: "base-sepolia",
+      calls: [
+        expect.objectContaining({
+          to: "0x000000000000000000000000000000000000beef",
+          value: 0n,
+        }),
+      ],
+      dataSuffix: BASE_BUILDER_SUFFIX,
+      idempotencyKey: undefined,
     });
+    const transferCall = (
+      sendUserOperationMock.mock.calls[0]?.[0] as { calls?: Array<{ data?: string }> }
+    )?.calls?.[0];
+    expect(transferCall?.data?.endsWith(BASE_BUILDER_SUFFIX.slice(2))).toBe(false);
   });
 
   it("returns 403 on tx policy errors", async () => {
@@ -688,6 +744,61 @@ describe("cli exec route", () => {
     expect(txLogCreateMock).not.toHaveBeenCalled();
   });
 
+  it("replays tx response when request calldata already includes the builder suffix", async () => {
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      agentKey: "default",
+      address: "0x0000000000000000000000000000000000000002",
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base-sepolia",
+    });
+    txLogFindUniqueMock.mockResolvedValue({
+      kind: "tx",
+      network: "base-sepolia",
+      to: "0x000000000000000000000000000000000000dead",
+      token: null,
+      amount: null,
+      decimals: null,
+      valueEth: "0",
+      data: "0x12345678",
+      txHash: "0xexisting",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "11b4cb35-2f3c-4d76-8cc0-e48f9642de5f",
+      },
+      body: JSON.stringify({
+        kind: "tx",
+        to: "0x000000000000000000000000000000000000dEaD",
+        data: `0x${TX_DATA_WITH_BUILDER_SUFFIX.slice(2).toUpperCase()}`,
+        valueEth: "0",
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      kind: "tx",
+      replayed: true,
+      wallet: {
+        address: "0x0000000000000000000000000000000000000002",
+      },
+      transactionHash: "0xexisting",
+      explorerUrl: "https://sepolia.basescan.org/tx/0xexisting",
+    });
+    expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
+    expect(txLogCreateMock).not.toHaveBeenCalled();
+  });
+
   it("rejects transfer idempotency-key reuse with a different payload", async () => {
     requireCliBearerAuthMock.mockResolvedValue({
       ownerAddress: "0x0000000000000000000000000000000000000001",
@@ -771,6 +882,7 @@ describe("cli exec route", () => {
           data: "0x12345678",
         },
       ],
+      dataSuffix: BASE_BUILDER_SUFFIX,
       idempotencyKey: "2a4f7c3e-9b10-4d2a-a7f2-112233445566",
     });
     expect(txLogCreateMock).toHaveBeenCalledWith(
@@ -821,6 +933,7 @@ describe("cli exec route", () => {
           data: "0x12345678",
         },
       ],
+      dataSuffix: BASE_BUILDER_SUFFIX,
       idempotencyKey,
     });
     expect(txLogCreateMock).toHaveBeenCalledWith(

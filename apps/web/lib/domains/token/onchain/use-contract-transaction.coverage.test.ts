@@ -32,6 +32,12 @@ vi.mock("@/lib/domains/auth/use-login", () => ({
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: routerRefresh }) }));
 vi.mock("sonner", () => ({ toast: toastMock }));
+vi.mock("@cobuild/wire", () => ({
+  baseBuilderCodeDataSuffixForChainId: (chainId: number) =>
+    chainId === 8453
+      ? ("0x0b62635f64647972736c69780080218021802180218021802180218021" as const)
+      : undefined,
+}));
 
 import { useContractTransaction } from "@/lib/domains/token/onchain/use-contract-transaction";
 
@@ -203,5 +209,148 @@ describe("useContractTransaction", () => {
       id: "custom-toast",
       action: null,
     });
+  });
+
+  it("appends builder suffix for base writeContractAsync calls", async () => {
+    const writeContractAsync = vi.fn().mockResolvedValue("0xhash");
+    const writeContract = vi.fn();
+    useWriteContractMock.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      error: null,
+      writeContract,
+      writeContractAsync,
+    });
+    useWaitMock.mockReturnValue({ isLoading: false, isSuccess: false });
+    useAccountMock.mockReturnValue({ chainId: 8453, isConnected: true, address: ACCOUNT });
+    useSwitchChainMock.mockReturnValue({ switchChainAsync: vi.fn() });
+    useLoginMock.mockReturnValue({ login: vi.fn(), connectWallet: vi.fn() });
+
+    const { result } = renderHook(() =>
+      useContractTransaction({ chainId: 8453, defaultToastId: "toast" })
+    );
+    const writeContractAsyncWithBuilderCode = result.current.writeContractAsync;
+    if (!writeContractAsyncWithBuilderCode) {
+      throw new Error("writeContractAsync should be available");
+    }
+
+    await act(async () => {
+      await writeContractAsyncWithBuilderCode({
+        abi: [
+          {
+            type: "function",
+            name: "ping",
+            stateMutability: "nonpayable",
+            inputs: [],
+            outputs: [],
+          },
+        ],
+        address: ACCOUNT,
+        functionName: "ping",
+        args: [],
+      });
+    });
+
+    expect(writeContractAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dataSuffix: "0x0b62635f64647972736c69780080218021802180218021802180218021",
+      }),
+      undefined
+    );
+  });
+
+  it("does not append builder suffix on non-base chains", async () => {
+    const writeContractAsync = vi.fn().mockResolvedValue("0xhash");
+    useWriteContractMock.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      error: null,
+      writeContract: vi.fn(),
+      writeContractAsync,
+    });
+    useWaitMock.mockReturnValue({ isLoading: false, isSuccess: false });
+    useAccountMock.mockReturnValue({ chainId: 1, isConnected: true, address: ACCOUNT });
+    useSwitchChainMock.mockReturnValue({ switchChainAsync: vi.fn() });
+    useLoginMock.mockReturnValue({ login: vi.fn(), connectWallet: vi.fn() });
+
+    const { result } = renderHook(() =>
+      useContractTransaction({ chainId: 1, defaultToastId: "toast" })
+    );
+    const writeContractAsyncWithoutBuilderCode = result.current.writeContractAsync;
+    if (!writeContractAsyncWithoutBuilderCode) {
+      throw new Error("writeContractAsync should be available");
+    }
+
+    await act(async () => {
+      await writeContractAsyncWithoutBuilderCode({
+        abi: [
+          {
+            type: "function",
+            name: "ping",
+            stateMutability: "nonpayable",
+            inputs: [],
+            outputs: [],
+          },
+        ],
+        address: ACCOUNT,
+        functionName: "ping",
+        args: [],
+      });
+    });
+
+    expect(writeContractAsync).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        dataSuffix: expect.any(String),
+      }),
+      undefined
+    );
+  });
+
+  it("does not override existing dataSuffix in write variables", async () => {
+    const writeContractAsync = vi.fn().mockResolvedValue("0xhash");
+    useWriteContractMock.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      error: null,
+      writeContract: vi.fn(),
+      writeContractAsync,
+    });
+    useWaitMock.mockReturnValue({ isLoading: false, isSuccess: false });
+    useAccountMock.mockReturnValue({ chainId: 8453, isConnected: true, address: ACCOUNT });
+    useSwitchChainMock.mockReturnValue({ switchChainAsync: vi.fn() });
+    useLoginMock.mockReturnValue({ login: vi.fn(), connectWallet: vi.fn() });
+
+    const { result } = renderHook(() =>
+      useContractTransaction({ chainId: 8453, defaultToastId: "toast" })
+    );
+    const writeContractAsyncWithBuilderCode = result.current.writeContractAsync;
+    if (!writeContractAsyncWithBuilderCode) {
+      throw new Error("writeContractAsync should be available");
+    }
+
+    await act(async () => {
+      await writeContractAsyncWithBuilderCode({
+        abi: [
+          {
+            type: "function",
+            name: "ping",
+            stateMutability: "nonpayable",
+            inputs: [],
+            outputs: [],
+          },
+        ],
+        address: ACCOUNT,
+        functionName: "ping",
+        args: [],
+        dataSuffix: "0x1234",
+      });
+    });
+
+    expect(writeContractAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dataSuffix: "0x1234",
+      }),
+      undefined
+    );
   });
 });

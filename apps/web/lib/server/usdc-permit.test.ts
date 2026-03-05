@@ -35,6 +35,12 @@ const { getClient, explorerUrl, getChain, getRpcUrl, contracts } = vi.hoisted(()
   },
 }));
 
+const { baseBuilderCodeDataSuffixForChainId } = vi.hoisted(() => ({
+  baseBuilderCodeDataSuffixForChainId: vi.fn((chainId: number) =>
+    chainId === 8453 ? "0x0b62635f64647972736c69780080218021802180218021802180218021" : undefined
+  ),
+}));
+
 vi.mock("viem", () => ({
   BaseError,
   createWalletClient,
@@ -52,6 +58,7 @@ vi.mock("@/lib/domains/token/onchain/chains", () => ({
   getRpcUrl,
 }));
 vi.mock("@/lib/domains/token/onchain/addresses", () => ({ contracts }));
+vi.mock("@cobuild/wire", () => ({ baseBuilderCodeDataSuffixForChainId }));
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -163,6 +170,11 @@ describe("submitUsdcPermitServer", () => {
     expect(parseErc6492Signature).toHaveBeenCalled();
     expect(publicClient.simulateContract).toHaveBeenCalled();
     expect(writeContract).toHaveBeenCalled();
+    expect(writeContract).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dataSuffix: "0x0b62635f64647972736c69780080218021802180218021802180218021",
+      })
+    );
     expect(result).toEqual({
       success: true,
       txHash: "0xtxhash",

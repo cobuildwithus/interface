@@ -1,5 +1,6 @@
 import { type NextResponse } from "next/server";
-import { isAddress } from "viem";
+import { encodeFunctionData, erc20Abi, isAddress } from "viem";
+import { baseBuilderCodeDataSuffixForNetwork, usdcContractForNetwork } from "@cobuild/wire";
 import { assertCliTransferAllowed } from "@/lib/server/cli/policy";
 import { RequestValidationError } from "@/lib/server/cli/http";
 import { waitForUserOperationComplete } from "@/lib/server/cli/user-operation";
@@ -145,11 +146,32 @@ export async function handleTransferExecution(params: {
     ownerAddress: params.auth.ownerAddress,
     agentKey: params.auth.agentKey,
   });
-  const transferResult = await smartAccount.transfer({
-    to,
-    amount: amountAtomic,
-    token,
+  const transferCall =
+    token === "eth"
+      ? {
+          to,
+          value: amountAtomic,
+          data: "0x" as const,
+        }
+      : (() => {
+          const erc20TransferData = encodeFunctionData({
+            abi: erc20Abi,
+            functionName: "transfer",
+            args: [to, amountAtomic],
+          });
+          return {
+            to: token === "usdc" ? usdcContractForNetwork(network) : token,
+            value: 0n,
+            data: erc20TransferData,
+          };
+        })();
+  const dataSuffix = baseBuilderCodeDataSuffixForNetwork(network);
+
+  const transferResult = await smartAccount.sendUserOperation({
     network,
+    calls: [transferCall],
+    ...(dataSuffix ? { dataSuffix } : {}),
+    idempotencyKey: params.idempotencyKey ?? undefined,
   });
   const transactionHash = await waitForUserOperationComplete({
     smartAccount,
