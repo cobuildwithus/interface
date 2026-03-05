@@ -1,5 +1,4 @@
 bash apps/web/scripts/wire-ensure-published.sh
-bash scripts/review-gpt-ensure-published.sh
 git add apps/web/package.json package.json pnpm-lock.yaml
 bash scripts/doc-gardening.sh --fail-on-issues
 git add agent-docs/generated/doc-inventory.md agent-docs/generated/doc-gardening-report.md
