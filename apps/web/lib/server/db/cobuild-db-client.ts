@@ -5,6 +5,7 @@ import { Pool, type QueryResult } from "pg";
 
 type PrismaGlobal = typeof globalThis & { prisma?: ReturnType<typeof createPrisma> };
 const globalForPrisma = globalThis as PrismaGlobal;
+type WebDbTarget = "prod" | "local";
 
 const STATEMENT_TIMEOUT_MS = 10_000;
 const LOCK_TIMEOUT_MS = 2_000;
@@ -24,6 +25,31 @@ function getEnv(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is not set`);
   return value;
+}
+
+function resolveWebDbTarget(): WebDbTarget {
+  const rawValue = process.env.WEB_DB_TARGET;
+  if (!rawValue) return "prod";
+  if (rawValue === "prod" || rawValue === "local") return rawValue;
+  throw new Error("WEB_DB_TARGET must be either 'prod' or 'local'");
+}
+
+function resolveConnectionUrls(target: WebDbTarget): {
+  primaryUrl: string;
+  replicaUrl: string;
+} {
+  if (target === "local") {
+    const localUrl = getEnv("LOCAL_DATABASE_URL");
+    return {
+      primaryUrl: localUrl,
+      replicaUrl: localUrl,
+    };
+  }
+
+  return {
+    primaryUrl: getEnv("DATABASE_URL"),
+    replicaUrl: getEnv("DATABASE_REPLICA_URL"),
+  };
 }
 
 function applySessionSettings(client: { query: (sql: string) => Promise<QueryResult> }) {
@@ -52,8 +78,8 @@ function makePool(connectionString: string, readOnly: boolean = false) {
 }
 
 function createPrisma() {
-  const primaryUrl = getEnv("DATABASE_URL");
-  const replicaUrl = getEnv("DATABASE_REPLICA_URL");
+  const target = resolveWebDbTarget();
+  const { primaryUrl, replicaUrl } = resolveConnectionUrls(target);
 
   const primaryPool = makePool(primaryUrl);
   const replicaPool = makePool(replicaUrl, true);

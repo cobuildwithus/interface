@@ -5,6 +5,13 @@
 - Prisma client wrapper: `lib/server/db/cobuild-db-client.ts`.
 - Uses read-replica extension for non-transactional reads.
 - Applies connection session safety timeouts (`statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout`).
+- DB target env routing:
+  - `WEB_DB_TARGET=prod|local` (default `prod`).
+  - Prod mode uses `DATABASE_URL` + `DATABASE_REPLICA_URL`.
+  - Local mode uses `LOCAL_DATABASE_URL` for both primary and replica adapters.
+- Local refresh helper: `scripts/sync-local-db-from-prod.sh` copies only `cobuild`, `farcaster`, and `capital_allocation` schemas from prod and intentionally excludes `cobuild-onchain`.
+  - Safety guards fail when source/target URLs match and require a local `LOCAL_DATABASE_URL` host by default.
+  - Set `ALLOW_NON_LOCAL_LOCAL_DB_SYNC=true` only for intentional non-local override runs.
 
 ## Key Files
 
