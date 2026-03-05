@@ -57,3 +57,4 @@ generated
 .claude/
 .codex/
 .cursor/
+audit-packages/

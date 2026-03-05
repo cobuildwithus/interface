@@ -22,7 +22,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@cobuild/review-gpt": "^0.2.8",
+    "@cobuild/review-gpt": "^0.2.9",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.7.4",
