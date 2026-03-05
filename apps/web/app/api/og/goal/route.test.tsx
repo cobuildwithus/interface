@@ -58,19 +58,16 @@ function findImageSrc(node: unknown): string | null {
   return null;
 }
 
-describe("GET /api/og/raise-1-mil", () => {
+describe("GET /api/og/goal", () => {
   beforeEach(() => {
     resolveBaseUrlMock.mockReset();
     resolveBaseUrlMock.mockReturnValue("https://co.build");
+
     getGoalOverviewDataMock.mockReset();
     getGoalOverviewDataMock.mockResolvedValue({
       progressTitle: "Raise $1M by Jun 30, 2026",
-      raised: 123000,
+      raised: 125000,
       target: 1000000,
-      goal: {
-        description: "Live overview description",
-        tagline: "Live overview tagline",
-      },
     });
     getGoalCardsMock.mockReset();
     getGoalCardsMock.mockResolvedValue([]);
@@ -79,12 +76,12 @@ describe("GET /api/og/raise-1-mil", () => {
     imageResponseCtorMock.mockImplementation((_element: unknown, _init: unknown) => ({ ok: true }));
   });
 
-  it("uses trusted base URL for static assets", async () => {
-    const request = new Request("https://evil.example/api/og/raise-1-mil");
+  it("reads the goalAddress query and uses trusted base URL assets", async () => {
+    const request = new Request("https://evil.example/api/og/goal?goalAddress=0xabc");
 
     await GET(request as unknown as NextRequest);
 
-    expect(getGoalOverviewDataMock).toHaveBeenCalledWith("raise-1-mil");
+    expect(getGoalOverviewDataMock).toHaveBeenCalledWith("0xabc");
     expect(getGoalCardsMock).not.toHaveBeenCalled();
     expect(resolveBaseUrlMock).toHaveBeenCalledWith(request.headers);
     expect(imageResponseCtorMock).toHaveBeenCalledTimes(1);

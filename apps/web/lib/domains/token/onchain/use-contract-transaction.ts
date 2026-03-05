@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { type Hex } from "viem";
 import {
   useAccount,
   useSwitchChain,
@@ -10,10 +11,27 @@ import {
   useWriteContract,
   type BaseError,
 } from "wagmi";
+import { baseBuilderCodeDataSuffixForChainId } from "@cobuild/wire";
 import { useLogin } from "@/lib/domains/auth/use-login";
 import { chains } from "@/lib/domains/token/onchain/wagmi-config";
 
 type ChainId = (typeof chains)[number]["id"];
+
+type WriteContractFn = NonNullable<ReturnType<typeof useWriteContract>["writeContract"]>;
+type WriteContractAsyncFn = NonNullable<ReturnType<typeof useWriteContract>["writeContractAsync"]>;
+
+function withBuilderCodeDataSuffix<T extends { dataSuffix?: Hex }>(
+  variables: T,
+  suffix: Hex | undefined
+): T {
+  if (!suffix || variables.dataSuffix) {
+    return variables;
+  }
+  return {
+    ...variables,
+    dataSuffix: suffix,
+  };
+}
 
 function explorerUrl(hash: string, chainId: number) {
   const explorerDomain: Record<number, string> = {
@@ -45,12 +63,48 @@ export const useContractTransaction = (args: {
   } = args;
   const [toastId, setToastId] = useState<number | string>(defaultToastId || "");
   const [callbackHandled, setCallbackHandled] = useState(false);
-  const { data: hash, isPending, error, ...writeContractRest } = useWriteContract();
+  const {
+    data: hash,
+    isPending,
+    error,
+    writeContract,
+    writeContractAsync,
+    ...writeContractRest
+  } = useWriteContract();
   const { isLoading, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const dataSuffix = baseBuilderCodeDataSuffixForChainId(chainId);
 
   const { chainId: connectedChainId, isConnected, address } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { login, connectWallet } = useLogin();
+
+  const writeContractWithBuilderCode: WriteContractFn = (variables, options) => {
+    if (!writeContract) {
+      throw new Error("writeContract is unavailable");
+    }
+    const variablesWithBuilderCode = withBuilderCodeDataSuffix(
+      variables as { dataSuffix?: Hex },
+      dataSuffix
+    );
+    return (writeContract as (...args: unknown[]) => ReturnType<WriteContractFn>)(
+      variablesWithBuilderCode as Parameters<WriteContractFn>[0],
+      options
+    );
+  };
+
+  const writeContractAsyncWithBuilderCode: WriteContractAsyncFn = (variables, options) => {
+    if (!writeContractAsync) {
+      throw new Error("writeContractAsync is unavailable");
+    }
+    const variablesWithBuilderCode = withBuilderCodeDataSuffix(
+      variables as { dataSuffix?: Hex },
+      dataSuffix
+    );
+    return (writeContractAsync as (...args: unknown[]) => ReturnType<WriteContractAsyncFn>)(
+      variablesWithBuilderCode as Parameters<WriteContractAsyncFn>[0],
+      options
+    );
+  };
 
   useEffect(() => {
     if (callbackHandled || !toastId) return;
@@ -133,6 +187,8 @@ export const useContractTransaction = (args: {
       return newToastId;
     },
     toastId,
+    writeContract: writeContractWithBuilderCode,
+    writeContractAsync: writeContractAsyncWithBuilderCode,
     ...writeContractRest,
   };
 };

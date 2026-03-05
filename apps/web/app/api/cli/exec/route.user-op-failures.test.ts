@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { parseUnits } from "viem";
 
 vi.mock("server-only", () => ({}));
 
@@ -59,6 +58,8 @@ vi.mock("@/lib/server/db/cobuild-db-client", () => ({
 
 import { POST } from "./route";
 
+const BASE_BUILDER_SUFFIX = "0x0b62635f64647972736c69780080218021802180218021802180218021";
+
 describe("cli exec route user-op failure handling", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -81,12 +82,12 @@ describe("cli exec route user-op failure handling", () => {
   });
 
   it("returns 500 and leaves transfer idempotency pending when user-op is not complete", async () => {
-    const transferMock = vi.fn().mockResolvedValue({ userOpHash: "0xtransfer-user-op" });
+    const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xtransfer-user-op" });
     const waitForUserOperationMock = vi.fn().mockResolvedValue({ status: "failed" });
     getOrCreateCliAgentSmartAccountMock.mockResolvedValue({
       address: "0x0000000000000000000000000000000000000002",
-      transfer: transferMock,
-      sendUserOperation: vi.fn(),
+      transfer: vi.fn(),
+      sendUserOperation: sendUserOperationMock,
       waitForUserOperation: waitForUserOperationMock,
     });
 
@@ -113,12 +114,23 @@ describe("cli exec route user-op failure handling", () => {
       error: "User operation failed before confirmation",
     });
 
-    expect(transferMock).toHaveBeenCalledWith({
-      to: "0x000000000000000000000000000000000000dead",
-      amount: parseUnits("0.25", 6),
-      token: "usdc",
+    expect(sendUserOperationMock).toHaveBeenCalledWith({
       network: "base-sepolia",
+      calls: [
+        expect.objectContaining({
+          to: "0x036CbD53842c5426634e7929541eC2318f3dCf7e",
+          value: 0n,
+        }),
+      ],
+      dataSuffix: BASE_BUILDER_SUFFIX,
+      idempotencyKey,
     });
+    const transferCall = (
+      sendUserOperationMock.mock.calls[0]?.[0] as {
+        calls?: Array<{ data?: string }>;
+      }
+    )?.calls?.[0];
+    expect(transferCall?.data?.endsWith(BASE_BUILDER_SUFFIX.slice(2))).toBe(false);
     expect(waitForUserOperationMock).toHaveBeenCalledWith({
       userOpHash: "0xtransfer-user-op",
     });
@@ -177,6 +189,7 @@ describe("cli exec route user-op failure handling", () => {
           data: "0x12345678",
         },
       ],
+      dataSuffix: BASE_BUILDER_SUFFIX,
       idempotencyKey,
     });
     expect(waitForUserOperationMock).toHaveBeenCalledWith({

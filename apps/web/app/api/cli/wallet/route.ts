@@ -20,7 +20,7 @@ const WalletRequestSchema = z.object({
 
 const MISSING_CLI_TABLES_ERROR =
   "CLI database tables are missing. Run the cli SQL migrations before running setup.";
-const CLI_REQUIRED_TABLES = ["build_bot_agent_wallets"] as const;
+const CLI_REQUIRED_TABLES = ["cli_agent_wallets"] as const;
 
 type PrismaMissingTableError = {
   code?: unknown;

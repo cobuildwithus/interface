@@ -1,12 +1,12 @@
-# 2026-03-01 Buildbot Recovery Merge
+# 2026-03-01 CLI Recovery Merge
 
 ## Goal
 
-Restore the buildbot wallet/exec/docs/tools server paths and related support files that were lost after the `main` reset, then validate against current `main` and commit a clean recovery.
+Restore the cli wallet/exec/docs/tools server paths and related support files that were lost after the `main` reset, then validate against current `main` and commit a clean recovery.
 
 ## Scope
 
-- Recover file set from last known buildbot-containing commit: `fb1cfd4`.
+- Recover file set from last known cli-containing commit: `fb1cfd4`.
 - Apply only files that diverged in the reset window (`fb1cfd4..40ddfbe`).
 - Run required verification gates before commit.
 
@@ -25,6 +25,6 @@ Restore the buildbot wallet/exec/docs/tools server paths and related support fil
 
 ## Success Criteria
 
-- Buildbot routes/libraries/tests are present again in working tree.
+- CLI routes/libraries/tests are present again in working tree.
 - Required checks pass on current `main` with recovery applied.
 - Commit contains only intended recovery paths.

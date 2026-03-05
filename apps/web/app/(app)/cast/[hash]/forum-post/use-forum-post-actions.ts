@@ -83,7 +83,7 @@ export const useForumPostActions = ({ cast, isRoot, postPermalink }: ForumPostAc
         toast.success(moderationCopy?.success ?? "Moderation applied.");
         closeModeration();
         if (shouldRedirect) {
-          router.push("/raise-1-mil/discussion");
+          router.push("/goals");
           return;
         }
         router.refresh();
@@ -106,7 +106,7 @@ export const useForumPostActions = ({ cast, isRoot, postPermalink }: ForumPostAc
         }
         toast.success("Post deleted.", { id: toastId });
         if (isRootPost) {
-          router.push("/raise-1-mil/discussion");
+          router.push("/goals");
           return;
         }
         router.refresh();

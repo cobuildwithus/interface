@@ -18,6 +18,7 @@ const {
   stakeVaultFindUniqueMock,
   hookFundingFindManyMock,
   goalTreasurySeriesFindManyMock,
+  goalContributorAggregateFindManyMock,
   budgetTreasuryFindManyMock,
   stakePositionFindManyMock,
   premiumAccountAggregateMock,
@@ -39,6 +40,7 @@ const {
   stakeVaultFindUniqueMock: vi.fn(),
   hookFundingFindManyMock: vi.fn(),
   goalTreasurySeriesFindManyMock: vi.fn(),
+  goalContributorAggregateFindManyMock: vi.fn(),
   budgetTreasuryFindManyMock: vi.fn(),
   stakePositionFindManyMock: vi.fn(),
   premiumAccountAggregateMock: vi.fn(),
@@ -102,6 +104,10 @@ vi.mock("@/lib/server/db/cobuild-db-client", () => ({
     goalTreasurySeries: {
       findMany: (...args: Parameters<typeof goalTreasurySeriesFindManyMock>) =>
         goalTreasurySeriesFindManyMock(...args),
+    },
+    goalContributorAggregate: {
+      findMany: (...args: Parameters<typeof goalContributorAggregateFindManyMock>) =>
+        goalContributorAggregateFindManyMock(...args),
     },
     budgetTreasury: {
       findMany: (...args: Parameters<typeof budgetTreasuryFindManyMock>) =>
@@ -290,6 +296,13 @@ beforeEach(() => {
       balance: 90_000_000,
       inflow: 0,
       outflow: 30_000_000,
+    },
+  ]);
+  goalContributorAggregateFindManyMock.mockResolvedValue([
+    {
+      goalTreasury: GOAL_ADDRESS,
+      totalContributed: 210_000_000,
+      firstContributedAt: 1_700_000_100,
     },
   ]);
   stakeVaultFindUniqueMock.mockResolvedValue({

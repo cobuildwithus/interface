@@ -11,6 +11,7 @@ import {
   parseAbi,
   parseErc6492Signature,
 } from "viem";
+import { baseBuilderCodeDataSuffixForChainId } from "@cobuild/wire";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { contracts } from "@/lib/domains/token/onchain/addresses";
@@ -28,6 +29,7 @@ const eip2612Abi = parseAbi([
 ]);
 
 const BASE_CHAIN = getChain(base.id);
+const BASE_BUILDER_SUFFIX = baseBuilderCodeDataSuffixForChainId(base.id);
 const permitPkSingleton = process.env.USDC_PERMIT_PK as `0x${string}` | undefined;
 const accountSingleton = permitPkSingleton ? privateKeyToAccount(permitPkSingleton) : undefined;
 
@@ -159,7 +161,11 @@ export async function submitUsdcPermitServer(
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt += 1) {
       try {
-        hash = await serverWallet.writeContract({ ...sim.request, nonce: attemptNonce });
+        hash = await serverWallet.writeContract({
+          ...sim.request,
+          nonce: attemptNonce,
+          ...(BASE_BUILDER_SUFFIX ? { dataSuffix: BASE_BUILDER_SUFFIX } : {}),
+        });
         break;
       } catch (sendError) {
         const error = sendError as ErrorLike;

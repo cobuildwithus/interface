@@ -55,7 +55,7 @@ export default async function CastPage({ params, searchParams }: PageProps) {
       <CastViewTracker hash={thread.root.hash} token={viewToken} tokenRequired={tokenRequired} />
       <div className="border-border bg-background/80 sticky top-0 z-10 flex items-center gap-4 border-b px-4 py-3 backdrop-blur-sm md:px-6">
         <Link
-          href="/raise-1-mil/discussion"
+          href="/goals"
           className="text-foreground hover:bg-accent rounded-full p-2 transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />

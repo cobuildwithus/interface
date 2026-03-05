@@ -1,5 +1,6 @@
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { ContributeButton } from "@/components/features/goals/contribute-dialog";
+import { getGoalOverviewData } from "@/lib/domains/goals/goal-data";
 import { GoalNav } from "./goal-nav";
 
 type LayoutProps = {
@@ -9,6 +10,12 @@ type LayoutProps = {
 
 export default async function GoalLayout({ children, params }: LayoutProps) {
   const { goalAddress } = await params;
+  const overview = await getGoalOverviewData(goalAddress);
+  const raisedLabel = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(Math.max(0, Math.round(overview?.raised ?? 0)));
 
   return (
     <div className="flex min-h-screen flex-1 flex-col">
@@ -20,9 +27,9 @@ export default async function GoalLayout({ children, params }: LayoutProps) {
           </ScrollArea>
           <div className="flex shrink-0 items-center gap-3">
             <div className="text-muted-foreground text-sm">
-              <span className="text-foreground font-medium">$0</span> earned
+              <span className="text-foreground font-medium">{raisedLabel}</span> raised
             </div>
-            <ContributeButton />
+            <ContributeButton goalTitle={overview?.goal.name} />
           </div>
         </div>
       </div>

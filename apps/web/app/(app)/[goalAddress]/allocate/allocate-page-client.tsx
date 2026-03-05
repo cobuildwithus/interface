@@ -9,25 +9,26 @@ import { FundingFlow } from "./components/funding-flow";
 import { HowThisWorksCard } from "./components/how-this-works-card";
 import { PositionSummary } from "./components/position-summary";
 import { StakeAllocations } from "./components/stake-allocations";
-import {
-  agentAllocations,
-  goalTitle,
-  initialSubGoals,
-  recentActivity,
-  systemStats,
-  userStats,
-} from "./components/data";
-import type { SGSummary } from "./components/types";
+import type { AgentActivity, AgentAllocation, SGSummary } from "./components/types";
 
 type AllocatePageClientProps = {
   goalAddress: string;
+  goalTitle: string;
+  systemStats: {
+    totalFunding: number;
+    dailyFlow: number;
+    rewardsLocked: number;
+  };
+  userStats: {
+    staked: number;
+    projectedReward: number;
+  };
+  agentAllocations: AgentAllocation[];
+  recentActivity: AgentActivity[];
+  initialSubGoals: SGSummary[];
   initialShowHowItWorks: boolean;
   canPersistIntroDismissal: boolean;
 };
-
-const baseTreasuryBalance =
-  systemStats.totalFunding +
-  initialSubGoals.reduce((total, subGoal) => total + subGoal.currentFunding, 0);
 
 function applyFundingFlow(goals: SGSummary[]) {
   return goals.map((sg) => {
@@ -42,6 +43,12 @@ function applyFundingFlow(goals: SGSummary[]) {
 
 export function AllocatePageClient({
   goalAddress,
+  goalTitle,
+  systemStats,
+  userStats,
+  agentAllocations,
+  recentActivity,
+  initialSubGoals,
   initialShowHowItWorks,
   canPersistIntroDismissal,
 }: AllocatePageClientProps) {
@@ -49,6 +56,10 @@ export function AllocatePageClient({
   const [isPending, startTransition] = useTransition();
   const [isHowItWorksVisible, setIsHowItWorksVisible] = useState(initialShowHowItWorks);
   const [subGoals, setSubGoals] = useState(initialSubGoals);
+  const baseTreasuryBalance = Math.max(
+    systemStats.totalFunding,
+    initialSubGoals.reduce((total, subGoal) => total + subGoal.currentFunding, 0)
+  );
   const allocatedFunding = subGoals.reduce((total, subGoal) => total + subGoal.currentFunding, 0);
   const treasuryBalance = Math.max(0, baseTreasuryBalance - allocatedFunding);
 

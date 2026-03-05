@@ -5,6 +5,7 @@ import {
   FARCASTER_ID_GATEWAY_ABI,
   FARCASTER_ID_REGISTRY_ABI,
   FARCASTER_SIGNUP_NETWORK,
+  baseBuilderCodeDataSuffixForNetwork,
   buildFarcasterSignedKeyRequestMetadata,
   buildFarcasterSignedKeyRequestTypedData,
   buildFarcasterSignupCallPlan,
@@ -159,9 +160,11 @@ export async function signupCliFarcaster(params: {
     signedKeyRequestMetadata,
   });
   const executableCalls = buildFarcasterSignupExecutableCalls(signupCallPlan);
+  const dataSuffix = baseBuilderCodeDataSuffixForNetwork(signupCallPlan.network);
   const signupUserOp = await smartAccount.sendUserOperation({
     network: signupCallPlan.network,
     calls: executableCalls,
+    ...(dataSuffix ? { dataSuffix } : {}),
   });
   const txHash = await waitForUserOperationComplete({
     smartAccount,

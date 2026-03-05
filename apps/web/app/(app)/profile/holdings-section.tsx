@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Target } from "lucide-react";
+import { Target, Wallet } from "lucide-react";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Currency } from "@/components/ui/currency";
+import { getProfileGoalHoldingsData } from "./profile-data";
 
 function formatTimeAgo(date: Date): string {
   const now = new Date();
@@ -19,75 +20,32 @@ function formatTimeAgo(date: Date): string {
   return `${Math.floor(diffDays / 365)} years ago`;
 }
 
-type Holding = {
-  id: string;
-  name: string;
-  raised: number;
-  target: number;
-  yourContribution: number;
-  firstContributedAt: Date;
-  completedAt?: Date;
-  status: "ongoing" | "completed";
+type HoldingRowProps = {
+  holding: {
+    id: string;
+    address: string;
+    title: string;
+    raised: number;
+    target: number;
+    yourContribution: number;
+    firstContributedAt: Date;
+    completedAt?: Date;
+    status: "ongoing" | "completed";
+  };
 };
 
-const FAKE_HOLDINGS: Holding[] = [
-  {
-    id: "1",
-    name: "Raise $1M for open source",
-    raised: 127500,
-    target: 1000000,
-    yourContribution: 2450,
-    firstContributedAt: new Date("2025-11-15"),
-    status: "ongoing",
-  },
-  {
-    id: "2",
-    name: "Onboard 100 new cobuilders",
-    raised: 34521,
-    target: 50000,
-    yourContribution: 1640,
-    firstContributedAt: new Date("2025-12-01"),
-    status: "ongoing",
-  },
-  {
-    id: "3",
-    name: "Ship mobile app v1",
-    raised: 75000,
-    target: 75000,
-    yourContribution: 900,
-    firstContributedAt: new Date("2025-10-22"),
-    completedAt: new Date("2026-01-27"),
-    status: "completed",
-  },
-  {
-    id: "4",
-    name: "Launch grants program",
-    raised: 22000,
-    target: 100000,
-    yourContribution: 550,
-    firstContributedAt: new Date("2026-01-10"),
-    status: "ongoing",
-  },
-  {
-    id: "5",
-    name: "Build creator dashboard",
-    raised: 8500,
-    target: 25000,
-    yourContribution: 375,
-    firstContributedAt: new Date("2026-01-20"),
-    status: "ongoing",
-  },
-];
-
-function HoldingRow({ holding }: { holding: Holding }) {
+function HoldingRow({ holding }: HoldingRowProps) {
   const progress = Math.min((holding.raised / holding.target) * 100, 100);
   const isCompleted = holding.status === "completed";
 
   return (
-    <div className="hover:bg-muted/30 px-4 py-4 transition-colors">
+    <Link
+      href={`/${holding.address}`}
+      className="hover:bg-muted/30 block px-4 py-4 transition-colors"
+    >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <span className="font-medium">{holding.name}</span>
+          <span className="font-medium">{holding.title}</span>
           {isCompleted && (
             <span className="ml-2 rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">
               Completed
@@ -131,14 +89,13 @@ function HoldingRow({ holding }: { holding: Holding }) {
           )}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
-export function HoldingsSection() {
-  const holdings = FAKE_HOLDINGS;
-  const totalContribution = holdings.reduce((sum, h) => sum + h.yourContribution, 0);
-  const totalHoldings = holdings.length;
+export async function HoldingsSection() {
+  const { isConnected, holdings, totalContribution, goalsFunded } =
+    await getProfileGoalHoldingsData();
 
   return (
     <div className="border-border bg-card/50 overflow-hidden rounded-xl border">
@@ -157,11 +114,22 @@ export function HoldingsSection() {
         </div>
         <div>
           <div className="text-muted-foreground text-xs tracking-wide uppercase">Goals Funded</div>
-          <div className="text-xl font-semibold tabular-nums">{totalHoldings}</div>
+          <div className="text-xl font-semibold tabular-nums">{goalsFunded}</div>
         </div>
       </div>
 
-      {holdings.length === 0 ? (
+      {!isConnected ? (
+        <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+          <Wallet className="text-muted-foreground/40 mb-3 size-8" />
+          <p className="text-muted-foreground mb-1 text-sm font-medium">No wallet connected</p>
+          <p className="text-muted-foreground/70 mb-3 max-w-[240px] text-xs">
+            Connect a wallet to see which goals you&apos;ve funded.
+          </p>
+          <Link href="/settings" className="text-primary text-sm font-medium hover:underline">
+            Connect wallet
+          </Link>
+        </div>
+      ) : holdings.length === 0 ? (
         <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
           <Target className="text-muted-foreground/40 mb-3 size-8" />
           <p className="text-muted-foreground mb-1 text-sm font-medium">No goals funded yet</p>

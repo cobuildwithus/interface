@@ -1,29 +1,36 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { resolveBaseUrl } from "@/lib/server/resolve-base-url";
+import { getGoalOverviewData } from "@/lib/domains/goals/goal-data";
 
 type GoalMetadataOptions = {
-  /** Page title suffix (e.g., "Earn", "Discussion") - will be prefixed with "Raise $1M by June 30, 2026" */
+  /** Goal route param value (`/[goalAddress]`). */
+  goalAddress?: string;
+  /** Page title suffix (e.g., "Allocate", "Discussion"). */
   pageName?: string;
   /** Custom description for the page */
   description?: string;
-  /** Path suffix for the page URL (e.g., "/earn", "/discussion") */
+  /** Path suffix for the page URL (e.g., "/discussion") */
   pathSuffix?: string;
 };
 
 const DEFAULT_DESCRIPTION =
-  "Cobuild is raising $1M by June 30, 2026 to fund the treasury for builders, contributors, and onchain experiments.";
+  "Cobuild goal page with live onchain treasury, contribution, and allocation data.";
 
 export async function generateGoalMetadata(options: GoalMetadataOptions = {}): Promise<Metadata> {
-  const { pageName, description = DEFAULT_DESCRIPTION, pathSuffix = "" } = options;
+  const { goalAddress, pageName, description, pathSuffix = "" } = options;
 
-  const headerList = await headers();
+  const [headerList, overview] = await Promise.all([
+    headers(),
+    goalAddress ? getGoalOverviewData(goalAddress) : Promise.resolve(null),
+  ]);
   const baseUrl = resolveBaseUrl(headerList);
-  const pageUrl = `${baseUrl}/raise-1-mil${pathSuffix}`;
-  const ogImageUrl = `${baseUrl}/api/og/raise-1-mil`;
-  const title = pageName
-    ? `${pageName} - Raise $1M by June 30, 2026 | Cobuild`
-    : "Raise $1M by June 30, 2026 | Cobuild";
+  const resolvedRouteAddress = overview?.goal.routeAddress ?? goalAddress ?? "goals";
+  const goalTitle = overview?.progressTitle ?? overview?.goal.name ?? "Goal";
+  const resolvedDescription = description ?? overview?.goal.description ?? DEFAULT_DESCRIPTION;
+  const pageUrl = `${baseUrl}/${resolvedRouteAddress}${pathSuffix}`;
+  const ogImageUrl = `${baseUrl}/api/og/goal?goalAddress=${encodeURIComponent(resolvedRouteAddress)}`;
+  const title = pageName ? `${pageName} - ${goalTitle} | Cobuild` : `${goalTitle} | Cobuild`;
 
   const miniappMetadata = {
     version: "1",
@@ -44,24 +51,24 @@ export async function generateGoalMetadata(options: GoalMetadataOptions = {}): P
 
   return {
     title,
-    description,
+    description: resolvedDescription,
     openGraph: {
       title,
-      description,
+      description: resolvedDescription,
       url: pageUrl,
       images: [
         {
           url: ogImageUrl,
           width: 1200,
           height: 800,
-          alt: "Raise $1M by June 30, 2026 for Cobuild",
+          alt: `${goalTitle} | Cobuild`,
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
       title,
-      description,
+      description: resolvedDescription,
       images: [ogImageUrl],
     },
     other: {

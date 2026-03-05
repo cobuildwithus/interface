@@ -1,5 +1,10 @@
 import { type NextResponse } from "next/server";
 import { isAddress } from "viem";
+import {
+  baseBuilderCodeDataSuffixForNetwork,
+  canonicalizeBaseBuilderCodeAttributedData,
+  normalizeHex,
+} from "@cobuild/wire";
 import { assertCliTxAllowed } from "@/lib/server/cli/policy";
 import { RequestValidationError } from "@/lib/server/cli/http";
 import { waitForUserOperationComplete } from "@/lib/server/cli/user-operation";
@@ -47,7 +52,8 @@ export async function handleTxExecution(params: {
   if (valueWei < 0n) {
     throw new RequestValidationError("valueEth must be greater than or equal to 0");
   }
-  const data = params.input.data as `0x${string}`;
+  const requestData = normalizeHex(params.input.data as `0x${string}`);
+  const canonicalTxData = canonicalizeBaseBuilderCodeAttributedData(requestData);
   const txLogData: CliTxLogCreateData = {
     ownerAddress: params.auth.ownerAddress,
     agentKey: params.auth.agentKey,
@@ -59,7 +65,7 @@ export async function handleTxExecution(params: {
     amount: null,
     decimals: null,
     valueEth,
-    data,
+    data: canonicalTxData,
     txHash: null,
   };
 
@@ -76,7 +82,7 @@ export async function handleTxExecution(params: {
         network,
         to,
         valueWei,
-        data,
+        data: canonicalTxData,
       });
     },
   });
@@ -88,7 +94,7 @@ export async function handleTxExecution(params: {
     network,
     to,
     valueWei,
-    data,
+    data: canonicalTxData,
   });
 
   const reservation = await reserveOrReplay({
@@ -105,7 +111,7 @@ export async function handleTxExecution(params: {
         network,
         to,
         valueWei,
-        data,
+        data: canonicalTxData,
       });
     },
   });
@@ -117,9 +123,11 @@ export async function handleTxExecution(params: {
     ownerAddress: params.auth.ownerAddress,
     agentKey: params.auth.agentKey,
   });
+  const dataSuffix = baseBuilderCodeDataSuffixForNetwork(network);
   const txResult = await smartAccount.sendUserOperation({
     network,
-    calls: [{ to, value: valueWei, data }],
+    calls: [{ to, value: valueWei, data: canonicalTxData }],
+    ...(dataSuffix ? { dataSuffix } : {}),
     idempotencyKey: params.idempotencyKey ?? undefined,
   });
   const transactionHash = await waitForUserOperationComplete({

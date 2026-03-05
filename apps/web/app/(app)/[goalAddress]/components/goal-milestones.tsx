@@ -1,26 +1,24 @@
 import Link from "next/link";
+import type { GoalMilestone as GoalMilestoneItem } from "@/lib/domains/goals/goal-data";
 
-export function GoalMilestones() {
-  const milestones = [
-    {
-      date: "Feb '25",
-      title: "Cobuild platform launch",
-      description: "Onchain protocol and web platform live",
-    },
-    {
-      date: "Sep '24",
-      title: "Raised pre-seed",
-      titleSuffix: " from Balaji",
-      description: "Early investor in the vision",
-      link: { href: "https://farcaster.xyz/rocketman/0xe90ea5f9", label: "Raised pre-seed" },
-    },
-    {
-      date: "Aug '24",
-      title: "Miniapp launched",
-      description: "10k users · 200k swaps · $25k volume",
-      link: { href: "https://farcaster.xyz/rocketman/0x07f73931", label: "Miniapp launched" },
-    },
-  ];
+type GoalMilestonesProps = {
+  milestones: GoalMilestoneItem[];
+};
+
+export function GoalMilestones({ milestones }: GoalMilestonesProps) {
+  if (milestones.length === 0) {
+    return (
+      <section aria-labelledby="goal-milestones" className="relative">
+        <h3
+          id="goal-milestones"
+          className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase"
+        >
+          Milestones
+        </h3>
+        <p className="text-muted-foreground text-sm">No onchain milestones yet.</p>
+      </section>
+    );
+  }
 
   return (
     <section aria-labelledby="goal-milestones" className="relative">
@@ -35,8 +33,8 @@ export function GoalMilestones() {
         <div className="bg-border absolute top-[10px] bottom-4 left-[5px] w-px" />
 
         <div className="space-y-10">
-          {milestones.map((milestone, i) => (
-            <div key={i} className="group relative flex gap-8">
+          {milestones.map((milestone) => (
+            <div key={milestone.id} className="group relative flex gap-8">
               <div className="relative z-10 mt-[8px]">
                 <div className="border-foreground bg-background group-hover:bg-foreground h-3 w-3 rounded-full border-2 transition-colors" />
               </div>
@@ -56,7 +54,6 @@ export function GoalMilestones() {
                     ) : (
                       milestone.title
                     )}
-                    {milestone.titleSuffix}
                   </h4>
                   <span className="text-muted-foreground text-sm tabular-nums">
                     {milestone.date}

@@ -1052,99 +1052,38 @@ async function fetchUserGoalHoldings(
   const goals = await getGoalCards();
   if (goals.length === 0) return [];
 
-  const suckerGroupIds = Array.from(
-    new Set(
-      goals
-        .map((goal) => goal.suckerGroupId)
-        .filter((suckerGroupId): suckerGroupId is string => Boolean(suckerGroupId))
-    )
-  );
-
-  const projectKeysWithoutGroup = Array.from(
-    new Map(
-      goals
-        .filter((goal) => !goal.suckerGroupId)
-        .map((goal) => [`${goal.projectChainId}:${goal.projectId}`, goal])
-    ).values()
-  ).map((goal) => ({
-    chainId: goal.projectChainId,
-    projectId: goal.projectId,
-  }));
-
-  const [groupContributions, projectContributions] = await Promise.all([
-    suckerGroupIds.length > 0
-      ? prisma.juiceboxPayEvent.groupBy({
-          by: ["suckerGroupId"],
+  const goalIds = goals.map((goal) => goal.id);
+  const contributionRows =
+    goalIds.length > 0
+      ? await prisma.goalContributorAggregate.findMany({
           where: {
-            payer: normalizedUser,
-            suckerGroupId: { in: suckerGroupIds },
-            newlyIssuedTokenCount: { gt: 0 },
+            contributor: normalizedUser,
+            goalTreasury: { in: goalIds },
           },
-          _sum: {
-            amount: true,
-          },
-          _min: {
-            timestamp: true,
+          select: {
+            goalTreasury: true,
+            totalContributed: true,
+            firstContributedAt: true,
           },
         })
-      : Promise.resolve([]),
-    projectKeysWithoutGroup.length > 0
-      ? prisma.juiceboxPayEvent.groupBy({
-          by: ["chainId", "projectId"],
-          where: {
-            payer: normalizedUser,
-            OR: projectKeysWithoutGroup.map((project) => ({
-              chainId: project.chainId,
-              projectId: project.projectId,
-            })),
-            newlyIssuedTokenCount: { gt: 0 },
-          },
-          _sum: {
-            amount: true,
-          },
-          _min: {
-            timestamp: true,
-          },
-        })
-      : Promise.resolve([]),
-  ]);
-
-  const contributionByGroup = new Map(
-    groupContributions
-      .filter((entry): entry is (typeof groupContributions)[number] & { suckerGroupId: string } =>
-        Boolean(entry.suckerGroupId)
-      )
-      .map((entry) => [
-        entry.suckerGroupId,
-        {
-          amount: entry._sum.amount ?? 0,
-          firstTimestamp: entry._min.timestamp,
-        },
-      ])
-  );
-
-  const contributionByProject = new Map(
-    projectContributions.map((entry) => [
-      `${entry.chainId}:${entry.projectId}`,
-      {
-        amount: entry._sum.amount ?? 0,
-        firstTimestamp: entry._min.timestamp,
-      },
-    ])
+      : [];
+  const contributionByGoal = new Map(
+    contributionRows.map((row) => [row.goalTreasury, row] as const)
   );
 
   const holdings = goals
     .map((goal) => {
-      const contribution = goal.suckerGroupId
-        ? contributionByGroup.get(goal.suckerGroupId)
-        : contributionByProject.get(`${goal.projectChainId}:${goal.projectId}`);
+      const contribution = contributionByGoal.get(goal.id);
       if (!contribution) return null;
 
-      const yourContribution = fromBaseUnits(contribution.amount, goal.accountingDecimals);
+      const yourContribution = fromBaseUnits(
+        contribution.totalContributed,
+        goal.accountingDecimals
+      );
       if (!Number.isFinite(yourContribution) || yourContribution <= 0) return null;
 
-      const firstContributedAt = contribution.firstTimestamp
-        ? new Date(contribution.firstTimestamp * 1000)
+      const firstContributedAt = contribution.firstContributedAt
+        ? new Date(contribution.firstContributedAt * 1000)
         : goal.createdAt;
 
       return {

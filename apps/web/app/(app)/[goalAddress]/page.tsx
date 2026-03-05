@@ -1,8 +1,12 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { RAISE_1M_GOAL_SCOPE } from "@/lib/domains/goals/goal-scopes";
-import { RAISE_1M_GOAL, RAISE_1M_RAISED } from "@/lib/domains/goals/raise-1m";
+import { notFound } from "next/navigation";
 import { getUser } from "@/lib/domains/auth/session";
+import {
+  getGoalMilestones,
+  getGoalOverviewData,
+  getGoalTreasuryChartData,
+} from "@/lib/domains/goals/goal-data";
 import { getGoalActionCardReadIndices } from "@/lib/domains/goals/action-card-read";
 import { GoalProgressCard } from "@/components/features/goals/goal-progress-card";
 import { GoalTreasuryCard } from "@/components/features/goals/goal-treasury-card";
@@ -16,8 +20,17 @@ import { GoalMilestones } from "./components/goal-milestones";
 import { RecentDiscussions } from "./components/recent-discussions";
 import { RecentContributions } from "./components/recent-contributions";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return generateGoalMetadata();
+type MetadataProps = {
+  params: Promise<{ goalAddress: string }>;
+};
+
+type PageProps = {
+  params: Promise<{ goalAddress: string }>;
+};
+
+export async function generateMetadata({ params }: MetadataProps): Promise<Metadata> {
+  const { goalAddress } = await params;
+  return generateGoalMetadata({ goalAddress });
 }
 
 async function getGoalActionCardReadState(goalAddress: string): Promise<{
@@ -35,12 +48,10 @@ async function getGoalActionCardReadState(goalAddress: string): Promise<{
   };
 }
 
-export default async function Raise1MilPage({
-  params,
-}: {
-  params: Promise<{ goalAddress: string }>;
-}) {
+export default async function GoalPage({ params }: PageProps) {
   const { goalAddress } = await params;
+  const overview = await getGoalOverviewData(goalAddress);
+  if (!overview) notFound();
   const { initialDismissedCardIndices, persistCardReadAction } =
     await getGoalActionCardReadState(goalAddress);
 
@@ -49,27 +60,29 @@ export default async function Raise1MilPage({
       sidebar={
         <>
           <GoalProgressCard
-            title="Raise $1M by Jun 30, 2026"
-            raised={RAISE_1M_RAISED}
-            goal={RAISE_1M_GOAL}
+            title={overview.progressTitle}
+            raised={overview.raised}
+            goal={overview.target}
           />
 
           <section>
             <h2 className="text-muted-foreground mb-3 text-sm font-medium">Recent Discussions</h2>
             <Suspense fallback={<SidebarSkeleton />}>
-              <RecentDiscussions goalScope={RAISE_1M_GOAL_SCOPE} />
+              <RecentDiscussions goalScope={overview.goalScope} />
             </Suspense>
           </section>
 
           <section>
             <h2 className="text-muted-foreground mb-3 text-sm font-medium">Treasury</h2>
-            <GoalTreasuryCard />
+            <Suspense fallback={<SidebarSkeleton />}>
+              <GoalTreasurySection goalAddress={goalAddress} />
+            </Suspense>
           </section>
 
           <section>
             <h2 className="text-muted-foreground mb-3 text-sm font-medium">Recent Contributions</h2>
             <Suspense fallback={<SidebarSkeleton />}>
-              <RecentContributions />
+              <RecentContributions goalAddress={goalAddress} />
             </Suspense>
           </section>
         </>
@@ -93,10 +106,22 @@ export default async function Raise1MilPage({
 
         <div className="flex min-h-[50vh] flex-col items-center justify-center px-4">
           <div className="w-full max-w-2xl">
-            <GoalMilestones />
+            <Suspense fallback={<SidebarSkeleton />}>
+              <GoalMilestonesSection goalAddress={goalAddress} />
+            </Suspense>
           </div>
         </div>
       </div>
     </GoalPageLayout>
   );
+}
+
+async function GoalTreasurySection({ goalAddress }: { goalAddress: string }) {
+  const chartData = await getGoalTreasuryChartData(goalAddress);
+  return <GoalTreasuryCard points={chartData?.points ?? []} />;
+}
+
+async function GoalMilestonesSection({ goalAddress }: { goalAddress: string }) {
+  const milestones = await getGoalMilestones(goalAddress);
+  return <GoalMilestones milestones={milestones} />;
 }

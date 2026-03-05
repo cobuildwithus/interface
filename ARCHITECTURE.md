@@ -50,7 +50,7 @@ Representative handlers:
 - `apps/web/app/api/images/upload/route.ts`
 - `apps/web/app/api/cli/{token,wallet,exec,farcaster/signup}/route.ts`
 
-Build-bot note:
+CLI note:
 
 - Canonical tools runtime paths (`/v1/tools*`, `/v1/tool-executions`) are owned by chat-api.
 - Interface no longer serves Next.js handlers for these paths; edge/gateway routing forwards `/v1/*` directly to chat-api.

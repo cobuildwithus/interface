@@ -1,63 +1,13 @@
+import Link from "next/link";
 import { GoalCard, type Goal } from "@/components/features/goals/goal-card";
+import { Button } from "@/components/ui/button";
+import { getGoalCards } from "@/lib/domains/goals/goal-data";
 import { buildPageMetadata } from "@/lib/shared/page-metadata";
 
 export const metadata = buildPageMetadata({
   title: "Goals | Cobuild",
   description: "Track ongoing and completed goals in the Cobuild ecosystem.",
 });
-
-const sampleGoals: Goal[] = [
-  {
-    id: "goal_raise1m",
-    address: "raise-1-mil",
-    title: "Raise $1M",
-    description:
-      "Prove that a crowd can raise venture-scale capital with AI coordination. No VCs, no gatekeepers—just contributors and transparent decisions.",
-    raised: 127500,
-    target: 1000000,
-    status: "ongoing",
-    createdAt: new Date("2024-11-01"),
-    contributorCount: 284,
-  },
-  {
-    id: "goal_delete_instagram",
-    address: "delete-instagram",
-    title: "Get 1M People to Delete Instagram",
-    description:
-      "Fund the campaigns, tools, and alternatives that help people leave. Track verified deletions. Reclaim attention from the algorithm.",
-    raised: 127000,
-    target: 500000,
-    status: "ongoing",
-    createdAt: new Date("2024-09-01"),
-    contributorCount: 34521,
-  },
-  {
-    id: "goal_publish_textbooks",
-    address: "free-textbooks",
-    title: "Publish 500 Free Textbooks",
-    description:
-      "Created open-source textbooks for the most common college courses. Downloaded 2.3 million times. Students saved an estimated $47M.",
-    raised: 400000,
-    target: 400000,
-    status: "completed",
-    createdAt: new Date("2024-01-01"),
-    completedAt: new Date("2024-09-15"),
-    contributorCount: 3241,
-  },
-  {
-    id: "goal_clean_beaches",
-    address: "clean-1000-beaches",
-    title: "Clean 1,000 Beaches",
-    description:
-      "Organized cleanups across 34 countries. 890 tons of trash removed. Local teams paid fairly, not just volunteer labor.",
-    raised: 180000,
-    target: 180000,
-    status: "completed",
-    createdAt: new Date("2024-03-01"),
-    completedAt: new Date("2024-11-20"),
-    contributorCount: 12450,
-  },
-];
 
 function GoalSection({
   title,
@@ -83,20 +33,32 @@ function GoalSection({
   );
 }
 
-export default function GoalsPage() {
-  const ongoingGoals = sampleGoals.filter((g) => g.status === "ongoing");
-  const completedGoals = sampleGoals.filter((g) => g.status === "completed");
+export default async function GoalsPage() {
+  const goals = await getGoalCards();
+  const ongoingGoals = goals.filter((goal) => goal.status === "ongoing");
+  const completedGoals = goals.filter((goal) => goal.status === "completed");
 
   return (
     <main className="w-full p-4 md:p-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold">Goals</h1>
-        <p className="text-muted-foreground mt-1">
-          Crowd-funded objectives with AI coordination and human oversight.
-        </p>
+      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Goals</h1>
+          <p className="text-muted-foreground mt-1">
+            Crowd-funded objectives with AI coordination and human oversight.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/goals/create">Create goal</Link>
+        </Button>
       </div>
 
       <div className="space-y-10">
+        {goals.length === 0 ? (
+          <div className="text-muted-foreground rounded-xl border border-dashed p-8 text-center">
+            No goals have been indexed yet.
+          </div>
+        ) : null}
+
         <GoalSection
           title="Ongoing"
           description="Active goals the crowd is working toward"

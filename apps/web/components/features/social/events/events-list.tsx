@@ -2,7 +2,7 @@ import { EventCard, type Event } from "./event-card";
 
 type EventsListProps = {
   events: Event[];
-  linkUrl: string;
+  linkUrl?: string;
 };
 
 export function EventsList({ events, linkUrl }: EventsListProps) {

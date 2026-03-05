@@ -1,4 +1,6 @@
 import { type NextResponse } from "next/server";
+import { canonicalizeBaseBuilderCodeAttributedData } from "@cobuild/wire";
+import type { Hex } from "viem";
 import prisma, { prismaPrimary } from "@/lib/server/db/cobuild-db-client";
 import { isPrismaUniqueViolation } from "@/lib/server/cli/prisma-errors";
 import { parseEtherInput } from "./validation";
@@ -139,11 +141,16 @@ export function assertTxIdempotencyMatch(params: {
   valueWei: bigint;
   data: `0x${string}`;
 }) {
+  const existingData =
+    typeof params.existing.data === "string"
+      ? canonicalizeBaseBuilderCodeAttributedData(params.existing.data as Hex)
+      : null;
+  const requestedData = canonicalizeBaseBuilderCodeAttributedData(params.data as Hex);
   if (
     params.existing.kind !== "tx" ||
     params.existing.network !== params.network ||
     params.existing.to !== params.to ||
-    params.existing.data !== params.data
+    existingData !== requestedData
   ) {
     throw new IdempotencyConflictError(
       "Idempotency key is already associated with a different transaction request"

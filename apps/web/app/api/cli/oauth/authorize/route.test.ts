@@ -24,7 +24,7 @@ import { POST } from "./route";
 
 const BASE_BODY = {
   responseType: "code",
-  clientId: "buildbot_cli",
+  clientId: "cli",
   redirectUri: "http://127.0.0.1:43111/auth/callback",
   scope: "tools:read tools:write wallet:read wallet:execute offline_access",
   codeChallenge: "A".repeat(43),

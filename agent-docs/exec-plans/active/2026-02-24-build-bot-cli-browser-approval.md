@@ -1,4 +1,4 @@
-# Build-bot CLI browser approval flow on `/home`
+# CLI CLI browser approval flow on `/home`
 
 Status: active  
 Created: 2026-02-24  
@@ -6,7 +6,7 @@ Updated: 2026-02-24
 
 ## Goal
 
-Add a secure browser-mediated setup flow so `build-bot setup` can generate a PAT without manual copy/paste:
+Add a secure browser-mediated setup flow so `CLI setup` can generate a PAT without manual copy/paste:
 
 - CLI opens `/home` with setup query params.
 - Home shows an approval dialog.
@@ -15,9 +15,9 @@ Add a secure browser-mediated setup flow so `build-bot setup` can generate a PAT
 
 ## Success criteria
 
-- `/home` renders a setup dialog when valid `buildBotSetup` query params are present.
+- `/home` renders a setup dialog when valid `cliSetup` query params are present.
 - Dialog requires authenticated wallet/session before approval.
-- Dialog POSTs `/api/build-bot/token`, then POSTs `{ state, token }` to loopback callback URL.
+- Dialog POSTs `/api/CLI/token`, then POSTs `{ state, token }` to loopback callback URL.
 - Callback URLs are strictly loopback + state-bound path format.
 - CLI callback session validates origin + state and times out safely.
 - Existing setup/manual fallback behavior remains intact.
@@ -26,7 +26,7 @@ Add a secure browser-mediated setup flow so `build-bot setup` can generate a PAT
 
 In scope:
 
-- `build-bot` secure localhost callback session and setup URL generation.
+- `CLI` secure localhost callback session and setup URL generation.
 - `interface/apps/web` home dialog and query-parameter parser.
 - Tests/docs updates for new setup flow.
 
@@ -46,5 +46,5 @@ Out of scope:
 
 ## Verification
 
-- `build-bot`: `pnpm typecheck`, `pnpm test`, `pnpm test:coverage`, `pnpm build`
+- `CLI`: `pnpm typecheck`, `pnpm test`, `pnpm test:coverage`, `pnpm build`
 - `interface`: `pnpm typecheck`, `pnpm test`, `pnpm --filter web build:ci`

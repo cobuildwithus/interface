@@ -2,7 +2,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { DateTime } from "@/components/ui/date-time";
 import { Currency } from "@/components/ui/currency";
 import { toFiniteNumber } from "@/lib/shared/numbers";
-import { getPayEvents } from "@/lib/domains/token/juicebox/pay-events";
+import { getGoalContributions } from "@/lib/domains/goals/goal-data";
 import { getProfiles } from "@/lib/domains/profile/get-profile";
 
 function toTokenAmount(
@@ -15,8 +15,12 @@ function toTokenAmount(
   return Number.isFinite(tokens) ? tokens : null;
 }
 
-export async function RecentContributions() {
-  const page = await getPayEvents(4, 0);
+type RecentContributionsProps = {
+  goalAddress: string;
+};
+
+export async function RecentContributions({ goalAddress }: RecentContributionsProps) {
+  const page = await getGoalContributions(goalAddress, 4, 0);
 
   if (page.items.length === 0) {
     return (

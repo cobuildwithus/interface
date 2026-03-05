@@ -1,13 +1,21 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { notFound } from "next/navigation";
 import { generateGoalMetadata } from "../metadata";
 import { GridBackground } from "@/components/ui/grid-background";
 import { PageHeader } from "@/components/layout/page-header";
+import { getGoalOverviewData } from "@/lib/domains/goals/goal-data";
 import { ContextContent, ContextContentSkeleton } from "./context-content";
 import { ContextTools } from "./context-tools";
 
-export async function generateMetadata(): Promise<Metadata> {
+type MetadataProps = {
+  params: Promise<{ goalAddress: string }>;
+};
+
+export async function generateMetadata({ params }: MetadataProps): Promise<Metadata> {
+  const { goalAddress } = await params;
   return generateGoalMetadata({
+    goalAddress,
     pageName: "Prompts",
     description:
       "Overview of all prompts available to the AI model including manifesto, bill of rights, system prompt, and charter.",
@@ -15,7 +23,15 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-export default function PromptsPage() {
+type PageProps = {
+  params: Promise<{ goalAddress: string }>;
+};
+
+export default async function PromptsPage({ params }: PageProps) {
+  const { goalAddress } = await params;
+  const overview = await getGoalOverviewData(goalAddress);
+  if (!overview) notFound();
+
   return (
     <main className="relative w-full">
       <GridBackground />

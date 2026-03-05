@@ -5,7 +5,6 @@ import { resolveBaseUrl } from "@/lib/server/resolve-base-url";
 
 const CANVAS_WIDTH = 1200;
 const CANVAS_HEIGHT = 800;
-const LEGACY_GOAL_SLUG = "raise-1-mil";
 
 function formatUsd(amount: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -16,29 +15,26 @@ function formatUsd(amount: number): string {
 }
 
 export async function GET(req: NextRequest) {
-  const [baseUrl, legacyOverview] = await Promise.all([
+  const reqUrl = new URL(req.url);
+  const goalAddress = reqUrl.searchParams.get("goalAddress")?.trim();
+  const [baseUrl, requestedOverview] = await Promise.all([
     resolveBaseUrl(req.headers),
-    getGoalOverviewData(LEGACY_GOAL_SLUG),
+    goalAddress ? getGoalOverviewData(goalAddress) : Promise.resolve(null),
   ]);
 
-  let resolvedOverview = legacyOverview;
+  let resolvedOverview = requestedOverview;
   if (!resolvedOverview) {
     const goalCards = await getGoalCards();
     const fallbackGoalAddress = goalCards[0]?.address;
     resolvedOverview = fallbackGoalAddress ? await getGoalOverviewData(fallbackGoalAddress) : null;
   }
-
+  const title = resolvedOverview?.progressTitle ?? "Cobuild goal";
   const raised = resolvedOverview?.raised ?? 0;
-  const target = Math.max(1, resolvedOverview?.target ?? 1_000_000);
-  const title = resolvedOverview?.progressTitle ?? "Raise $1,000,000 by Jun 30, 2026";
-  const tagline =
-    resolvedOverview?.goal.description ??
-    resolvedOverview?.goal.tagline ??
-    "Fuel the Cobuild treasury for builders, contributors, and onchain experiments.";
-  const logoUrl = `${baseUrl}/logo-light.svg`;
-
+  const target = Math.max(1, resolvedOverview?.target ?? 1);
   const progress = Math.min(1, raised / target);
   const percent = Math.round(progress * 1000) / 10;
+
+  const logoUrl = `${baseUrl}/logo-light.svg`;
 
   return new ImageResponse(
     <div
@@ -62,29 +58,6 @@ export async function GET(req: NextRequest) {
             "radial-gradient(900px 500px at 15% 20%, rgba(24, 95, 83, 0.65) 0%, rgba(11, 15, 16, 0) 60%), radial-gradient(800px 500px at 90% 30%, rgba(192, 128, 62, 0.4) 0%, rgba(11, 15, 16, 0) 55%), linear-gradient(180deg, rgba(11, 15, 16, 0.2) 0%, rgba(11, 15, 16, 0.9) 100%)",
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage:
-            "linear-gradient(rgba(248, 245, 240, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(248, 245, 240, 0.08) 1px, transparent 1px)",
-          backgroundSize: "120px 120px",
-          opacity: 0.35,
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          right: "-40px",
-          bottom: "-20px",
-          fontSize: "260px",
-          letterSpacing: "-12px",
-          color: "rgba(227, 184, 115, 0.12)",
-          fontWeight: 800,
-        }}
-      >
-        1M
-      </div>
 
       <div
         style={{
@@ -95,51 +68,27 @@ export async function GET(req: NextRequest) {
           height: "100%",
           width: "100%",
           justifyContent: "space-between",
-          gap: "32px",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            width: "100%",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={logoUrl} alt="Cobuild" width={36} height={36} />
-            <div
-              style={{
-                fontSize: "20px",
-                letterSpacing: "4px",
-                textTransform: "uppercase",
-                color: "rgba(248, 245, 240, 0.7)",
-              }}
-            >
-              Cobuild goal
-            </div>
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logoUrl} alt="Cobuild" width={36} height={36} />
           <div
             style={{
-              fontSize: "16px",
-              letterSpacing: "1.5px",
+              fontSize: "20px",
+              letterSpacing: "4px",
               textTransform: "uppercase",
-              padding: "8px 16px",
-              borderRadius: "999px",
-              border: "1px solid rgba(227, 184, 115, 0.5)",
-              backgroundColor: "rgba(22, 32, 30, 0.7)",
-              color: "#E3B873",
+              color: "rgba(248, 245, 240, 0.7)",
             }}
           >
-            Live goal
+            Cobuild goal
           </div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
           <div
             style={{
-              fontSize: "72px",
+              fontSize: "66px",
               lineHeight: 1,
               letterSpacing: "-2px",
               fontWeight: 800,
@@ -151,23 +100,16 @@ export async function GET(req: NextRequest) {
             style={{
               fontSize: "28px",
               lineHeight: 1.4,
-              maxWidth: "820px",
               color: "rgba(248, 245, 240, 0.75)",
             }}
           >
-            {tagline}
+            Live treasury progress powered by Cobuild onchain data.
           </div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: "16px" }}>
-            <div
-              style={{
-                fontSize: "64px",
-                letterSpacing: "-1px",
-                fontWeight: 800,
-              }}
-            >
+            <div style={{ fontSize: "64px", letterSpacing: "-1px", fontWeight: 800 }}>
               {formatUsd(raised)}
             </div>
             <div style={{ fontSize: "24px", color: "rgba(248, 245, 240, 0.7)" }}>raised</div>

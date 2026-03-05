@@ -29,53 +29,16 @@ const GOAL_TREASURY_RANGE_OPTIONS: TimeRangeOption[] = [
   { label: "All", hours: null },
 ];
 
-// Generate sample data with both inflows and outflows
-function generateSampleData(): FlowDataPoint[] {
-  const now = Date.now();
-  const points: FlowDataPoint[] = [];
-  let balance = 45000; // Starting balance
+type GoalTreasuryCardProps = {
+  points: FlowDataPoint[];
+};
 
-  // Generate ~90 days of data
-  for (let i = 90; i >= 0; i--) {
-    const timestamp = now - i * 24 * 60 * 60 * 1000;
-    const dayOfWeek = new Date(timestamp).getDay();
-
-    // Simulate realistic treasury activity
-    let inflow = 0;
-    let outflow = 0;
-
-    // Inflows: contributions come in waves
-    if (Math.random() > 0.6) {
-      inflow = Math.floor(Math.random() * 3000) + 500;
-    }
-
-    // Outflows: payouts happen regularly, bigger on Fridays
-    if (Math.random() > 0.7) {
-      outflow = Math.floor(Math.random() * 2000) + 200;
-      if (dayOfWeek === 5) outflow *= 1.5; // Friday payouts
-    }
-
-    balance = balance + inflow - outflow;
-    balance = Math.max(balance, 10000); // Floor
-
-    points.push({
-      timestamp,
-      balance,
-      inflow,
-      outflow,
-    });
-  }
-
-  return points;
-}
-
-export function GoalTreasuryCard() {
-  const [sampleData] = useState<FlowDataPoint[]>(() => generateSampleData());
+export function GoalTreasuryCard({ points }: GoalTreasuryCardProps) {
   const [range, setRange] = useState<TimeRangeOption>(
     GOAL_TREASURY_RANGE_OPTIONS.find((o) => o.label === "1M") ?? GOAL_TREASURY_RANGE_OPTIONS[0]!
   );
 
-  const filteredData = useMemo(() => filterDataByTimeRange(sampleData, range), [sampleData, range]);
+  const filteredData = useMemo(() => filterDataByTimeRange(points, range), [points, range]);
 
   const { currentBalance, periodInflow, periodOutflow, netChange } = useMemo(() => {
     const current = filteredData[filteredData.length - 1]?.balance ?? 0;
@@ -89,6 +52,17 @@ export function GoalTreasuryCard() {
       netChange: current - startBalance,
     };
   }, [filteredData]);
+
+  if (points.length === 0) {
+    return (
+      <div className="bg-card w-full rounded-xl border p-5">
+        <div className="mb-2 text-2xl font-bold">
+          <Currency value={0} kind="usd" />
+        </div>
+        <p className="text-muted-foreground text-sm">No treasury history yet.</p>
+      </div>
+    );
+  }
 
   // Determine chart color based on net change
   const isPositive = netChange >= 0;
@@ -109,8 +83,8 @@ export function GoalTreasuryCard() {
           options={GOAL_TREASURY_RANGE_OPTIONS}
           value={range}
           onChange={setRange}
-          dataStartTime={sampleData[0]?.timestamp}
-          dataEndTime={sampleData[sampleData.length - 1]?.timestamp}
+          dataStartTime={points[0]?.timestamp}
+          dataEndTime={points[points.length - 1]?.timestamp}
         />
       </div>
 

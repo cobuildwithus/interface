@@ -10,6 +10,7 @@ export type Event = {
   time: string;
   recurring: string;
   color: EventColor;
+  url?: string;
 };
 
 const colorStyles: Record<EventColor, { bg: string; border: string }> = {
@@ -21,19 +22,16 @@ const colorStyles: Record<EventColor, { bg: string; border: string }> = {
 
 type EventCardProps = {
   event: Event;
-  linkUrl: string;
+  linkUrl?: string;
 };
 
 export function EventCard({ event, linkUrl }: EventCardProps) {
   const styles = colorStyles[event.color];
+  const href = event.url ?? linkUrl;
+  const cardClassName = `bg-card group relative block overflow-hidden rounded-xl border p-6 transition-all ${styles.border}`;
 
-  return (
-    <a
-      href={linkUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`bg-card group relative block overflow-hidden rounded-xl border p-6 transition-all ${styles.border}`}
-    >
+  const content = (
+    <>
       <div className={`absolute top-0 left-0 h-full w-1 ${styles.bg}`} />
       <div className="flex items-start justify-between">
         <div className="space-y-3">
@@ -57,6 +55,16 @@ export function EventCard({ event, linkUrl }: EventCardProps) {
         </div>
         <ExternalLink className="text-muted-foreground size-5 opacity-0 transition-opacity group-hover:opacity-100" />
       </div>
+    </>
+  );
+
+  if (!href) {
+    return <div className={cardClassName}>{content}</div>;
+  }
+
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={cardClassName}>
+      {content}
     </a>
   );
 }

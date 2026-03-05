@@ -180,7 +180,7 @@ describe("cli wallet route", () => {
     });
     getOrCreateCliAgentWalletMock.mockRejectedValue({
       code: "P2021",
-      meta: { table: "cobuild.build_bot_agent_wallets" },
+      meta: { table: "cobuild.cli_agent_wallets" },
     });
 
     const request = new Request("http://localhost/api/cli/wallet", {
@@ -201,7 +201,7 @@ describe("cli wallet route", () => {
   it("returns generic 500 when auth failure does not map to wallet tables", async () => {
     requireCliBearerAuthMock.mockRejectedValue({
       code: "P2021",
-      meta: { table: "cobuild.build_bot_oauth_codes" },
+      meta: { table: "cobuild.cli_oauth_codes" },
     });
 
     const request = new Request("http://localhost/api/cli/wallet", {

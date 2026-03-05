@@ -1,15 +1,15 @@
-# 2026-02-25 Buildbot Endpoint Cutover
+# 2026-02-25 CLI Endpoint Cutover
 
 ## Goal
 
-Hard-cut the interface API namespace from `/api/build-bot/*` to `/api/buildbot/*` so the interface matches the updated CLI endpoint contract.
+Hard-cut the interface API namespace from `/api/CLI/*` to `/api/cli/*` so the interface matches the updated CLI endpoint contract.
 
 ## Scope
 
-- Rename Next.js API route directory `apps/web/app/api/build-bot` to `apps/web/app/api/buildbot`.
+- Rename Next.js API route directory `apps/web/app/api/CLI` to `apps/web/app/api/cli`.
 - Update endpoint literals in setup dialog + callback parser.
 - Update all affected API and setup tests that assert endpoint URLs.
-- Update architecture/reference docs that explicitly list build-bot route paths.
+- Update architecture/reference docs that explicitly list CLI route paths.
 
 ## Constraints
 
@@ -20,15 +20,15 @@ Hard-cut the interface API namespace from `/api/build-bot/*` to `/api/buildbot/*
 ## Work Breakdown
 
 1. Apply namespace rename in route paths and endpoint literals.
-2. Update tests to assert `/api/buildbot/*` URLs and callback prefixes.
+2. Update tests to assert `/api/cli/*` URLs and callback prefixes.
 3. Update docs that map API route topology and auth/onchain references.
 4. Run required checks and completion workflow audits.
 5. Commit scoped files via `scripts/committer`.
 
 ## Success Criteria
 
-- Runtime code no longer uses `/api/build-bot/*`.
-- Tests pass with `/api/buildbot/*` contracts.
+- Runtime code no longer uses `/api/CLI/*`.
+- Tests pass with `/api/cli/*` contracts.
 - Docs that enumerate these endpoints reflect the new namespace.
   Status: completed
   Updated: 2026-02-25
