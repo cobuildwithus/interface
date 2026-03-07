@@ -9,8 +9,8 @@ importers:
   .:
     devDependencies:
       '@cobuild/repo-tools':
-        specifier: ^0.1.7
-        version: 0.1.7
+        specifier: ^0.1.6
+        version: 0.1.6
       '@cobuild/review-gpt':
         specifier: ^0.2.13
         version: 0.2.13
@@ -540,8 +540,8 @@ packages:
   '@chevrotain/utils@11.1.2':
     resolution: {integrity: sha512-4mudFAQ6H+MqBTfqLmU7G1ZwRzCLfJEooL/fsF6rCX5eePMbGhoy5n4g+G4vlh2muDcsCTJtL+uKbOzWxs5LHA==}
 
-  '@cobuild/repo-tools@0.1.7':
-    resolution: {integrity: sha512-6vDFJtP0nQoAx6kzOlVgxjeSY/uxj4IdQpk0vZiioAo1Q0qb5eKzGI4uiS/HUpVYXjC+Hvn9nRM37q/iIt0doA==}
+  '@cobuild/repo-tools@0.1.6':
+    resolution: {integrity: sha512-gp+zbbsupxYzqTId1sTJuBL1NzirCbo41SdRJeeaYwh1LzdubawikNEy5qWi4SNCplxQZ/OF73fFIn2Bu7Ovew==}
     hasBin: true
 
   '@cobuild/review-gpt@0.2.13':
@@ -8740,7 +8740,7 @@ snapshots:
 
   '@chevrotain/utils@11.1.2': {}
 
-  '@cobuild/repo-tools@0.1.7': {}
+  '@cobuild/repo-tools@0.1.6': {}
 
   '@cobuild/review-gpt@0.2.13': {}
 
