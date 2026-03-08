@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { getSession } from "@/lib/domains/auth/session";
+import { getUnreadNotificationsCount } from "@/lib/domains/notifications/queries";
 import { getProfile } from "@/lib/domains/profile/get-profile";
 import { getUserResponse } from "@/lib/server/user-response";
 import { UserProvider } from "@/lib/domains/auth/user-context";
@@ -18,7 +19,10 @@ export default async function AppLayout({ children }: LayoutProps) {
   const session = await getSession();
   const address = session.address ?? null;
 
-  const profile = address ? await getProfile(address) : undefined;
+  const [profile, unreadNotificationsCount] = await Promise.all([
+    address ? getProfile(address) : Promise.resolve(undefined),
+    address ? getUnreadNotificationsCount(address) : Promise.resolve(0),
+  ]);
   const user = getUserResponse(session);
 
   return (
@@ -26,7 +30,11 @@ export default async function AppLayout({ children }: LayoutProps) {
       <UserProvider value={user}>
         <WalletIdentityGuard />
         <SidebarProvider defaultOpen={defaultOpen}>
-          <AppSidebar address={session.address} profile={profile} />
+          <AppSidebar
+            address={session.address}
+            profile={profile}
+            unreadNotificationsCount={unreadNotificationsCount}
+          />
           <SidebarInset className="min-w-0">{children}</SidebarInset>
         </SidebarProvider>
       </UserProvider>

@@ -20,10 +20,17 @@ import { SidebarUserMenu } from "@/components/layout/sidebar/sidebar-user-menu";
 type AppSidebarProps = {
   address?: string;
   profile?: Profile;
+  unreadNotificationsCount?: number;
 };
 
-export function AppSidebar({ address, profile }: AppSidebarProps) {
+function formatUnreadBadge(count: number | undefined): string | null {
+  if (!count || count <= 0) return null;
+  return count > 99 ? "99+" : count.toString();
+}
+
+export function AppSidebar({ address, profile, unreadNotificationsCount }: AppSidebarProps) {
   const pathname = usePathname();
+  const notificationsBadge = formatUnreadBadge(unreadNotificationsCount);
 
   return (
     <Sidebar collapsible="offcanvas" className="px-3">
@@ -67,6 +74,12 @@ export function AppSidebar({ address, profile }: AppSidebarProps) {
                 label="Discussion"
                 href="/discussion"
                 isActive={pathname.startsWith("/discussion") || pathname.startsWith("/cast/")}
+              />
+              <LargeMenuItem
+                label="Notifications"
+                href="/notifications"
+                isActive={pathname.startsWith("/notifications")}
+                badge={notificationsBadge}
               />
               <LargeMenuItem
                 label="People"

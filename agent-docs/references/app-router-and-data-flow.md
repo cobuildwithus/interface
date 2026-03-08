@@ -33,6 +33,7 @@
 Representative route responsibilities:
 
 - linked accounts state: `app/api/linked-accounts/route.ts`
+- notifications read cursor: `app/api/notifications/read/route.ts`
 - profile lookup: `app/api/profile/route.ts`
 - onchain revnet data: `app/api/revnet/route.ts`
 - cast view anti-abuse + counters: `app/api/cast/[hash]/view/route.ts`
@@ -46,6 +47,12 @@ Representative route responsibilities:
 2. API routes are validation and normalization boundaries; request payloads are never trusted raw.
 3. Route files compose domain and UI behavior; persistence/integration side effects belong in domain/server layers.
 4. Wallet identity consistency between connected wallet and session wallet is enforced before privileged actions.
+
+## Notable App Routes
+
+- `apps/web/app/(app)/discussion/page.tsx`: wallet-aware discussion index with per-wallet topic read state.
+- `apps/web/app/(app)/notifications/page.tsx`: wallet-scoped notifications inbox backed by Postgres notification rows plus a DB read cursor.
+- `apps/web/app/(app)/cast/[hash]/page.tsx`: thread detail and reply composition.
 
 ## Update Rule
 

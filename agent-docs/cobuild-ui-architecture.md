@@ -62,6 +62,7 @@
   - `SidebarProvider` stores state in `sidebar_state` cookie; supports desktop + mobile sheet.
   - `SidebarInset` is the main content area that responds to sidebar state.
 - App sidebar (`components/layout/app-sidebar.tsx`) wires navigation using `Sidebar*` primitives.
+- The authenticated shell now includes a wallet-scoped `Notifications` entry in the main sidebar, with a server-provided unread badge.
 
 ## Auth & Identity UI
 

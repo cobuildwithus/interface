@@ -1,17 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import { SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 
 type LargeMenuItemProps = {
   label: string;
   isActive?: boolean;
+  badge?: string | number | null;
 } & (
   | { href: string; external?: boolean; onClick?: never }
   | { onClick: () => void; href?: never; external?: never }
 );
 
-export function LargeMenuItem({ label, isActive, ...props }: LargeMenuItemProps) {
+export function LargeMenuItem({ label, isActive, badge, ...props }: LargeMenuItemProps) {
   const buttonClass =
     "text-[20px] font-medium h-auto py-2 px-6 md:p-3 lg:py-2 lg:pl-4 lg:pr-5 rounded-full w-fit gap-4 [&>svg]:size-6 data-[active=true]:bg-transparent data-[active=true]:font-bold data-[active=true]:hover:bg-sidebar-accent";
 
@@ -26,6 +27,7 @@ export function LargeMenuItem({ label, isActive, ...props }: LargeMenuItemProps)
         >
           <span className="md:hidden lg:inline">{label}</span>
         </SidebarMenuButton>
+        {badge ? <SidebarMenuBadge>{badge}</SidebarMenuBadge> : null}
       </SidebarMenuItem>
     );
   }
@@ -40,6 +42,7 @@ export function LargeMenuItem({ label, isActive, ...props }: LargeMenuItemProps)
           <span className="md:hidden lg:inline">{label}</span>
         </LinkComponent>
       </SidebarMenuButton>
+      {badge ? <SidebarMenuBadge>{badge}</SidebarMenuBadge> : null}
     </SidebarMenuItem>
   );
 }

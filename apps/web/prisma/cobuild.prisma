@@ -256,6 +256,45 @@ model UserDisallowedTokenCategory {
   @@schema("cobuild")
 }
 
+model Notification {
+  id                     BigInt    @id @default(autoincrement())
+  recipientWalletAddress String    @map("recipient_wallet_address") @db.VarChar(42)
+  recipientFid           BigInt?   @map("recipient_fid") @db.BigInt
+  kind                   String
+  reason                 String
+  sourceType             String    @map("source_type")
+  sourceId               String    @map("source_id")
+  sourceCastHash         Bytes?    @map("source_cast_hash") @db.ByteA
+  rootCastHash           Bytes?    @map("root_cast_hash") @db.ByteA
+  targetCastHash         Bytes?    @map("target_cast_hash") @db.ByteA
+  actorFid               BigInt?   @map("actor_fid") @db.BigInt
+  actorWalletAddress     String?   @map("actor_wallet_address") @db.VarChar(42)
+  eventAt                DateTime  @map("event_at") @db.Timestamptz(6)
+  invalidatedAt          DateTime? @map("invalidated_at") @db.Timestamptz(6)
+  payload                Json      @default(dbgenerated("'{}'::jsonb"))
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([recipientWalletAddress, sourceType, sourceId], map: "notifications_wallet_source_uidx")
+  @@index([recipientWalletAddress, eventAt], map: "notifications_recipient_event_idx")
+  @@index([recipientWalletAddress, createdAt], map: "notifications_recipient_created_idx")
+  @@index([sourceCastHash], map: "notifications_source_cast_idx")
+  @@index([rootCastHash], map: "notifications_root_cast_idx")
+  @@index([actorFid], map: "notifications_actor_fid_idx")
+  @@map("notifications")
+  @@schema("cobuild")
+}
+
+model NotificationState {
+  ownerAddress String    @id @map("owner_address") @db.VarChar(42)
+  lastReadAt   DateTime? @map("last_read_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("notification_state")
+  @@schema("cobuild")
+}
+
 model SwapExecuted {
   id             String  @id
   recipient      String  @db.VarChar(42)

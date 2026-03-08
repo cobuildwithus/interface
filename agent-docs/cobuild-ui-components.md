@@ -97,6 +97,7 @@ Location: `apps/web/components/ai-elements`
 Location: `apps/web/components/layout`
 
 - `app-sidebar.tsx` — Main nav, built on Sidebar primitives.
+- `features/notifications/notifications-list.tsx` — Wallet-scoped inbox list for replies, mentions, and future protocol events.
 - `header.tsx` — Marketing/app header bar (also used on token page).
 - `page-header.tsx` — Page header layout.
 - `user-popover.tsx` — Account menu popover.

@@ -5,6 +5,7 @@ import { normalizeFid } from "@/lib/integrations/farcaster/signer-utils";
 import { neynarFetchCastByHash, type NeynarCast } from "@/lib/integrations/farcaster/neynar-client";
 import { COBUILD_CHANNEL_URL } from "./shared";
 import { updateThreadStatsForRoots } from "./thread-stats";
+import { materializeDiscussionNotifications } from "@/lib/domains/notifications/materialize-discussion";
 
 const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 800;
@@ -215,6 +216,7 @@ export async function upsertCobuildCastByHash(hash: string): Promise<boolean> {
   });
 
   await updateThreadStatsForRoots([rootParentHashBuffer]);
+  await materializeDiscussionNotifications([hashBuffer]);
 
   return true;
 }

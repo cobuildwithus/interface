@@ -7,6 +7,7 @@ import { upsertCobuildCastByHash } from "./upsert";
 const neynarFetchCastByHashMock = vi.fn();
 const upsertMock = vi.fn();
 const updateThreadStatsForRootsMock = vi.fn();
+const materializeDiscussionNotificationsMock = vi.fn();
 
 type NeynarFetchCastByHash =
   typeof import("@/lib/integrations/farcaster/neynar-client").neynarFetchCastByHash;
@@ -30,11 +31,18 @@ vi.mock("./thread-stats", () => ({
     updateThreadStatsForRootsMock(...args)) as UpdateThreadStatsForRoots,
 }));
 
+vi.mock("@/lib/domains/notifications/materialize-discussion", () => ({
+  materializeDiscussionNotifications: (
+    ...args: Parameters<typeof materializeDiscussionNotificationsMock>
+  ) => materializeDiscussionNotificationsMock(...args),
+}));
+
 describe("upsertCobuildCastByHash", () => {
   beforeEach(() => {
     neynarFetchCastByHashMock.mockReset();
     upsertMock.mockReset();
     updateThreadStatsForRootsMock.mockReset();
+    materializeDiscussionNotificationsMock.mockReset();
   });
 
   it("retries on not-found and upserts when cast resolves", async () => {
@@ -66,6 +74,7 @@ describe("upsertCobuildCastByHash", () => {
     expect(neynarFetchCastByHashMock).toHaveBeenCalledTimes(2);
     expect(upsertMock).toHaveBeenCalledTimes(1);
     expect(updateThreadStatsForRootsMock).toHaveBeenCalledTimes(1);
+    expect(materializeDiscussionNotificationsMock).toHaveBeenCalledTimes(1);
 
     const call = upsertMock.mock.calls[0]?.[0];
     expect(call?.create?.embedSummaries).toEqual([]);
@@ -97,6 +106,7 @@ describe("upsertCobuildCastByHash", () => {
     expect(result).toBe(false);
     expect(upsertMock).not.toHaveBeenCalled();
     expect(updateThreadStatsForRootsMock).not.toHaveBeenCalled();
+    expect(materializeDiscussionNotificationsMock).not.toHaveBeenCalled();
   });
 
   it("returns false when neynar reports deleted", async () => {
@@ -112,6 +122,7 @@ describe("upsertCobuildCastByHash", () => {
     expect(result).toBe(false);
     expect(upsertMock).not.toHaveBeenCalled();
     expect(updateThreadStatsForRootsMock).not.toHaveBeenCalled();
+    expect(materializeDiscussionNotificationsMock).not.toHaveBeenCalled();
   });
 
   it("returns false when retries are exhausted", async () => {
@@ -132,6 +143,7 @@ describe("upsertCobuildCastByHash", () => {
     expect(neynarFetchCastByHashMock).toHaveBeenCalledTimes(3);
     expect(upsertMock).not.toHaveBeenCalled();
     expect(updateThreadStatsForRootsMock).not.toHaveBeenCalled();
+    expect(materializeDiscussionNotificationsMock).not.toHaveBeenCalled();
   });
 
   it("returns false when hash or fid is invalid", async () => {
@@ -170,6 +182,7 @@ describe("upsertCobuildCastByHash", () => {
     expect(invalidFid).toBe(false);
     expect(upsertMock).not.toHaveBeenCalled();
     expect(updateThreadStatsForRootsMock).not.toHaveBeenCalled();
+    expect(materializeDiscussionNotificationsMock).not.toHaveBeenCalled();
   });
 
   it("skips invalid embeds and keeps text when mention ranges are empty", async () => {
@@ -203,6 +216,7 @@ describe("upsertCobuildCastByHash", () => {
     expect(call?.update?.mentionedFids).toEqual([]);
     expect(call?.update?.parentFid).toBe(BigInt(7));
     expect(updateThreadStatsForRootsMock).toHaveBeenCalledTimes(1);
+    expect(materializeDiscussionNotificationsMock).toHaveBeenCalledTimes(1);
   });
 
   it("handles missing optional fields and null timestamps", async () => {

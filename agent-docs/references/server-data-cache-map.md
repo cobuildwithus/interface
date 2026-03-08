@@ -45,6 +45,7 @@ CLI note:
 
 - CLI token/wallet/tx-log reads and writes are DB-backed only (no cache layer), with bearer-token auth state persisted via hashed token rows.
 - `cli_tx_logs` also stores optional idempotency keys and enforces uniqueness on `(ownerAddress, agentKey, idempotencyKey)` for replay-safe exec calls.
+- Notifications are DB-backed only: `cobuild.notifications` stores wallet inbox rows and `cobuild.notification_state` stores the wallet read cursor. These do not use KV caching.
 
 ## Consistency Guidance
 
@@ -65,6 +66,10 @@ CLI note:
 3. Encryption helper misuse:
 
 - Keep encrypted KV access centralized in server-only modules and avoid client exposure.
+
+4. Notification read-state drift:
+
+- Notifications unread state is derived from a DB cursor (`last_read_at`) against notification `created_at`; do not mix notification unread logic with the KV-backed topic read model.
 
 ## Update Rule
 
