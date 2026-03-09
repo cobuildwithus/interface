@@ -904,35 +904,7 @@ async function fetchGoalCards(): Promise<GoalCardData[]> {
     },
   });
 
-  if (rows.length === 0) {
-    const defaultGoal = await getGoalOverviewData(DEFAULT_GOAL_SLUG);
-    if (!defaultGoal) return [];
-    return [
-      {
-        id: "default-goal",
-        address: DEFAULT_GOAL_SLUG,
-        title: defaultGoal.goal.name,
-        description:
-          defaultGoal.goal.description ??
-          defaultGoal.goal.tagline ??
-          "Cobuild onchain goal and treasury coordination.",
-        raised: defaultGoal.raised,
-        target: defaultGoal.target,
-        status: defaultGoal.goal.finalized ? "completed" : "ongoing",
-        createdAt: defaultGoal.goal.createdAtMs
-          ? new Date(defaultGoal.goal.createdAtMs)
-          : new Date(0),
-        ...(defaultGoal.goal.successAtMs
-          ? { completedAt: new Date(defaultGoal.goal.successAtMs) }
-          : {}),
-        contributorCount: defaultGoal.goal.contributorsCount,
-        projectChainId: defaultGoal.goal.projectChainId,
-        projectId: defaultGoal.goal.projectId,
-        suckerGroupId: defaultGoal.goal.suckerGroupId,
-        accountingDecimals: defaultGoal.goal.accountingDecimals,
-      },
-    ];
-  }
+  if (rows.length === 0) return [];
 
   const canonicalProjects = rows
     .map((row) =>

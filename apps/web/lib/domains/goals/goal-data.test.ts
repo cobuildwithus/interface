@@ -435,6 +435,16 @@ describe("goal-data", () => {
     expect(cards[0]?.raised).toBe(500000);
   });
 
+  it("returns no goal cards when no goal treasury rows exist", async () => {
+    goalTreasuryFindManyMock.mockResolvedValue([]);
+
+    const cards = await getGoalCards();
+
+    expect(cards).toEqual([]);
+    expect(juiceboxProjectFindManyMock).not.toHaveBeenCalled();
+    expect(juiceboxPayEventGroupByMock).not.toHaveBeenCalled();
+  });
+
   it("builds user holdings from grouped payer contributions", async () => {
     const holdings = await getUserGoalHoldings(USER_ADDRESS, 10);
     expect(holdings).toHaveLength(1);
