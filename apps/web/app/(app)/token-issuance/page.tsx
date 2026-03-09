@@ -7,8 +7,8 @@ import { IssuanceSupplyBalanceChart } from "./issuance-supply-balance-chart";
 import { IssuanceTable } from "./issuance-table";
 
 export const metadata = buildPageMetadata({
-  title: "Token Issuance | Cobuild",
-  description: "Issuance schedule and supply history for the Cobuild token.",
+  title: "Economics | Cobuild",
+  description: "Supply, pricing, and treasury mechanics for Cobuild.",
 });
 
 export default async function TokenIssuancePage() {
@@ -22,7 +22,7 @@ export default async function TokenIssuancePage() {
 
   return (
     <main className="w-full p-4 md:p-6">
-      <PageHeader title="Token issuance" description="Issuance schedule and pricing" />
+      <PageHeader title="Economics" description="Supply, pricing, and treasury mechanics" />
 
       <div className="flex flex-col gap-6">
         <IssuanceChart

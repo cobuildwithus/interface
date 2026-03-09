@@ -88,7 +88,7 @@ export function AppSidebar({ address, profile }: AppSidebarProps) {
                 isActive={pathname.startsWith("/people")}
               />
               <LargeMenuItem
-                label="Token"
+                label="Economics"
                 href="/token-issuance"
                 isActive={pathname.startsWith("/token-issuance")}
               />
