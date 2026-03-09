@@ -6,7 +6,6 @@ WEB_ENV_DIR="${ROOT_DIR}/apps/web"
 
 ORIGINAL_DATABASE_URL_IS_SET=0
 ORIGINAL_LOCAL_DATABASE_URL_IS_SET=0
-ORIGINAL_ALLOW_NON_LOCAL_LOCAL_DB_SYNC_IS_SET=0
 
 if [[ -n "${DATABASE_URL+x}" ]]; then
   ORIGINAL_DATABASE_URL_IS_SET=1
@@ -14,10 +13,6 @@ fi
 
 if [[ -n "${LOCAL_DATABASE_URL+x}" ]]; then
   ORIGINAL_LOCAL_DATABASE_URL_IS_SET=1
-fi
-
-if [[ -n "${ALLOW_NON_LOCAL_LOCAL_DB_SYNC+x}" ]]; then
-  ORIGINAL_ALLOW_NON_LOCAL_LOCAL_DB_SYNC_IS_SET=1
 fi
 
 load_sync_env_file() {
@@ -39,11 +34,6 @@ load_sync_env_file() {
           export "${name}=${value}"
         fi
         ;;
-      ALLOW_NON_LOCAL_LOCAL_DB_SYNC)
-        if [[ "${ORIGINAL_ALLOW_NON_LOCAL_LOCAL_DB_SYNC_IS_SET}" -eq 0 ]]; then
-          export "${name}=${value}"
-        fi
-        ;;
     esac
   done < <(
     node -e '
@@ -61,7 +51,7 @@ for (const [name, value] of Object.entries(parsed)) {
   process.stdout.write(value);
   process.stdout.write("\0");
 }
-' "${env_file}" DATABASE_URL LOCAL_DATABASE_URL ALLOW_NON_LOCAL_LOCAL_DB_SYNC
+' "${env_file}" DATABASE_URL LOCAL_DATABASE_URL
   )
 }
 
@@ -107,15 +97,38 @@ try {
 ' "${url}"
 }
 
+normalize_libpq_source_url() {
+  local url="$1"
+  node -e '
+const input = process.argv[1];
+
+try {
+  const parsed = new URL(input);
+  const sslMode = parsed.searchParams.get("sslmode")?.toLowerCase();
+  const requiresRootCert = sslMode === "verify-ca" || sslMode === "verify-full";
+  const hasRootCert = parsed.searchParams.has("sslrootcert");
+
+  if (requiresRootCert && !hasRootCert) {
+    parsed.searchParams.set("sslrootcert", "system");
+  }
+
+  process.stdout.write(parsed.toString());
+} catch (error) {
+  process.stderr.write(`Invalid database URL: ${input}\n`);
+  process.exit(1);
+}
+' "${url}"
+}
+
 is_local_host() {
   local host="$1"
   [[ -z "${host}" || "${host}" == "localhost" || "${host}" == "127.0.0.1" || "${host}" == "::1" || "${host}" == "host.docker.internal" || "${host}" == "db" || "${host}" == "postgres" ]]
 }
 
 LOCAL_HOST="$(extract_host "${LOCAL_DATABASE_URL}")"
-if ! is_local_host "${LOCAL_HOST}" && [[ "${ALLOW_NON_LOCAL_LOCAL_DB_SYNC:-}" != "true" ]]; then
+SYNC_SOURCE_DATABASE_URL="$(normalize_libpq_source_url "${DATABASE_URL}")"
+if ! is_local_host "${LOCAL_HOST}"; then
   echo "Error: LOCAL_DATABASE_URL host '${LOCAL_HOST}' is not recognized as local." >&2
-  echo "Set ALLOW_NON_LOCAL_LOCAL_DB_SYNC=true to override intentionally." >&2
   exit 1
 fi
 
@@ -130,7 +143,7 @@ trap cleanup EXIT
 
 echo "Dumping prod schemas (excluding cobuild-onchain) from DATABASE_URL..."
 pg_dump \
-  --dbname="${DATABASE_URL}" \
+  --dbname="${SYNC_SOURCE_DATABASE_URL}" \
   --format=custom \
   --no-owner \
   --no-privileges \
