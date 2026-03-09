@@ -47,6 +47,7 @@ export type FlatCastThread = {
   root: ThreadCast;
   replies: ThreadCast[];
   replyCount: number;
+  resolvedFocusHash: string | null;
   /** Record of hash -> ThreadCast for quick lookups (e.g., for quotes) */
   castMap: Record<string, ThreadCast>;
   /** Pagination info */

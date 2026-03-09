@@ -369,8 +369,8 @@ AS $$
       wallet.event_at,
       '{}'::jsonb,
       NULL,
-      now(),
-      now()
+      clock_timestamp(),
+      clock_timestamp()
     FROM distinct_wallet_fanout wallet
     ON CONFLICT (recipient_wallet_address, source_type, source_id) DO UPDATE
     SET
@@ -390,7 +390,7 @@ AS $$
       event_at = EXCLUDED.event_at,
       payload = EXCLUDED.payload,
       invalidated_at = NULL,
-      updated_at = now()
+      updated_at = clock_timestamp()
     RETURNING 1
   )
   SELECT COUNT(*)::integer FROM upserted
@@ -406,8 +406,8 @@ AS $$
   invalidated AS (
     UPDATE cobuild.notifications notification
     SET
-      invalidated_at = now(),
-      updated_at = now()
+      invalidated_at = clock_timestamp(),
+      updated_at = clock_timestamp()
     FROM target_hashes target
     WHERE notification.source_cast_hash = target.hash
       AND notification.invalidated_at IS NULL

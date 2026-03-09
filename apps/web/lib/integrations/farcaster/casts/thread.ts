@@ -25,20 +25,31 @@ async function resolveFocusPage(params: {
   rootHash: string;
   rootBuffer: Buffer;
   showAll: boolean;
-}): Promise<number | null> {
+}): Promise<{ page: number | null; resolvedFocusHash: string | null }> {
   const { focusHash, rootHash, rootBuffer, showAll } = params;
-  if (!focusHash || showAll) return null;
-  if (focusHash === rootHash) return 1;
+  if (!focusHash || showAll) {
+    return { page: null, resolvedFocusHash: focusHash };
+  }
+  if (focusHash === rootHash) {
+    return { page: 1, resolvedFocusHash: rootHash };
+  }
 
   const focusBuffer = castHashToBuffer(focusHash);
-  if (!focusBuffer) return null;
+  if (!focusBuffer) return { page: null, resolvedFocusHash: focusHash };
 
   const focusInfo = await loadCobuildThreadFocusIndex(rootBuffer, focusBuffer);
   const focusTarget = bufferToHash(focusInfo.mergeTarget);
-  if (focusTarget === rootHash) return 1;
-  if (focusInfo.index === null) return null;
+  if (focusTarget === rootHash) {
+    return { page: 1, resolvedFocusHash: rootHash };
+  }
+  if (focusInfo.index === null) {
+    return { page: null, resolvedFocusHash: focusTarget ?? focusHash };
+  }
 
-  return Math.floor(focusInfo.index / THREAD_PAGE_SIZE) + 1;
+  return {
+    page: Math.floor(focusInfo.index / THREAD_PAGE_SIZE) + 1,
+    resolvedFocusHash: focusTarget ?? focusHash,
+  };
 }
 
 type ParentRow = Awaited<ReturnType<typeof loadCobuildCastsByHashes>>[number];
@@ -126,7 +137,7 @@ export async function getCobuildFlatCastThread(
 
   const showAll = page === 0;
   const requestedPage = showAll ? 1 : page;
-  const focusPage = await resolveFocusPage({
+  const { page: focusPage, resolvedFocusHash } = await resolveFocusPage({
     focusHash,
     rootHash: normalized,
     rootBuffer: hashBuffer,
@@ -227,6 +238,7 @@ export async function getCobuildFlatCastThread(
     root: rootCast,
     replies: paginatedReplies,
     replyCount,
+    resolvedFocusHash,
     castMap,
     page: resolvedPage,
     pageSize: showAll ? replyCount : THREAD_PAGE_SIZE,

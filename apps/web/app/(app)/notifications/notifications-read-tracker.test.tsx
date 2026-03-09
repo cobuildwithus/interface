@@ -74,11 +74,12 @@ describe("NotificationsReadTracker", () => {
     });
   });
 
-  it("does not post when the page is already fully read", async () => {
+  it("clears stale local badge state without posting when the primary page is already read", async () => {
     const fetchMock = vi.mocked(fetch);
 
     render(
-      <NotificationsUnreadProvider initialCount={0} initialWatermark="0">
+      <NotificationsUnreadProvider initialCount={3} initialWatermark="1741435200000001">
+        <UnreadCountProbe />
         <NotificationsReadTracker
           address="0x0000000000000000000000000000000000000001"
           watermark="1741435200000001"
@@ -89,6 +90,7 @@ describe("NotificationsReadTracker", () => {
 
     await waitFor(() => {
       expect(fetchMock).not.toHaveBeenCalled();
+      expect(screen.getByTestId("unread-count").textContent).toBe("0");
     });
   });
 

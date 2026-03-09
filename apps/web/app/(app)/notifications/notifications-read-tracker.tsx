@@ -21,7 +21,12 @@ export function NotificationsReadTracker({
   const { markAllRead } = useNotificationsUnreadState();
 
   useEffect(() => {
-    if (!hasUnread || !watermark || watermark === "0") return;
+    if (!watermark || watermark === "0") return;
+
+    if (!hasUnread) {
+      markAllRead(watermark);
+      return;
+    }
 
     const storageKey = `${READ_WATERMARK_STORAGE_PREFIX}${address.toLowerCase()}:${watermark}`;
     if (window.sessionStorage.getItem(storageKey) === "done") {

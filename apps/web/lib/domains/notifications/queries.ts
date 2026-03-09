@@ -273,89 +273,96 @@ export async function getNotificationsPage(
   }
 
   const db = prisma.$primary();
-  const visibleWhereSql = buildVisibleNotificationsWhereSql(normalizedAddress);
-  const unreadState = await getUnreadNotificationsStateInternal(normalizedAddress, db);
+  return db.$transaction(
+    async (tx) => {
+      const visibleWhereSql = buildVisibleNotificationsWhereSql(normalizedAddress);
+      const unreadState = await getUnreadNotificationsStateInternal(normalizedAddress, tx);
 
-  const countRows = await db.$queryRaw<CountRow[]>`
-    SELECT COUNT(*)::bigint AS count
-    ${buildNotificationFromSql}
-    ${visibleWhereSql}
-  `;
-  const watermarkRows = await db.$queryRaw<WatermarkRow[]>`
-    SELECT COALESCE(
-      (EXTRACT(EPOCH FROM MAX(notification.created_at)) * 1000000)::bigint::text,
-      '0'
-    ) AS watermark
-    ${buildNotificationFromSql}
-    ${visibleWhereSql}
-  `;
+      const countRows = await tx.$queryRaw<CountRow[]>`
+        SELECT COUNT(*)::bigint AS count
+        ${buildNotificationFromSql}
+        ${visibleWhereSql}
+      `;
+      const watermarkRows = await tx.$queryRaw<WatermarkRow[]>`
+        SELECT COALESCE(
+          (EXTRACT(EPOCH FROM MAX(notification.created_at)) * 1000000)::bigint::text,
+          '0'
+        ) AS watermark
+        ${buildNotificationFromSql}
+        ${visibleWhereSql}
+      `;
 
-  const totalCount = toNumber(countRows[0]?.count);
-  const totalPages = totalCount === 0 ? 0 : Math.ceil(totalCount / NOTIFICATIONS_PAGE_SIZE);
-  const resolvedPage = totalPages === 0 ? 1 : Math.max(1, Math.min(page, totalPages));
-  const offset = (resolvedPage - 1) * NOTIFICATIONS_PAGE_SIZE;
-  const watermark = watermarkRows[0]?.watermark ?? "0";
+      const totalCount = toNumber(countRows[0]?.count);
+      const totalPages = totalCount === 0 ? 0 : Math.ceil(totalCount / NOTIFICATIONS_PAGE_SIZE);
+      const resolvedPage = totalPages === 0 ? 1 : Math.max(1, Math.min(page, totalPages));
+      const offset = (resolvedPage - 1) * NOTIFICATIONS_PAGE_SIZE;
+      const watermark = watermarkRows[0]?.watermark ?? "0";
 
-  const rows =
-    totalCount === 0
-      ? []
-      : await db.$queryRaw<NotificationRow[]>`
-          SELECT
-            notification.id,
-            notification.kind,
-            notification.reason,
-            notification.event_at AS "eventAt",
-            notification.created_at AS "createdAt",
-            state.last_read_at AS "lastReadAt",
-            (
-              state.last_read_at IS NULL
-              OR notification.created_at > state.last_read_at
-            ) AS "isUnread",
-            notification.source_cast_hash AS "sourceHash",
-            notification.root_cast_hash AS "rootHash",
-            notification.target_cast_hash AS "targetHash",
-            notification.actor_fid AS "actorFid",
-            actor.fname AS "actorUsername",
-            actor.display_name AS "actorDisplayName",
-            actor.avatar_url AS "actorAvatarUrl",
-            source.text AS "sourceText",
-            source.mentions_positions_array AS "sourceMentionsPositions",
-            source_mentions.profiles AS "sourceMentionProfiles",
-            root.text AS "rootText",
-            root.mentions_positions_array AS "rootMentionsPositions",
-            root_mentions.profiles AS "rootMentionProfiles",
-            notification.payload
-          ${buildNotificationFromSql}
-          LEFT JOIN LATERAL (
-            SELECT jsonb_agg(
-              jsonb_build_object('fid', profile.fid, 'fname', profile.fname)
-              ORDER BY mention.idx
-            ) AS profiles
-            FROM unnest(source.mentioned_fids) WITH ORDINALITY AS mention(fid, idx)
-            JOIN farcaster.profiles profile ON profile.fid = mention.fid
-          ) source_mentions ON TRUE
-          LEFT JOIN LATERAL (
-            SELECT jsonb_agg(
-              jsonb_build_object('fid', profile.fid, 'fname', profile.fname)
-              ORDER BY mention.idx
-            ) AS profiles
-            FROM unnest(root.mentioned_fids) WITH ORDINALITY AS mention(fid, idx)
-            JOIN farcaster.profiles profile ON profile.fid = mention.fid
-          ) root_mentions ON TRUE
-          ${visibleWhereSql}
-          ORDER BY notification.event_at DESC NULLS LAST, notification.created_at DESC, notification.id DESC
-          LIMIT ${NOTIFICATIONS_PAGE_SIZE}
-          OFFSET ${offset}
-        `;
+      const rows =
+        totalCount === 0
+          ? []
+          : await tx.$queryRaw<NotificationRow[]>`
+              SELECT
+                notification.id,
+                notification.kind,
+                notification.reason,
+                notification.event_at AS "eventAt",
+                notification.created_at AS "createdAt",
+                state.last_read_at AS "lastReadAt",
+                (
+                  state.last_read_at IS NULL
+                  OR notification.created_at > state.last_read_at
+                ) AS "isUnread",
+                notification.source_cast_hash AS "sourceHash",
+                notification.root_cast_hash AS "rootHash",
+                notification.target_cast_hash AS "targetHash",
+                notification.actor_fid AS "actorFid",
+                actor.fname AS "actorUsername",
+                actor.display_name AS "actorDisplayName",
+                actor.avatar_url AS "actorAvatarUrl",
+                source.text AS "sourceText",
+                source.mentions_positions_array AS "sourceMentionsPositions",
+                source_mentions.profiles AS "sourceMentionProfiles",
+                root.text AS "rootText",
+                root.mentions_positions_array AS "rootMentionsPositions",
+                root_mentions.profiles AS "rootMentionProfiles",
+                notification.payload
+              ${buildNotificationFromSql}
+              LEFT JOIN LATERAL (
+                SELECT jsonb_agg(
+                  jsonb_build_object('fid', profile.fid, 'fname', profile.fname)
+                  ORDER BY mention.idx
+                ) AS profiles
+                FROM unnest(source.mentioned_fids) WITH ORDINALITY AS mention(fid, idx)
+                JOIN farcaster.profiles profile ON profile.fid = mention.fid
+              ) source_mentions ON TRUE
+              LEFT JOIN LATERAL (
+                SELECT jsonb_agg(
+                  jsonb_build_object('fid', profile.fid, 'fname', profile.fname)
+                  ORDER BY mention.idx
+                ) AS profiles
+                FROM unnest(root.mentioned_fids) WITH ORDINALITY AS mention(fid, idx)
+                JOIN farcaster.profiles profile ON profile.fid = mention.fid
+              ) root_mentions ON TRUE
+              ${visibleWhereSql}
+              ORDER BY notification.event_at DESC NULLS LAST, notification.created_at DESC, notification.id DESC
+              LIMIT ${NOTIFICATIONS_PAGE_SIZE}
+              OFFSET ${offset}
+            `;
 
-  return {
-    items: rows.map(mapNotificationRow),
-    page: resolvedPage,
-    totalPages,
-    totalCount,
-    unreadCount: unreadState.count,
-    watermark,
-  };
+      return {
+        items: rows.map(mapNotificationRow),
+        page: resolvedPage,
+        totalPages,
+        totalCount,
+        unreadCount: unreadState.count,
+        watermark,
+      };
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+    }
+  );
 }
 
 function parseWatermarkMicros(value: string): bigint | null {

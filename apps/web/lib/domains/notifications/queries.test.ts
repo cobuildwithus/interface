@@ -2,21 +2,33 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { replicaQueryRawMock, primaryQueryRawMock, executeRawMock } = vi.hoisted(() => ({
-  replicaQueryRawMock: vi.fn(),
-  primaryQueryRawMock: vi.fn(),
-  executeRawMock: vi.fn(),
-}));
+const { replicaQueryRawMock, primaryQueryRawMock, executeRawMock, transactionMock } = vi.hoisted(
+  () => ({
+    replicaQueryRawMock: vi.fn(),
+    primaryQueryRawMock: vi.fn(),
+    executeRawMock: vi.fn(),
+    transactionMock: vi.fn(),
+  })
+);
 
 vi.mock("@/lib/server/db/cobuild-db-client", () => ({
   default: {
     $replica: () => ({
       $queryRaw: (...args: Parameters<typeof replicaQueryRawMock>) => replicaQueryRawMock(...args),
     }),
-    $primary: () => ({
-      $queryRaw: (...args: Parameters<typeof primaryQueryRawMock>) => primaryQueryRawMock(...args),
-      $executeRaw: (...args: Parameters<typeof executeRawMock>) => executeRawMock(...args),
-    }),
+    $primary: () => {
+      const txClient = {
+        $queryRaw: (...args: Parameters<typeof primaryQueryRawMock>) =>
+          primaryQueryRawMock(...args),
+      };
+      return {
+        $queryRaw: (...args: Parameters<typeof primaryQueryRawMock>) =>
+          primaryQueryRawMock(...args),
+        $executeRaw: (...args: Parameters<typeof executeRawMock>) => executeRawMock(...args),
+        $transaction: (callback: (tx: typeof txClient) => Promise<unknown>, options?: unknown) =>
+          transactionMock(callback, options, txClient),
+      };
+    },
   },
 }));
 
@@ -26,12 +38,15 @@ import {
   getUnreadNotificationsCount,
   markNotificationsRead,
 } from "./queries";
+import { Prisma } from "@/generated/prisma/client";
 
 describe("notifications queries", () => {
   beforeEach(() => {
     replicaQueryRawMock.mockReset();
     primaryQueryRawMock.mockReset();
     executeRawMock.mockReset();
+    transactionMock.mockReset();
+    transactionMock.mockImplementation(async (callback, _options, txClient) => callback(txClient));
   });
 
   it("returns unread count for a wallet inbox", async () => {
@@ -120,6 +135,10 @@ describe("notifications queries", () => {
       }),
     ]);
     expect(page.watermark).toBe("1741435200000001");
+    expect(transactionMock).toHaveBeenCalledTimes(1);
+    expect(transactionMock.mock.calls[0]?.[1]).toEqual({
+      isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+    });
   });
 
   it("returns an empty page when the address is invalid", async () => {

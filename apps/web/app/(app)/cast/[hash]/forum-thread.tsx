@@ -31,7 +31,7 @@ export function ForumThread({ thread, isAdmin = false, hasSigner = false }: Foru
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const focusHash = parseFocusHash(searchParams.get("post"));
+  const focusHash = thread.resolvedFocusHash ?? parseFocusHash(searchParams.get("post"));
 
   // Track which post is being replied to (by hash)
   const [replyTargetHash, setReplyTargetHash] = useState<string | null>(null);
