@@ -12,6 +12,8 @@
 - Local refresh helper: `scripts/sync-local-db-from-prod.sh` copies only `cobuild`, `farcaster`, and `capital_allocation` schemas from prod and intentionally excludes `cobuild-onchain`.
   - Safety guards fail when source/target URLs match and require a local `LOCAL_DATABASE_URL` host by default.
   - Set `ALLOW_NON_LOCAL_LOCAL_DB_SYNC=true` only for intentional non-local override runs.
+  - The sync helper auto-loads `apps/web/.env` and `apps/web/.env.local` for `DATABASE_URL`, `LOCAL_DATABASE_URL`, and `ALLOW_NON_LOCAL_LOCAL_DB_SYNC` when those vars are not already exported in the shell.
+  - The command is available from both the repo root and `apps/web` as `pnpm db:sync:local-from-prod`.
 
 ## Key Files
 

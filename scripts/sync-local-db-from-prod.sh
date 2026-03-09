@@ -1,6 +1,73 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WEB_ENV_DIR="${ROOT_DIR}/apps/web"
+
+ORIGINAL_DATABASE_URL_IS_SET=0
+ORIGINAL_LOCAL_DATABASE_URL_IS_SET=0
+ORIGINAL_ALLOW_NON_LOCAL_LOCAL_DB_SYNC_IS_SET=0
+
+if [[ -n "${DATABASE_URL+x}" ]]; then
+  ORIGINAL_DATABASE_URL_IS_SET=1
+fi
+
+if [[ -n "${LOCAL_DATABASE_URL+x}" ]]; then
+  ORIGINAL_LOCAL_DATABASE_URL_IS_SET=1
+fi
+
+if [[ -n "${ALLOW_NON_LOCAL_LOCAL_DB_SYNC+x}" ]]; then
+  ORIGINAL_ALLOW_NON_LOCAL_LOCAL_DB_SYNC_IS_SET=1
+fi
+
+load_sync_env_file() {
+  local env_file="$1"
+
+  if [[ ! -f "${env_file}" ]]; then
+    return 0
+  fi
+
+  while IFS= read -r -d '' name && IFS= read -r -d '' value; do
+    case "${name}" in
+      DATABASE_URL)
+        if [[ "${ORIGINAL_DATABASE_URL_IS_SET}" -eq 0 ]]; then
+          export "${name}=${value}"
+        fi
+        ;;
+      LOCAL_DATABASE_URL)
+        if [[ "${ORIGINAL_LOCAL_DATABASE_URL_IS_SET}" -eq 0 ]]; then
+          export "${name}=${value}"
+        fi
+        ;;
+      ALLOW_NON_LOCAL_LOCAL_DB_SYNC)
+        if [[ "${ORIGINAL_ALLOW_NON_LOCAL_LOCAL_DB_SYNC_IS_SET}" -eq 0 ]]; then
+          export "${name}=${value}"
+        fi
+        ;;
+    esac
+  done < <(
+    node -e '
+const { readFileSync } = require("node:fs");
+const { parseEnv } = require("node:util");
+
+const envFile = process.argv[1];
+const names = new Set(process.argv.slice(2));
+const parsed = parseEnv(readFileSync(envFile, "utf8"));
+
+for (const [name, value] of Object.entries(parsed)) {
+  if (!names.has(name)) continue;
+  process.stdout.write(name);
+  process.stdout.write("\0");
+  process.stdout.write(value);
+  process.stdout.write("\0");
+}
+' "${env_file}" DATABASE_URL LOCAL_DATABASE_URL ALLOW_NON_LOCAL_LOCAL_DB_SYNC
+  )
+}
+
+load_sync_env_file "${WEB_ENV_DIR}/.env"
+load_sync_env_file "${WEB_ENV_DIR}/.env.local"
+
 if ! command -v pg_dump >/dev/null 2>&1; then
   echo "Error: pg_dump is required but not found on PATH." >&2
   exit 1
@@ -52,7 +119,6 @@ if ! is_local_host "${LOCAL_HOST}" && [[ "${ALLOW_NON_LOCAL_LOCAL_DB_SYNC:-}" !=
   exit 1
 fi
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR="${ROOT_DIR}/.tmp"
 mkdir -p "${TMP_DIR}"
 TMP_DUMP="$(mktemp "${TMP_DIR}/prod-non-onchain.XXXXXX.dump")"
