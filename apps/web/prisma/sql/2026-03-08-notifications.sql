@@ -43,9 +43,13 @@ CREATE INDEX IF NOT EXISTS notifications_actor_fid_idx
 CREATE TABLE IF NOT EXISTS cobuild.notification_state (
   owner_address VARCHAR(42) PRIMARY KEY,
   last_read_at TIMESTAMPTZ,
+  last_read_notification_id BIGINT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE cobuild.notification_state
+  ADD COLUMN IF NOT EXISTS last_read_notification_id BIGINT;
 
 CREATE OR REPLACE FUNCTION cobuild.notification_reason_priority(input_reason TEXT)
 RETURNS INTEGER
@@ -90,6 +94,16 @@ AS $$
   WITH target_hashes AS (
     SELECT DISTINCT unnest(source_hashes) AS hash
   ),
+  candidate_hashes AS (
+    SELECT hash
+    FROM target_hashes
+    UNION
+    SELECT source.hash
+    FROM farcaster.casts source
+    JOIN target_hashes target
+      ON source.parent_hash = target.hash
+      OR source.root_parent_hash = target.hash
+  ),
   source_casts AS (
     SELECT
       source.hash,
@@ -98,17 +112,12 @@ AS $$
       source.parent_fid,
       COALESCE(source.root_parent_hash, source.hash) AS root_hash,
       source.timestamp AS event_at,
-      source.mentioned_fids,
-      (
-        COALESCE(array_length(source.embed_summaries, 1), 0) > 0
-        OR (
-          source.embeds_array IS NOT NULL
-          AND jsonb_path_exists(source.embeds_array, '$[*] ? (@.url != null)')
-        )
-      ) AS has_attachment
+      source.mentioned_fids
     FROM farcaster.casts source
-    JOIN target_hashes target ON target.hash = source.hash
+    JOIN candidate_hashes target ON target.hash = source.hash
     JOIN farcaster.profiles actor ON actor.fid = source.fid
+    JOIN farcaster.casts root ON root.hash = COALESCE(source.root_parent_hash, source.hash)
+    JOIN farcaster.profiles root_author ON root_author.fid = root.fid
     WHERE source.deleted_at IS NULL
       AND source.hidden_at IS NULL
       AND source.root_parent_url = 'https://farcaster.xyz/~/channel/cobuild'
@@ -122,107 +131,18 @@ AS $$
       AND actor.hidden_at IS NULL
       AND actor.neynar_user_score IS NOT NULL
       AND actor.neynar_user_score >= 0.55
-  ),
-  reply_roots AS (
-    SELECT DISTINCT source.root_hash
-    FROM source_casts source
-    WHERE source.parent_hash IS NOT NULL
-  ),
-  reply_root_context AS (
-    SELECT
-      root.hash AS root_hash,
-      root.fid AS root_fid,
-      root.timestamp AS root_timestamp
-    FROM farcaster.casts root
-    JOIN reply_roots target ON target.root_hash = root.hash
-  ),
-  visible_replies AS (
-    SELECT
-      reply.hash,
-      reply.root_parent_hash AS root_hash,
-      reply.parent_hash,
-      reply.fid,
-      reply.timestamp,
-      root.root_fid,
-      root.root_timestamp,
-      (
-        COALESCE(array_length(reply.embed_summaries, 1), 0) > 0
-        OR (
-          reply.embeds_array IS NOT NULL
-          AND jsonb_path_exists(reply.embeds_array, '$[*] ? (@.url != null)')
-        )
-      ) AS has_attachment
-    FROM farcaster.casts reply
-    JOIN farcaster.profiles actor ON actor.fid = reply.fid
-    JOIN reply_root_context root ON root.root_hash = reply.root_parent_hash
-    WHERE reply.deleted_at IS NULL
-      AND reply.hidden_at IS NULL
+      AND root.deleted_at IS NULL
+      AND root.hidden_at IS NULL
       AND cobuild.cast_has_renderable_content(
-        reply.text,
-        reply.mentioned_fids,
-        reply.embed_summaries,
-        reply.embeds_array
+        root.text,
+        root.mentioned_fids,
+        root.embed_summaries,
+        root.embeds_array
       )
-      AND reply.fid IS NOT NULL
-      AND actor.hidden_at IS NULL
-      AND actor.neynar_user_score IS NOT NULL
-      AND actor.neynar_user_score >= 0.55
-  ),
-  ordered_replies AS (
-    SELECT
-      reply.*,
-      LAG(reply.hash) OVER (
-        PARTITION BY reply.root_hash
-        ORDER BY reply.timestamp ASC NULLS LAST, reply.hash ASC
-      ) AS prev_hash,
-      LAG(reply.fid) OVER (
-        PARTITION BY reply.root_hash
-        ORDER BY reply.timestamp ASC NULLS LAST, reply.hash ASC
-      ) AS prev_fid,
-      LAG(reply.timestamp) OVER (
-        PARTITION BY reply.root_hash
-        ORDER BY reply.timestamp ASC NULLS LAST, reply.hash ASC
-      ) AS prev_timestamp
-    FROM visible_replies reply
-  ),
-  merged_replies AS (
-    SELECT
-      reply.hash,
-      CASE
-        WHEN reply.fid IS NULL OR reply.root_fid IS NULL THEN FALSE
-        WHEN reply.fid <> reply.root_fid THEN FALSE
-        WHEN reply.has_attachment THEN FALSE
-        WHEN reply.timestamp IS NULL THEN FALSE
-        WHEN (
-          CASE
-            WHEN reply.fid = reply.root_fid AND reply.prev_fid = reply.root_fid
-              THEN reply.prev_timestamp
-            ELSE reply.root_timestamp
-          END
-        ) IS NULL THEN FALSE
-        WHEN reply.parent_hash <> (
-          CASE
-            WHEN reply.fid = reply.root_fid AND reply.prev_fid = reply.root_fid
-              THEN reply.prev_hash
-            ELSE reply.root_hash
-          END
-        ) THEN FALSE
-        WHEN reply.timestamp < (
-          CASE
-            WHEN reply.fid = reply.root_fid AND reply.prev_fid = reply.root_fid
-              THEN reply.prev_timestamp
-            ELSE reply.root_timestamp
-          END
-        ) THEN FALSE
-        ELSE reply.timestamp - (
-          CASE
-            WHEN reply.fid = reply.root_fid AND reply.prev_fid = reply.root_fid
-              THEN reply.prev_timestamp
-            ELSE reply.root_timestamp
-          END
-        ) <= 8000 * interval '1 millisecond'
-      END AS is_merged
-    FROM ordered_replies reply
+      AND root.fid IS NOT NULL
+      AND root_author.hidden_at IS NULL
+      AND root_author.neynar_user_score IS NOT NULL
+      AND root_author.neynar_user_score >= 0.55
   ),
   mention_candidates AS (
     SELECT
@@ -251,25 +171,18 @@ AS $$
         ELSE 'reply_to_reply'
       END AS reason
     FROM source_casts source
-    LEFT JOIN farcaster.casts target ON target.hash = source.parent_hash
-    LEFT JOIN merged_replies merged ON merged.hash = source.hash
+    JOIN farcaster.casts target ON target.hash = source.parent_hash
     WHERE source.parent_hash IS NOT NULL
       AND source.parent_fid IS NOT NULL
       AND source.parent_fid <> source.actor_fid
-      AND (
-        target.hash IS NULL
-        OR (
-          target.deleted_at IS NULL
-          AND target.hidden_at IS NULL
-          AND cobuild.cast_has_renderable_content(
-            target.text,
-            target.mentioned_fids,
-            target.embed_summaries,
-            target.embeds_array
-          )
-        )
+      AND target.deleted_at IS NULL
+      AND target.hidden_at IS NULL
+      AND cobuild.cast_has_renderable_content(
+        target.text,
+        target.mentioned_fids,
+        target.embed_summaries,
+        target.embeds_array
       )
-      AND COALESCE(merged.is_merged, FALSE) = FALSE
   ),
   recipient_candidates AS (
     SELECT * FROM reply_candidates

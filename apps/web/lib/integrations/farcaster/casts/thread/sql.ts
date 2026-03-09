@@ -11,6 +11,19 @@ function columnRef(alias: string, column: string): Prisma.Sql {
   return Prisma.raw(`${alias}.${column}`);
 }
 
+export function buildMentionProfilesAggSql(alias: string): Prisma.Sql {
+  const mentionedFids = columnRef(alias, "mentioned_fids");
+
+  return Prisma.sql`(
+    SELECT jsonb_agg(
+      jsonb_build_object('fid', mention.fid, 'fname', profile.fname)
+      ORDER BY mention.idx
+    )
+    FROM unnest(COALESCE(${mentionedFids}, ARRAY[]::bigint[])) WITH ORDINALITY AS mention(fid, idx)
+    LEFT JOIN farcaster.profiles profile ON profile.fid = mention.fid
+  )`;
+}
+
 export function buildHasAttachmentSql(alias: string): Prisma.Sql {
   const embedSummaries = columnRef(alias, "embed_summaries");
   const embedsArray = columnRef(alias, "embeds_array");

@@ -91,10 +91,17 @@ export async function createReplyPost(payload: JsonValue | null | undefined): Pr
     };
   }
 
-  const upserted = await upsertCobuildCastByHash(publishResult.hash);
-  if (!upserted) {
-    console.warn("[farcaster/cast] upsert skipped after publish", {
+  try {
+    const upserted = await upsertCobuildCastByHash(publishResult.hash);
+    if (!upserted) {
+      console.warn("[farcaster/cast] upsert skipped after publish", {
+        hash: publishResult.hash,
+      });
+    }
+  } catch (error) {
+    console.warn("[farcaster/cast] post-publish sync failed", {
       hash: publishResult.hash,
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 

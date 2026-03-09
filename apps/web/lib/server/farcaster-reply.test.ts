@@ -191,4 +191,25 @@ describe("createReplyPost", () => {
     expect(revalidateTag).toHaveBeenCalled();
     expect(result).toEqual({ ok: true, data: { hash: "0xhash" } });
   });
+
+  it("returns success when post-publish sync throws after Neynar publish", async () => {
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    isFullCastHash.mockReturnValueOnce(true);
+    getSession.mockResolvedValueOnce({ farcaster: { fid: 7 } });
+    getSignerRecord.mockResolvedValueOnce({ signerPermissions: ["cast"], signerUuid: "uuid" });
+    hasCastPermission.mockReturnValueOnce(true);
+    neynarPublishCast.mockResolvedValueOnce({ ok: true, hash: "0xhash" });
+    upsertCobuildCastByHash.mockRejectedValueOnce(new Error("sync failed"));
+
+    const result = await createReplyPost({
+      text: "hi",
+      parentHash: "0x" + "a".repeat(40),
+    });
+
+    expect(consoleWarn).toHaveBeenCalledWith("[farcaster/cast] post-publish sync failed", {
+      hash: "0xhash",
+      error: "sync failed",
+    });
+    expect(result).toEqual({ ok: true, data: { hash: "0xhash" } });
+  });
 });

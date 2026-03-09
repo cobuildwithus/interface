@@ -10,7 +10,7 @@ vi.mock("@/lib/domains/auth/session", () => ({
 }));
 
 vi.mock("@/lib/domains/notifications/queries", () => ({
-  NOTIFICATION_WATERMARK_PATTERN: /^[0-9]{1,20}$/,
+  NOTIFICATION_WATERMARK_PATTERN: /^[0-9]{1,20}:[0-9]{1,20}$/,
   markNotificationsRead: (...args: Parameters<typeof markNotificationsReadMock>) =>
     markNotificationsReadMock(...args),
 }));
@@ -86,7 +86,7 @@ describe("POST /api/notifications/read", () => {
   });
 
   it("marks notifications read when the watermark is valid", async () => {
-    const watermark = "1741435200000001";
+    const watermark = "1741435200000001:7";
     getUserMock.mockResolvedValue("0x0000000000000000000000000000000000000001");
 
     const response = await POST(

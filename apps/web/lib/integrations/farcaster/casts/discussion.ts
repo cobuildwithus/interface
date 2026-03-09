@@ -12,7 +12,7 @@ import {
   hasRenderableCastContent,
   toNumber,
 } from "./shared";
-import { buildRenderableCastSql } from "./thread/sql";
+import { buildMentionProfilesAggSql, buildRenderableCastSql } from "./thread/sql";
 import type { DiscussionCastsPage, DiscussionSort, DiscussionSortDirection } from "./types";
 
 const DEFAULT_DISCUSSION_SORT: DiscussionSort = "last";
@@ -130,7 +130,7 @@ export async function getCobuildDiscussionCastsPage(
       c.embeds_array AS "embedsArray",
       c.embed_summaries AS "embedSummaries",
       c.mentions_positions_array AS "mentionsPositions",
-      mp.profiles AS "mentionProfiles",
+      ${buildMentionProfilesAggSql("c")} AS "mentionProfiles",
       c.fid,
       p.fname AS "authorFname",
       p.display_name AS "authorDisplayName",
@@ -150,14 +150,6 @@ export async function getCobuildDiscussionCastsPage(
     FROM farcaster.casts c
     LEFT JOIN farcaster.profiles p ON p.fid = c.fid
     LEFT JOIN farcaster.profiles lr ON lr.fid = c.last_reply_fid AND lr.hidden_at IS NULL
-    LEFT JOIN LATERAL (
-      SELECT jsonb_agg(
-        jsonb_build_object('fid', prof.fid, 'fname', prof.fname)
-        ORDER BY mf.idx
-      ) AS profiles
-      FROM unnest(c.mentioned_fids) WITH ORDINALITY AS mf(fid, idx)
-      JOIN farcaster.profiles prof ON prof.fid = mf.fid
-    ) mp ON TRUE
     ${baseWhere}
     ORDER BY ${orderBy}
     LIMIT ${pageSize + 1}

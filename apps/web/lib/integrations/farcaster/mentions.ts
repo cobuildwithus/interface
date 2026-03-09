@@ -32,7 +32,8 @@ export function insertMentions(
   let resultBytes = textBytes;
 
   for (const { pos, profile } of sortedMentions) {
-    const username = profile?.username;
+    const fallbackUsername = profile?.fid ? `fid:${profile.fid}` : null;
+    const username = profile?.username?.trim() || fallbackUsername;
     if (!username || pos < 0 || pos > resultBytes.length) continue;
 
     const mentionText = `@${username}`;

@@ -11,6 +11,9 @@ vi.mock("@/lib/server/db/cobuild-db-client", () => ({
     $replica: () => ({
       $queryRaw: (...args: Prisma.Sql[]) => queryRawMock(...args),
     }),
+    $primary: () => ({
+      $queryRaw: (...args: Prisma.Sql[]) => queryRawMock(...args),
+    }),
   },
 }));
 
@@ -150,6 +153,20 @@ describe("thread helpers", () => {
     queryRawMock.mockResolvedValueOnce([]);
     const missing = await loadCobuildRootCastRow(Buffer.from("b".repeat(40), "hex"));
     expect(missing).toBeNull();
+  });
+
+  it("can load root cast row from primary for read-after-write fallbacks", async () => {
+    queryRawMock.mockResolvedValueOnce([
+      {
+        ...baseRow,
+        hash: Buffer.from("a".repeat(40), "hex"),
+      },
+    ]);
+
+    const root = await loadCobuildRootCastRow(Buffer.from("a".repeat(40), "hex"), {
+      usePrimary: true,
+    });
+    expect(root?.hash).toBeDefined();
   });
 
   it("loads replies page with count and rows", async () => {

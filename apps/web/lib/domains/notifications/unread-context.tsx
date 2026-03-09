@@ -10,21 +10,32 @@ type NotificationsUnreadContextValue = {
 const NotificationsUnreadContext = createContext<NotificationsUnreadContextValue | null>(null);
 
 function normalizeWatermark(value: string): string {
-  return /^[0-9]{1,20}$/.test(value) ? value : "0";
+  return /^[0-9]{1,20}:[0-9]{1,20}$/.test(value) ? value : "0:0";
+}
+
+function parseWatermark(value: string): { micros: bigint; notificationId: bigint } {
+  const normalized = normalizeWatermark(value);
+  const [microsRaw, notificationIdRaw] = normalized.split(":");
+
+  try {
+    return {
+      micros: BigInt(microsRaw ?? "0"),
+      notificationId: BigInt(notificationIdRaw ?? "0"),
+    };
+  } catch {
+    return { micros: 0n, notificationId: 0n };
+  }
 }
 
 function compareWatermarks(left: string, right: string): number {
-  const normalizedLeft = normalizeWatermark(left);
-  const normalizedRight = normalizeWatermark(right);
+  const leftValue = parseWatermark(left);
+  const rightValue = parseWatermark(right);
 
-  try {
-    const leftValue = BigInt(normalizedLeft);
-    const rightValue = BigInt(normalizedRight);
-    if (leftValue === rightValue) return 0;
-    return leftValue > rightValue ? 1 : -1;
-  } catch {
-    return normalizedLeft.localeCompare(normalizedRight);
+  if (leftValue.micros !== rightValue.micros) {
+    return leftValue.micros > rightValue.micros ? 1 : -1;
   }
+  if (leftValue.notificationId === rightValue.notificationId) return 0;
+  return leftValue.notificationId > rightValue.notificationId ? 1 : -1;
 }
 
 export function NotificationsUnreadProvider({
@@ -36,10 +47,10 @@ export function NotificationsUnreadProvider({
   initialCount: number;
   initialWatermark: string;
 }) {
-  const [clearedThroughWatermark, setClearedThroughWatermark] = useState("0");
+  const [clearedThroughWatermark, setClearedThroughWatermark] = useState("0:0");
   const serverWatermark = normalizeWatermark(initialWatermark);
   const unreadCount = useMemo(() => {
-    if (serverWatermark === "0") return 0;
+    if (serverWatermark === "0:0") return 0;
     if (compareWatermarks(serverWatermark, clearedThroughWatermark) <= 0) return 0;
     return initialCount;
   }, [clearedThroughWatermark, initialCount, serverWatermark]);
@@ -50,7 +61,7 @@ export function NotificationsUnreadProvider({
         unreadCount,
         markAllRead: (watermark) => {
           const nextWatermark = normalizeWatermark(watermark);
-          if (nextWatermark === "0") return;
+          if (nextWatermark === "0:0") return;
           setClearedThroughWatermark((current) =>
             compareWatermarks(nextWatermark, current) > 0 ? nextWatermark : current
           );

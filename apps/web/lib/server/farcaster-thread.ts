@@ -235,11 +235,19 @@ export async function createThreadPost(
     if (i === 0) rootHash = publishResult.hash;
     parentHash = publishResult.hash;
 
-    const upserted = await upsertCobuildCastByHash(publishResult.hash);
-    if (!upserted) {
-      console.warn("[farcaster/thread] upsert skipped after publish", {
+    try {
+      const upserted = await upsertCobuildCastByHash(publishResult.hash);
+      if (!upserted) {
+        console.warn("[farcaster/thread] upsert skipped after publish", {
+          hash: publishResult.hash,
+          index: i,
+        });
+      }
+    } catch (error) {
+      console.warn("[farcaster/thread] post-publish sync failed", {
         hash: publishResult.hash,
         index: i,
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }

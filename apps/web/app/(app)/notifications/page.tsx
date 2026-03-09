@@ -27,7 +27,7 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
         totalPages: 0,
         totalCount: 0,
         unreadCount: 0,
-        watermark: "0",
+        watermark: "0:0",
       };
 
   return (

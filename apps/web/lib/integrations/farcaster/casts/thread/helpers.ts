@@ -13,6 +13,7 @@ import {
 } from "@/lib/integrations/farcaster/casts/shared";
 import {
   buildRenderableCastSql,
+  buildMentionProfilesAggSql,
   HAS_ATTACHMENT_SQL,
   MERGE_FLAG_SQL,
   MERGE_ROOT_ONLY_FLAG_SQL,
@@ -54,6 +55,12 @@ export type ThreadReplyRow = ThreadCastRow & {
   isMerged: boolean;
 };
 
+type ThreadQueryClient = Pick<typeof prisma, "$queryRaw">;
+
+function getThreadQueryClient(usePrimary: boolean = false): ThreadQueryClient {
+  return usePrimary ? prisma.$primary() : prisma.$replica();
+}
+
 type ActivityStats = {
   activity: number;
   posts: number;
@@ -64,8 +71,11 @@ type MergeRepliesResult = {
   mergedTo: Map<string, string>;
 };
 
-export async function loadCobuildThreadRows(hashBuffer: Buffer): Promise<ThreadCastRow[]> {
-  return prisma.$replica().$queryRaw<ThreadCastRow[]>`
+export async function loadCobuildThreadRows(
+  hashBuffer: Buffer,
+  options: { usePrimary?: boolean } = {}
+): Promise<ThreadCastRow[]> {
+  return getThreadQueryClient(options.usePrimary).$queryRaw<ThreadCastRow[]>`
     SELECT
       c.hash,
       c.text,
@@ -73,7 +83,7 @@ export async function loadCobuildThreadRows(hashBuffer: Buffer): Promise<ThreadC
       c.embeds_array AS "embedsArray",
       c.embed_summaries AS "embedSummaries",
       c.mentions_positions_array AS "mentionsPositions",
-      mp.profiles AS "mentionProfiles",
+      ${buildMentionProfilesAggSql("c")} AS "mentionProfiles",
       c.fid,
       p.fname AS "authorFname",
       p.display_name AS "authorDisplayName",
@@ -92,14 +102,6 @@ export async function loadCobuildThreadRows(hashBuffer: Buffer): Promise<ThreadC
       c.hidden_reason AS "hiddenReason"
     FROM farcaster.casts c
     LEFT JOIN farcaster.profiles p ON p.fid = c.fid
-    LEFT JOIN LATERAL (
-      SELECT jsonb_agg(
-        jsonb_build_object('fid', prof.fid, 'fname', prof.fname)
-        ORDER BY mf.idx
-      ) AS profiles
-      FROM unnest(c.mentioned_fids) WITH ORDINALITY AS mf(fid, idx)
-      JOIN farcaster.profiles prof ON prof.fid = mf.fid
-    ) mp ON TRUE
     WHERE c.deleted_at IS NULL
       AND c.root_parent_url = ${COBUILD_CHANNEL_URL}
       AND (c.hash = ${hashBuffer} OR c.root_parent_hash = ${hashBuffer})
@@ -111,8 +113,11 @@ export async function loadCobuildThreadRows(hashBuffer: Buffer): Promise<ThreadC
   `;
 }
 
-export async function loadCobuildRootCastRow(hashBuffer: Buffer): Promise<ThreadCastRow | null> {
-  const rows = await prisma.$replica().$queryRaw<ThreadCastRow[]>`
+export async function loadCobuildRootCastRow(
+  hashBuffer: Buffer,
+  options: { usePrimary?: boolean } = {}
+): Promise<ThreadCastRow | null> {
+  const rows = await getThreadQueryClient(options.usePrimary).$queryRaw<ThreadCastRow[]>`
     SELECT
       c.hash,
       c.text,
@@ -120,7 +125,7 @@ export async function loadCobuildRootCastRow(hashBuffer: Buffer): Promise<Thread
       c.embeds_array AS "embedsArray",
       c.embed_summaries AS "embedSummaries",
       c.mentions_positions_array AS "mentionsPositions",
-      mp.profiles AS "mentionProfiles",
+      ${buildMentionProfilesAggSql("c")} AS "mentionProfiles",
       c.fid,
       p.fname AS "authorFname",
       p.display_name AS "authorDisplayName",
@@ -139,14 +144,6 @@ export async function loadCobuildRootCastRow(hashBuffer: Buffer): Promise<Thread
       c.hidden_reason AS "hiddenReason"
     FROM farcaster.casts c
     LEFT JOIN farcaster.profiles p ON p.fid = c.fid
-    LEFT JOIN LATERAL (
-      SELECT jsonb_agg(
-        jsonb_build_object('fid', prof.fid, 'fname', prof.fname)
-        ORDER BY mf.idx
-      ) AS profiles
-      FROM unnest(c.mentioned_fids) WITH ORDINALITY AS mf(fid, idx)
-      JOIN farcaster.profiles prof ON prof.fid = mf.fid
-    ) mp ON TRUE
     WHERE c.hash = ${hashBuffer}
       AND c.deleted_at IS NULL
       AND c.root_parent_url = ${COBUILD_CHANNEL_URL}
@@ -162,9 +159,11 @@ export async function loadCobuildRootCastRow(hashBuffer: Buffer): Promise<Thread
 
 export async function loadCobuildThreadRepliesPage(
   hashBuffer: Buffer,
-  params: { limit: number; offset: number }
+  params: { limit: number; offset: number },
+  options: { usePrimary?: boolean } = {}
 ): Promise<{ rows: ThreadReplyRow[]; replyCount: number }> {
-  const countRows = await prisma.$replica().$queryRaw<{ count: bigint | number | null }[]>`
+  const db = getThreadQueryClient(options.usePrimary);
+  const countRows = await db.$queryRaw<{ count: bigint | number | null }[]>`
     WITH RECURSIVE root AS (
       SELECT
         c.hash AS root_hash,
@@ -227,7 +226,7 @@ export async function loadCobuildThreadRepliesPage(
     return { rows: [], replyCount };
   }
 
-  const rows = await prisma.$replica().$queryRaw<ThreadReplyRow[]>`
+  const rows = await db.$queryRaw<ThreadReplyRow[]>`
     WITH RECURSIVE root AS (
       SELECT
         c.hash AS root_hash,
@@ -246,7 +245,7 @@ export async function loadCobuildThreadRepliesPage(
         c.embeds_array AS embeds_array,
         c.embed_summaries AS embed_summaries,
         c.mentions_positions_array AS mentions_positions,
-        mp.profiles AS mention_profiles,
+        ${buildMentionProfilesAggSql("c")} AS mention_profiles,
         c.fid,
         p.fname AS author_fname,
         p.display_name AS author_display_name,
@@ -270,14 +269,6 @@ export async function loadCobuildThreadRepliesPage(
       FROM farcaster.casts c
       JOIN root ON root.root_hash = c.root_parent_hash
       JOIN farcaster.profiles p ON p.fid = c.fid
-      LEFT JOIN LATERAL (
-        SELECT jsonb_agg(
-          jsonb_build_object('fid', prof.fid, 'fname', prof.fname)
-          ORDER BY mf.idx
-        ) AS profiles
-        FROM unnest(c.mentioned_fids) WITH ORDINALITY AS mf(fid, idx)
-        JOIN farcaster.profiles prof ON prof.fid = mf.fid
-      ) mp ON TRUE
       ${REPLIES_WHERE_SQL}
     ),
     ordered_replies AS (
@@ -355,9 +346,10 @@ export async function loadCobuildThreadRepliesPage(
 
 export async function loadCobuildThreadFocusIndex(
   hashBuffer: Buffer,
-  focusHash: Buffer
+  focusHash: Buffer,
+  options: { usePrimary?: boolean } = {}
 ): Promise<{ mergeTarget: Buffer | null; index: number | null }> {
-  const rows = await prisma.$replica().$queryRaw<
+  const rows = await getThreadQueryClient(options.usePrimary).$queryRaw<
     {
       mergeTarget: Buffer | null;
       rowNumber: bigint | number | null;
@@ -441,13 +433,16 @@ export async function loadCobuildThreadFocusIndex(
   };
 }
 
-export async function loadCobuildCastsByHashes(hashes: Buffer[]): Promise<ThreadCastRow[]> {
+export async function loadCobuildCastsByHashes(
+  hashes: Buffer[],
+  options: { usePrimary?: boolean } = {}
+): Promise<ThreadCastRow[]> {
   if (hashes.length === 0) return [];
 
   const unique = Array.from(new Map(hashes.map((hash) => [hash.toString("hex"), hash])).values());
   const hashSql = Prisma.join(unique.map((hash) => Prisma.sql`${hash}`));
 
-  return prisma.$replica().$queryRaw<ThreadCastRow[]>`
+  return getThreadQueryClient(options.usePrimary).$queryRaw<ThreadCastRow[]>`
     SELECT
       c.hash,
       c.text,
@@ -455,7 +450,7 @@ export async function loadCobuildCastsByHashes(hashes: Buffer[]): Promise<Thread
       c.embeds_array AS "embedsArray",
       c.embed_summaries AS "embedSummaries",
       c.mentions_positions_array AS "mentionsPositions",
-      mp.profiles AS "mentionProfiles",
+      ${buildMentionProfilesAggSql("c")} AS "mentionProfiles",
       c.fid,
       p.fname AS "authorFname",
       p.display_name AS "authorDisplayName",
@@ -474,14 +469,6 @@ export async function loadCobuildCastsByHashes(hashes: Buffer[]): Promise<Thread
       c.hidden_reason AS "hiddenReason"
     FROM farcaster.casts c
     LEFT JOIN farcaster.profiles p ON p.fid = c.fid
-    LEFT JOIN LATERAL (
-      SELECT jsonb_agg(
-        jsonb_build_object('fid', prof.fid, 'fname', prof.fname)
-        ORDER BY mf.idx
-      ) AS profiles
-      FROM unnest(c.mentioned_fids) WITH ORDINALITY AS mf(fid, idx)
-      JOIN farcaster.profiles prof ON prof.fid = mf.fid
-    ) mp ON TRUE
     WHERE c.hash IN (${hashSql})
       AND c.deleted_at IS NULL
       AND c.root_parent_url = ${COBUILD_CHANNEL_URL}

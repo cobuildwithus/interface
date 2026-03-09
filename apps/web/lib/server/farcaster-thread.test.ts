@@ -255,6 +255,34 @@ describe("createThreadPost", () => {
     expect(result).toEqual({ ok: true, data: { hash: "hash-1" } });
   });
 
+  it("continues publishing when post-publish sync throws after an earlier chunk", async () => {
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.useFakeTimers();
+
+    getSession.mockResolvedValueOnce({ farcaster: { fid: 10 } });
+    getSignerRecord.mockResolvedValueOnce({ signerPermissions: ["cast"], signerUuid: "uuid" });
+    hasCastPermission.mockReturnValueOnce(true);
+    let call = 0;
+    neynarPublishCast.mockImplementation(async () => ({ ok: true, hash: `hash-${++call}` }));
+    upsertCobuildCastByHash.mockRejectedValueOnce(new Error("sync failed"));
+    upsertCobuildCastByHash.mockResolvedValue(true);
+
+    const longContent = "a".repeat(1500);
+    const resultPromise = createThreadPost({ title: "hello", content: longContent });
+
+    await vi.runAllTimersAsync();
+    const result = await resultPromise;
+    vi.useRealTimers();
+
+    expect(neynarPublishCast.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(consoleWarn).toHaveBeenCalledWith("[farcaster/thread] post-publish sync failed", {
+      hash: "hash-1",
+      index: 0,
+      error: "sync failed",
+    });
+    expect(result).toEqual({ ok: true, data: { hash: "hash-1" } });
+  });
+
   it("publishes multi-chunk threads and revalidates", async () => {
     vi.useFakeTimers();
     getSession.mockResolvedValueOnce({ farcaster: { fid: 10 } });

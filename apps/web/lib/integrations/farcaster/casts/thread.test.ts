@@ -189,4 +189,73 @@ describe("getCobuildFlatCastThread", () => {
     expect(thread?.page).toBe(1);
     expect(thread?.resolvedFocusHash).toBe("0x2222222222222222222222222222222222222222");
   });
+
+  it("retries against primary when a focused notification target is missing on replica", async () => {
+    const rootRow = createRootRow();
+    const visibleReplyHash = Buffer.from("22".repeat(20), "hex");
+
+    loadCobuildRootCastRowMock.mockResolvedValue(rootRow);
+    loadCobuildThreadFocusIndexMock.mockResolvedValue({
+      mergeTarget: visibleReplyHash,
+      index: 0,
+    });
+    loadCobuildThreadRepliesPageMock
+      .mockResolvedValueOnce({ replyCount: 1, rows: [] })
+      .mockResolvedValueOnce({
+        replyCount: 1,
+        rows: [
+          {
+            ...rootRow,
+            hash: visibleReplyHash,
+            parentHash: rootRow.hash,
+            mergeTarget: visibleReplyHash,
+            isMerged: false,
+          },
+        ],
+      });
+    mapThreadRowsMock
+      .mockReturnValueOnce([
+        {
+          hash: "0x1111111111111111111111111111111111111111",
+          parentHash: null,
+          text: "Root",
+          author: { fid: 1, neynar_score: 0.9 },
+          createdAt: "2026-03-09T00:00:00.000Z",
+          attachment: null,
+          viewCount: 0,
+        },
+      ])
+      .mockReturnValueOnce([])
+      .mockReturnValueOnce([])
+      .mockReturnValueOnce([
+        {
+          hash: "0x1111111111111111111111111111111111111111",
+          parentHash: null,
+          text: "Root",
+          author: { fid: 1, neynar_score: 0.9 },
+          createdAt: "2026-03-09T00:00:00.000Z",
+          attachment: null,
+          viewCount: 0,
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          hash: "0x2222222222222222222222222222222222222222",
+          parentHash: "0x1111111111111111111111111111111111111111",
+          text: "Reply",
+          author: { fid: 2, neynar_score: 0.9 },
+          createdAt: "2026-03-09T00:01:00.000Z",
+          attachment: null,
+          viewCount: 0,
+        },
+      ])
+      .mockReturnValueOnce([]);
+
+    const thread = await getCobuildFlatCastThread("0x1111111111111111111111111111111111111111", {
+      focusHash: "0x2222222222222222222222222222222222222222",
+    });
+
+    expect(thread?.replies).toHaveLength(1);
+    expect(loadCobuildThreadRepliesPageMock.mock.calls[1]?.[2]).toEqual({ usePrimary: true });
+  });
 });

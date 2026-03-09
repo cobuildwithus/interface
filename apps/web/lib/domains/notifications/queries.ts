@@ -4,7 +4,10 @@ import { Prisma } from "@/generated/prisma/client";
 import type { MentionProfileInput } from "@/lib/integrations/farcaster/mentions";
 import { insertMentionsFromProfiles } from "@/lib/integrations/farcaster/mentions";
 import { NEYNAR_SCORE_THRESHOLD } from "@/lib/integrations/farcaster/casts/shared";
-import { buildRenderableCastSql } from "@/lib/integrations/farcaster/casts/thread/sql";
+import {
+  buildMentionProfilesAggSql,
+  buildRenderableCastSql,
+} from "@/lib/integrations/farcaster/casts/thread/sql";
 import prisma from "@/lib/server/db/cobuild-db-client";
 import { normalizeAddress } from "@/lib/shared/address";
 import type {
@@ -15,15 +18,13 @@ import type {
 } from "./types";
 
 export const NOTIFICATIONS_PAGE_SIZE = 20;
-export const NOTIFICATION_WATERMARK_PATTERN = /^[0-9]{1,20}$/;
+export const NOTIFICATION_WATERMARK_PATTERN = /^[0-9]{1,20}:[0-9]{1,20}$/;
 
 type CountRow = {
   count: bigint | number | null;
 };
 
-type WatermarkRow = {
-  watermark: string | null;
-};
+type WatermarkRow = { watermark: string | null };
 
 type NotificationRow = {
   id: bigint | number;
@@ -59,10 +60,58 @@ function toIsoString(value: Date | null | undefined): string {
   return (value ?? new Date(0)).toISOString();
 }
 
+function normalizeWatermark(value: string | null | undefined): string {
+  return typeof value === "string" && NOTIFICATION_WATERMARK_PATTERN.test(value) ? value : "0:0";
+}
+
+function parseWatermarkParts(
+  value: string | null | undefined
+): { micros: bigint; notificationId: bigint } | null {
+  if (typeof value !== "string" || !NOTIFICATION_WATERMARK_PATTERN.test(value)) {
+    return null;
+  }
+
+  const [microsRaw, notificationIdRaw] = value.split(":");
+  if (!microsRaw || !notificationIdRaw) return null;
+
+  try {
+    return {
+      micros: BigInt(microsRaw),
+      notificationId: BigInt(notificationIdRaw),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function bufferToHash(buffer: Buffer | null): string | null {
   if (!buffer) return null;
   return `0x${Buffer.from(buffer).toString("hex")}`;
 }
+
+function notificationColumn(alias: string, column: string): Prisma.Sql {
+  return Prisma.raw(`${alias}.${column}`);
+}
+
+function buildNotificationCursorSql(alias: string): Prisma.Sql {
+  const createdAt = notificationColumn(alias, "created_at");
+  const id = notificationColumn(alias, "id");
+
+  return Prisma.sql`
+    ((EXTRACT(EPOCH FROM ${createdAt}) * 1000000)::bigint::text || ':' || ${id}::bigint::text)
+  `;
+}
+
+const NOTIFICATION_UNREAD_SQL = Prisma.sql`
+  (
+    state.last_read_at IS NULL
+    OR notification.created_at > state.last_read_at
+    OR (
+      notification.created_at = state.last_read_at
+      AND notification.id > COALESCE(state.last_read_notification_id, 0)
+    )
+  )
+`;
 
 function summarizeText(text: string | null | undefined, maxLength: number): string | null {
   if (!text) return null;
@@ -214,26 +263,33 @@ async function getUnreadNotificationsStateInternal(
   db: Pick<typeof prisma, "$queryRaw">
 ): Promise<NotificationsUnreadState> {
   const visibleWhereSql = buildVisibleNotificationsWhereSql(address);
-  const rows = await db.$queryRaw<
-    Array<{ count: bigint | number | null; watermark: string | null }>
-  >`
+  const rows = await db.$queryRaw<Array<{ count: bigint | number | null; watermark: string }>>`
+    WITH unread AS (
+      SELECT
+        notification.created_at,
+        notification.id,
+        ${buildNotificationCursorSql("notification")} AS cursor
+      ${buildNotificationFromSql}
+      ${visibleWhereSql}
+      AND ${NOTIFICATION_UNREAD_SQL}
+    )
     SELECT
       COUNT(*)::bigint AS count,
       COALESCE(
-        (EXTRACT(EPOCH FROM MAX(notification.created_at)) * 1000000)::bigint::text,
-        '0'
+        (
+          SELECT cursor
+          FROM unread
+          ORDER BY created_at DESC, id DESC
+          LIMIT 1
+        ),
+        '0:0'
       ) AS watermark
-    ${buildNotificationFromSql}
-    ${visibleWhereSql}
-    AND (
-      state.last_read_at IS NULL
-      OR notification.created_at > state.last_read_at
-    )
+    FROM unread
   `;
 
   return {
     count: toNumber(rows[0]?.count),
-    watermark: rows[0]?.watermark ?? "0",
+    watermark: normalizeWatermark(rows[0]?.watermark),
   };
 }
 
@@ -244,7 +300,7 @@ export async function getUnreadNotificationsState(
   try {
     normalizedAddress = normalizeAddress(address);
   } catch {
-    return { count: 0, watermark: "0" };
+    return { count: 0, watermark: "0:0" };
   }
 
   return getUnreadNotificationsStateInternal(normalizedAddress, prisma.$replica());
@@ -268,7 +324,7 @@ export async function getNotificationsPage(
       totalPages: 0,
       totalCount: 0,
       unreadCount: 0,
-      watermark: "0",
+      watermark: "0:0",
     };
   }
 
@@ -284,19 +340,18 @@ export async function getNotificationsPage(
         ${visibleWhereSql}
       `;
       const watermarkRows = await tx.$queryRaw<WatermarkRow[]>`
-        SELECT COALESCE(
-          (EXTRACT(EPOCH FROM MAX(notification.created_at)) * 1000000)::bigint::text,
-          '0'
-        ) AS watermark
+        SELECT COALESCE(${buildNotificationCursorSql("notification")}, '0:0') AS watermark
         ${buildNotificationFromSql}
         ${visibleWhereSql}
+        ORDER BY notification.created_at DESC, notification.id DESC
+        LIMIT 1
       `;
 
       const totalCount = toNumber(countRows[0]?.count);
       const totalPages = totalCount === 0 ? 0 : Math.ceil(totalCount / NOTIFICATIONS_PAGE_SIZE);
       const resolvedPage = totalPages === 0 ? 1 : Math.max(1, Math.min(page, totalPages));
       const offset = (resolvedPage - 1) * NOTIFICATIONS_PAGE_SIZE;
-      const watermark = watermarkRows[0]?.watermark ?? "0";
+      const watermark = normalizeWatermark(watermarkRows[0]?.watermark);
 
       const rows =
         totalCount === 0
@@ -309,10 +364,7 @@ export async function getNotificationsPage(
                 notification.event_at AS "eventAt",
                 notification.created_at AS "createdAt",
                 state.last_read_at AS "lastReadAt",
-                (
-                  state.last_read_at IS NULL
-                  OR notification.created_at > state.last_read_at
-                ) AS "isUnread",
+                ${NOTIFICATION_UNREAD_SQL} AS "isUnread",
                 notification.source_cast_hash AS "sourceHash",
                 notification.root_cast_hash AS "rootHash",
                 notification.target_cast_hash AS "targetHash",
@@ -329,20 +381,10 @@ export async function getNotificationsPage(
                 notification.payload
               ${buildNotificationFromSql}
               LEFT JOIN LATERAL (
-                SELECT jsonb_agg(
-                  jsonb_build_object('fid', profile.fid, 'fname', profile.fname)
-                  ORDER BY mention.idx
-                ) AS profiles
-                FROM unnest(source.mentioned_fids) WITH ORDINALITY AS mention(fid, idx)
-                JOIN farcaster.profiles profile ON profile.fid = mention.fid
+                SELECT ${buildMentionProfilesAggSql("source")} AS profiles
               ) source_mentions ON TRUE
               LEFT JOIN LATERAL (
-                SELECT jsonb_agg(
-                  jsonb_build_object('fid', profile.fid, 'fname', profile.fname)
-                  ORDER BY mention.idx
-                ) AS profiles
-                FROM unnest(root.mentioned_fids) WITH ORDINALITY AS mention(fid, idx)
-                JOIN farcaster.profiles profile ON profile.fid = mention.fid
+                SELECT ${buildMentionProfilesAggSql("root")} AS profiles
               ) root_mentions ON TRUE
               ${visibleWhereSql}
               ORDER BY notification.event_at DESC NULLS LAST, notification.created_at DESC, notification.id DESC
@@ -365,18 +407,6 @@ export async function getNotificationsPage(
   );
 }
 
-function parseWatermarkMicros(value: string): bigint | null {
-  if (!NOTIFICATION_WATERMARK_PATTERN.test(value)) {
-    return null;
-  }
-
-  try {
-    return BigInt(value);
-  } catch {
-    return null;
-  }
-}
-
 export async function markNotificationsRead(address: string, watermark: string): Promise<void> {
   let normalizedAddress: string;
   try {
@@ -385,8 +415,8 @@ export async function markNotificationsRead(address: string, watermark: string):
     return;
   }
 
-  const watermarkMicros = parseWatermarkMicros(watermark);
-  if (watermarkMicros === null) {
+  const watermarkParts = parseWatermarkParts(watermark);
+  if (!watermarkParts) {
     return;
   }
 
@@ -394,21 +424,37 @@ export async function markNotificationsRead(address: string, watermark: string):
     INSERT INTO cobuild.notification_state (
       owner_address,
       last_read_at,
+      last_read_notification_id,
       created_at,
       updated_at
     )
     VALUES (
       ${normalizedAddress},
-      TIMESTAMPTZ 'epoch' + ${watermarkMicros} * interval '1 microsecond',
-      now(),
-      now()
+      TIMESTAMPTZ 'epoch' + ${watermarkParts.micros} * interval '1 microsecond',
+      ${watermarkParts.notificationId},
+      clock_timestamp(),
+      clock_timestamp()
     )
     ON CONFLICT (owner_address) DO UPDATE
     SET
-      last_read_at = GREATEST(
-        COALESCE(cobuild.notification_state.last_read_at, TIMESTAMPTZ 'epoch'),
-        EXCLUDED.last_read_at
-      ),
-      updated_at = now()
+      last_read_at = CASE
+        WHEN cobuild.notification_state.last_read_at IS NULL THEN EXCLUDED.last_read_at
+        WHEN EXCLUDED.last_read_at > cobuild.notification_state.last_read_at THEN EXCLUDED.last_read_at
+        WHEN EXCLUDED.last_read_at = cobuild.notification_state.last_read_at
+          AND EXCLUDED.last_read_notification_id >
+              COALESCE(cobuild.notification_state.last_read_notification_id, 0)
+          THEN EXCLUDED.last_read_at
+        ELSE cobuild.notification_state.last_read_at
+      END,
+      last_read_notification_id = CASE
+        WHEN cobuild.notification_state.last_read_at IS NULL THEN EXCLUDED.last_read_notification_id
+        WHEN EXCLUDED.last_read_at > cobuild.notification_state.last_read_at THEN EXCLUDED.last_read_notification_id
+        WHEN EXCLUDED.last_read_at = cobuild.notification_state.last_read_at
+          AND EXCLUDED.last_read_notification_id >
+              COALESCE(cobuild.notification_state.last_read_notification_id, 0)
+          THEN EXCLUDED.last_read_notification_id
+        ELSE cobuild.notification_state.last_read_notification_id
+      END,
+      updated_at = clock_timestamp()
   `;
 }

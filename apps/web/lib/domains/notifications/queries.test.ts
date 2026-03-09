@@ -50,7 +50,7 @@ describe("notifications queries", () => {
   });
 
   it("returns unread count for a wallet inbox", async () => {
-    replicaQueryRawMock.mockResolvedValueOnce([{ count: 3n, watermark: "1741435200000001" }]);
+    replicaQueryRawMock.mockResolvedValueOnce([{ count: 3n, watermark: "1741435200000001:7" }]);
 
     await expect(
       getUnreadNotificationsCount("0x0000000000000000000000000000000000000001")
@@ -58,13 +58,13 @@ describe("notifications queries", () => {
   });
 
   it("returns unread watermark state for a wallet inbox", async () => {
-    replicaQueryRawMock.mockResolvedValueOnce([{ count: 2n, watermark: "1741435200000003" }]);
+    replicaQueryRawMock.mockResolvedValueOnce([{ count: 2n, watermark: "1741435200000003:9" }]);
 
     await expect(
       getUnreadNotificationsState("0x0000000000000000000000000000000000000001")
     ).resolves.toEqual({
       count: 2,
-      watermark: "1741435200000003",
+      watermark: "1741435200000003:9",
     });
   });
 
@@ -80,9 +80,9 @@ describe("notifications queries", () => {
     const createdAt = new Date("2026-03-08T12:00:00.000Z");
 
     primaryQueryRawMock
-      .mockResolvedValueOnce([{ count: 2n, watermark: "1741435200000001" }])
+      .mockResolvedValueOnce([{ count: 2n, watermark: "1741435200000001:7" }])
       .mockResolvedValueOnce([{ count: 1n }])
-      .mockResolvedValueOnce([{ watermark: "1741435200000001" }])
+      .mockResolvedValueOnce([{ watermark: "1741435200000001:7" }])
       .mockResolvedValueOnce([
         {
           id: 7n,
@@ -134,7 +134,7 @@ describe("notifications queries", () => {
         },
       }),
     ]);
-    expect(page.watermark).toBe("1741435200000001");
+    expect(page.watermark).toBe("1741435200000001:7");
     expect(transactionMock).toHaveBeenCalledTimes(1);
     expect(transactionMock.mock.calls[0]?.[1]).toEqual({
       isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
@@ -148,7 +148,7 @@ describe("notifications queries", () => {
       totalPages: 0,
       totalCount: 0,
       unreadCount: 0,
-      watermark: "0",
+      watermark: "0:0",
     });
     expect(primaryQueryRawMock).not.toHaveBeenCalled();
   });
@@ -156,7 +156,7 @@ describe("notifications queries", () => {
   it("marks notifications as read with an opaque watermark cursor", async () => {
     executeRawMock.mockResolvedValueOnce(1);
 
-    await markNotificationsRead("0x0000000000000000000000000000000000000001", "1741435200000001");
+    await markNotificationsRead("0x0000000000000000000000000000000000000001", "1741435200000001:7");
 
     expect(executeRawMock).toHaveBeenCalledTimes(1);
   });

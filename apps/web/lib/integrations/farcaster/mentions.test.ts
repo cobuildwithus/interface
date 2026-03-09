@@ -49,11 +49,17 @@ describe("insertMentions", () => {
       [
         { fid: 1, username: "alice" },
         { fid: 2, username: "bob" },
-        { fid: 3, username: null },
+        { fid: 0, username: null },
       ]
     );
 
     expect(result).toBe(text);
+  });
+
+  it("falls back to @fid:<id> when the mention profile is missing a username", () => {
+    const text = "hello  world";
+    const result = insertMentions(text, [bytes("hello ")], [{ fid: 42, username: null }]);
+    expect(result).toBe("hello @fid:42 world");
   });
 
   it("respects byte offsets with unicode", () => {

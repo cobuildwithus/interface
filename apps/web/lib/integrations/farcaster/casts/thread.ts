@@ -25,8 +25,9 @@ async function resolveFocusPage(params: {
   rootHash: string;
   rootBuffer: Buffer;
   showAll: boolean;
+  usePrimary?: boolean;
 }): Promise<{ page: number | null; resolvedFocusHash: string | null }> {
-  const { focusHash, rootHash, rootBuffer, showAll } = params;
+  const { focusHash, rootHash, rootBuffer, showAll, usePrimary = false } = params;
   if (!focusHash || showAll) {
     return { page: null, resolvedFocusHash: focusHash };
   }
@@ -37,7 +38,7 @@ async function resolveFocusPage(params: {
   const focusBuffer = castHashToBuffer(focusHash);
   if (!focusBuffer) return { page: null, resolvedFocusHash: focusHash };
 
-  const focusInfo = await loadCobuildThreadFocusIndex(rootBuffer, focusBuffer);
+  const focusInfo = await loadCobuildThreadFocusIndex(rootBuffer, focusBuffer, { usePrimary });
   const focusTarget = bufferToHash(focusInfo.mergeTarget);
   if (focusTarget === rootHash) {
     return { page: 1, resolvedFocusHash: rootHash };
@@ -57,7 +58,8 @@ type ParentRow = Awaited<ReturnType<typeof loadCobuildCastsByHashes>>[number];
 async function loadParentRows(
   visibleRows: ThreadReplyRow[],
   replyHashSet: Set<string>,
-  rootHash: string
+  rootHash: string,
+  usePrimary: boolean
 ): Promise<ParentRow[]> {
   const parentRows: ParentRow[] = [];
   const seenParents = new Set<string>();
@@ -80,7 +82,7 @@ async function loadParentRows(
       .filter((buffer): buffer is Buffer => Boolean(buffer));
 
     if (buffers.length === 0) break;
-    const rows = await loadCobuildCastsByHashes(buffers);
+    const rows = await loadCobuildCastsByHashes(buffers, { usePrimary });
     parentRows.push(...rows);
 
     rows.forEach((row) => {
@@ -131,119 +133,148 @@ export async function getCobuildFlatCastThread(
   if (!normalized || !isFullCastHash(normalized)) return null;
 
   const hashBuffer = Buffer.from(normalized.slice(2), "hex");
-
-  const rootRow = await loadCobuildRootCastRow(hashBuffer);
-  if (!rootRow) return null;
-
   const showAll = page === 0;
   const requestedPage = showAll ? 1 : page;
-  const { page: focusPage, resolvedFocusHash } = await resolveFocusPage({
-    focusHash,
-    rootHash: normalized,
-    rootBuffer: hashBuffer,
-    showAll,
-  });
-  const initialPage = focusPage ?? requestedPage;
-  const initialOffset = (initialPage - 1) * THREAD_PAGE_SIZE;
-  const initialLimit = showAll ? Number.MAX_SAFE_INTEGER : THREAD_PAGE_SIZE;
-  const replyPage = await loadCobuildThreadRepliesPage(hashBuffer, {
-    limit: initialLimit,
-    offset: initialOffset,
-  });
-  const replyCount = replyPage.replyCount;
 
-  const totalPages = Math.max(1, Math.ceil(replyCount / THREAD_PAGE_SIZE));
-  const safePage = showAll ? 1 : Math.max(1, Math.min(initialPage, totalPages));
-  const resolvedPage = showAll ? 0 : safePage;
-
-  let replyRows = replyPage.rows;
-  if (!showAll && safePage !== initialPage) {
-    const refetchOffset = (safePage - 1) * THREAD_PAGE_SIZE;
-    const refetch = await loadCobuildThreadRepliesPage(hashBuffer, {
-      limit: THREAD_PAGE_SIZE,
-      offset: refetchOffset,
-    });
-    replyRows = refetch.rows;
-  }
-
-  const visibleRows = replyRows.filter((row) => !row.isMerged);
-  const replyHashSet = new Set(
-    replyRows.map((row) => bufferToHash(row.hash)).filter((hash): hash is string => Boolean(hash))
-  );
-  const parentRows = await loadParentRows(visibleRows, replyHashSet, normalized);
-
-  const activityRows = [rootRow, ...replyRows, ...parentRows];
-  const activityMap = await getCobuildActivityByFids(
-    activityRows.map((row) => toFidNumber(row.fid))
-  );
-
-  const rootCast = mapThreadRows([rootRow], activityMap)[0];
-  if (!rootCast || !hasRenderableCastContent(rootCast)) return null;
-
-  const replyCasts = mapThreadRows(replyRows, activityMap);
-  const parentCasts = mapThreadRows(parentRows, activityMap);
-
-  const castMap: Record<string, ThreadCast> = { [rootCast.hash]: rootCast };
-  replyCasts.forEach((cast) => {
-    castMap[cast.hash] = cast;
-  });
-  parentCasts.forEach((cast) => {
-    castMap[cast.hash] = cast;
-  });
-
-  const replyByHash = new Map<string, ThreadCast>();
-  replyCasts.forEach((cast) => {
-    replyByHash.set(cast.hash, cast);
-  });
-
-  const mergeGroups = new Map<string, { rows: ThreadCast[]; merged: boolean[] }>();
-  replyRows.forEach((row, index) => {
-    const mergeTarget = bufferToHash(row.mergeTarget);
-    const cast = replyCasts[index];
-    if (!mergeTarget || !cast) return;
-    const entry = mergeGroups.get(mergeTarget) ?? { rows: [], merged: [] };
-    entry.rows.push(cast);
-    entry.merged.push(row.isMerged);
-    mergeGroups.set(mergeTarget, entry);
-  });
-
-  const rootMerge = mergeGroups.get(rootCast.hash);
-  if (rootMerge) {
-    const appended = rootMerge.rows
-      .filter((_, i) => rootMerge.merged[i])
-      .map((cast) => cast.text)
-      .filter(Boolean)
-      .join("\n\n");
-    if (appended) {
-      rootCast.text = [rootCast.text, appended].filter(Boolean).join("\n\n");
+  for (const usePrimary of [false, true]) {
+    const rootRow = await loadCobuildRootCastRow(hashBuffer, { usePrimary });
+    if (!rootRow) {
+      if (!usePrimary) continue;
+      return null;
     }
+
+    const { page: focusPage, resolvedFocusHash } = await resolveFocusPage({
+      focusHash,
+      rootHash: normalized,
+      rootBuffer: hashBuffer,
+      showAll,
+      usePrimary,
+    });
+    const initialPage = focusPage ?? requestedPage;
+    const initialOffset = (initialPage - 1) * THREAD_PAGE_SIZE;
+    const initialLimit = showAll ? Number.MAX_SAFE_INTEGER : THREAD_PAGE_SIZE;
+    const replyPage = await loadCobuildThreadRepliesPage(
+      hashBuffer,
+      {
+        limit: initialLimit,
+        offset: initialOffset,
+      },
+      { usePrimary }
+    );
+    const replyCount = replyPage.replyCount;
+
+    const totalPages = Math.max(1, Math.ceil(replyCount / THREAD_PAGE_SIZE));
+    const safePage = showAll ? 1 : Math.max(1, Math.min(initialPage, totalPages));
+    const resolvedPage = showAll ? 0 : safePage;
+
+    let replyRows = replyPage.rows;
+    if (!showAll && safePage !== initialPage) {
+      const refetchOffset = (safePage - 1) * THREAD_PAGE_SIZE;
+      const refetch = await loadCobuildThreadRepliesPage(
+        hashBuffer,
+        {
+          limit: THREAD_PAGE_SIZE,
+          offset: refetchOffset,
+        },
+        { usePrimary }
+      );
+      replyRows = refetch.rows;
+    }
+
+    const visibleRows = replyRows.filter((row) => !row.isMerged);
+    const replyHashSet = new Set(
+      replyRows.map((row) => bufferToHash(row.hash)).filter((hash): hash is string => Boolean(hash))
+    );
+    const parentRows = await loadParentRows(visibleRows, replyHashSet, normalized, usePrimary);
+
+    const activityRows = [rootRow, ...replyRows, ...parentRows];
+    const activityMap = await getCobuildActivityByFids(
+      activityRows.map((row) => toFidNumber(row.fid))
+    );
+
+    const rootCast = mapThreadRows([rootRow], activityMap)[0];
+    if (!rootCast || !hasRenderableCastContent(rootCast)) {
+      if (!usePrimary) continue;
+      return null;
+    }
+
+    const replyCasts = mapThreadRows(replyRows, activityMap);
+    const parentCasts = mapThreadRows(parentRows, activityMap);
+
+    const castMap: Record<string, ThreadCast> = { [rootCast.hash]: rootCast };
+    replyCasts.forEach((cast) => {
+      castMap[cast.hash] = cast;
+    });
+    parentCasts.forEach((cast) => {
+      castMap[cast.hash] = cast;
+    });
+
+    const shouldRetryOnPrimary =
+      !usePrimary &&
+      !!focusHash &&
+      !!resolvedFocusHash &&
+      resolvedFocusHash !== rootCast.hash &&
+      !castMap[resolvedFocusHash];
+    if (shouldRetryOnPrimary) {
+      continue;
+    }
+
+    const replyByHash = new Map<string, ThreadCast>();
+    replyCasts.forEach((cast) => {
+      replyByHash.set(cast.hash, cast);
+    });
+
+    const mergeGroups = new Map<string, { rows: ThreadCast[]; merged: boolean[] }>();
+    replyRows.forEach((row, index) => {
+      const mergeTarget = bufferToHash(row.mergeTarget);
+      const cast = replyCasts[index];
+      if (!mergeTarget || !cast) return;
+      const entry = mergeGroups.get(mergeTarget) ?? { rows: [], merged: [] };
+      entry.rows.push(cast);
+      entry.merged.push(row.isMerged);
+      mergeGroups.set(mergeTarget, entry);
+    });
+
+    const rootMerge = mergeGroups.get(rootCast.hash);
+    if (rootMerge) {
+      const appended = rootMerge.rows
+        .filter((_, i) => rootMerge.merged[i])
+        .map((cast) => cast.text)
+        .filter(Boolean)
+        .join("\n\n");
+      if (appended) {
+        rootCast.text = [rootCast.text, appended].filter(Boolean).join("\n\n");
+      }
+    }
+
+    mergeGroups.forEach((group, targetHash) => {
+      if (targetHash === rootCast.hash) return;
+      const target = replyByHash.get(targetHash);
+      if (!target) return;
+      const mergedText = group.rows
+        .map((cast) => cast.text)
+        .filter(Boolean)
+        .join("\n\n");
+      if (mergedText) target.text = mergedText;
+    });
+
+    const paginatedReplies = visibleRows
+      .map((row) => replyByHash.get(bufferToHash(row.hash) ?? ""))
+      .filter((cast): cast is ThreadCast => Boolean(cast));
+
+    return {
+      root: rootCast,
+      replies: paginatedReplies,
+      replyCount,
+      resolvedFocusHash,
+      castMap,
+      page: resolvedPage,
+      pageSize: showAll ? replyCount : THREAD_PAGE_SIZE,
+      totalPages: showAll ? 1 : totalPages,
+      hasNextPage: !showAll && resolvedPage < totalPages,
+      hasPrevPage: !showAll && resolvedPage > 1,
+    };
   }
 
-  mergeGroups.forEach((group, targetHash) => {
-    if (targetHash === rootCast.hash) return;
-    const target = replyByHash.get(targetHash);
-    if (!target) return;
-    const mergedText = group.rows
-      .map((cast) => cast.text)
-      .filter(Boolean)
-      .join("\n\n");
-    if (mergedText) target.text = mergedText;
-  });
-
-  const paginatedReplies = visibleRows
-    .map((row) => replyByHash.get(bufferToHash(row.hash) ?? ""))
-    .filter((cast): cast is ThreadCast => Boolean(cast));
-
-  return {
-    root: rootCast,
-    replies: paginatedReplies,
-    replyCount,
-    resolvedFocusHash,
-    castMap,
-    page: resolvedPage,
-    pageSize: showAll ? replyCount : THREAD_PAGE_SIZE,
-    totalPages: showAll ? 1 : totalPages,
-    hasNextPage: !showAll && resolvedPage < totalPages,
-    hasPrevPage: !showAll && resolvedPage > 1,
-  };
+  return null;
 }

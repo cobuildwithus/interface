@@ -286,10 +286,11 @@ model Notification {
 }
 
 model NotificationState {
-  ownerAddress String    @id @map("owner_address") @db.VarChar(42)
-  lastReadAt   DateTime? @map("last_read_at") @db.Timestamptz(6)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  ownerAddress           String    @id @map("owner_address") @db.VarChar(42)
+  lastReadAt             DateTime? @map("last_read_at") @db.Timestamptz(6)
+  lastReadNotificationId BigInt?   @map("last_read_notification_id") @db.BigInt
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("notification_state")
   @@schema("cobuild")
