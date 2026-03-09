@@ -19,14 +19,7 @@ function getReasonLabel(reason: string): string {
 }
 
 function getNotificationPreview(item: NotificationsPageData["items"][number]): string | null {
-  const excerpt = item.sourceExcerpt?.trim();
-  const title = item.rootTitle?.trim();
-
-  if (excerpt && title && excerpt !== title) {
-    return `${title} — ${excerpt}`;
-  }
-
-  return excerpt || title || null;
+  return item.sourceExcerpt?.trim() || null;
 }
 
 export function NotificationsList({ pageData }: { pageData: NotificationsPageData }) {

@@ -166,4 +166,48 @@ describe("notifications queries", () => {
 
     expect(executeRawMock).not.toHaveBeenCalled();
   });
+
+  it("keeps full normalized source excerpt text for notification previews", async () => {
+    const sourceHash = Buffer.from("44".repeat(20), "hex");
+    const rootHash = Buffer.from("55".repeat(20), "hex");
+    const createdAt = new Date("2026-03-08T12:00:00.000Z");
+    const longSourceText =
+      "first line with detail\nsecond line keeps going with more context and should not be cut off by the query mapper even when it gets long enough to previously trigger truncation";
+
+    primaryQueryRawMock
+      .mockResolvedValueOnce([{ count: 0n, watermark: "1741435200000001:8" }])
+      .mockResolvedValueOnce([{ count: 1n }])
+      .mockResolvedValueOnce([{ watermark: "1741435200000001:8" }])
+      .mockResolvedValueOnce([
+        {
+          id: 8n,
+          kind: "discussion",
+          reason: "reply_to_root",
+          eventAt: createdAt,
+          createdAt,
+          lastReadAt: null,
+          isUnread: true,
+          sourceHash,
+          rootHash,
+          targetHash: null,
+          actorFid: 42n,
+          actorUsername: "builder",
+          actorDisplayName: "Builder",
+          actorAvatarUrl: null,
+          sourceText: longSourceText,
+          sourceMentionsPositions: [],
+          sourceMentionProfiles: [],
+          rootText: "discussion focused Farcaster client",
+          rootMentionsPositions: [],
+          rootMentionProfiles: [],
+          payload: null,
+        },
+      ]);
+
+    const page = await getNotificationsPage("0x0000000000000000000000000000000000000001", 1);
+
+    expect(page.items[0]?.sourceExcerpt).toBe(
+      "first line with detail second line keeps going with more context and should not be cut off by the query mapper even when it gets long enough to previously trigger truncation"
+    );
+  });
 });

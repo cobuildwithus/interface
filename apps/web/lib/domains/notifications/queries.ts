@@ -113,9 +113,14 @@ const NOTIFICATION_UNREAD_SQL = Prisma.sql`
   )
 `;
 
-function summarizeText(text: string | null | undefined, maxLength: number): string | null {
+function normalizeText(text: string | null | undefined): string | null {
   if (!text) return null;
   const compact = text.trim().replace(/\s+/g, " ");
+  return compact || null;
+}
+
+function summarizeText(text: string | null | undefined, maxLength: number): string | null {
+  const compact = normalizeText(text);
   if (!compact) return null;
   if (compact.length <= maxLength) return compact;
   return `${compact.slice(0, maxLength - 3)}...`;
@@ -199,7 +204,7 @@ function mapNotificationRow(row: NotificationRow): NotificationListItem {
     rootHash: bufferToHash(row.rootHash),
     targetHash: bufferToHash(row.targetHash),
     rootTitle: toRootTitle(rootText),
-    sourceExcerpt: summarizeText(sourceText, 180),
+    sourceExcerpt: normalizeText(sourceText),
     payload:
       row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
         ? (row.payload as Record<string, unknown>)
