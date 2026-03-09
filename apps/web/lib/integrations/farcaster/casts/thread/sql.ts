@@ -7,17 +7,38 @@ import {
 export const MERGE_WINDOW_MS = 8000;
 export const MERGE_INTERVAL_SQL = Prisma.sql`${MERGE_WINDOW_MS} * interval '1 millisecond'`;
 
-export const HAS_ATTACHMENT_SQL = Prisma.sql`(
-  COALESCE(array_length(c.embed_summaries, 1), 0) > 0
-  OR (c.embeds_array IS NOT NULL AND jsonb_path_exists(c.embeds_array, '$[*] ? (@.url != null)'))
-)`;
+function columnRef(alias: string, column: string): Prisma.Sql {
+  return Prisma.raw(`${alias}.${column}`);
+}
+
+export function buildHasAttachmentSql(alias: string): Prisma.Sql {
+  const embedSummaries = columnRef(alias, "embed_summaries");
+  const embedsArray = columnRef(alias, "embeds_array");
+
+  return Prisma.sql`(
+    COALESCE(array_length(${embedSummaries}, 1), 0) > 0
+    OR (${embedsArray} IS NOT NULL AND jsonb_path_exists(${embedsArray}, '$[*] ? (@.url != null)'))
+  )`;
+}
+
+export function buildRenderableCastSql(alias: string): Prisma.Sql {
+  const text = columnRef(alias, "text");
+  const mentionedFids = columnRef(alias, "mentioned_fids");
+
+  return Prisma.sql`(
+    (${text} IS NOT NULL AND btrim(${text}) <> '')
+    OR COALESCE(array_length(${mentionedFids}, 1), 0) > 0
+    OR ${buildHasAttachmentSql(alias)}
+  )`;
+}
+
+export const HAS_ATTACHMENT_SQL = buildHasAttachmentSql("c");
 
 export const REPLIES_WHERE_SQL = Prisma.sql`
   WHERE c.deleted_at IS NULL
     AND c.hidden_at IS NULL
     AND c.root_parent_url = ${COBUILD_CHANNEL_URL}
-    AND c.text IS NOT NULL
-    AND btrim(c.text) <> ''
+    AND ${buildRenderableCastSql("c")}
     AND c.fid IS NOT NULL
     AND p.hidden_at IS NULL
     AND p.neynar_user_score IS NOT NULL

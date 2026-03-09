@@ -12,6 +12,7 @@ import {
   toNumber,
 } from "@/lib/integrations/farcaster/casts/shared";
 import {
+  buildRenderableCastSql,
   HAS_ATTACHMENT_SQL,
   MERGE_FLAG_SQL,
   MERGE_ROOT_ONLY_FLAG_SQL,
@@ -102,8 +103,7 @@ export async function loadCobuildThreadRows(hashBuffer: Buffer): Promise<ThreadC
     WHERE c.deleted_at IS NULL
       AND c.root_parent_url = ${COBUILD_CHANNEL_URL}
       AND (c.hash = ${hashBuffer} OR c.root_parent_hash = ${hashBuffer})
-      AND c.text IS NOT NULL
-      AND btrim(c.text) <> ''
+      AND ${buildRenderableCastSql("c")}
       AND c.fid IS NOT NULL
       AND (c.hidden_at IS NULL OR (c.hash = ${hashBuffer} AND c.parent_hash IS NULL))
       AND (p.hidden_at IS NULL OR (c.hash = ${hashBuffer} AND c.parent_hash IS NULL))
@@ -150,8 +150,7 @@ export async function loadCobuildRootCastRow(hashBuffer: Buffer): Promise<Thread
     WHERE c.hash = ${hashBuffer}
       AND c.deleted_at IS NULL
       AND c.root_parent_url = ${COBUILD_CHANNEL_URL}
-      AND c.text IS NOT NULL
-      AND btrim(c.text) <> ''
+      AND ${buildRenderableCastSql("c")}
       AND c.fid IS NOT NULL
       AND (c.hidden_at IS NULL OR (c.hash = ${hashBuffer} AND c.parent_hash IS NULL))
       AND (p.hidden_at IS NULL OR (c.hash = ${hashBuffer} AND c.parent_hash IS NULL))
@@ -486,8 +485,7 @@ export async function loadCobuildCastsByHashes(hashes: Buffer[]): Promise<Thread
     WHERE c.hash IN (${hashSql})
       AND c.deleted_at IS NULL
       AND c.root_parent_url = ${COBUILD_CHANNEL_URL}
-      AND c.text IS NOT NULL
-      AND btrim(c.text) <> ''
+      AND ${buildRenderableCastSql("c")}
       AND c.fid IS NOT NULL
       AND c.hidden_at IS NULL
       AND p.hidden_at IS NULL

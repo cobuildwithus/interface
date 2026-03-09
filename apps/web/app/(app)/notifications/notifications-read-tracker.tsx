@@ -1,23 +1,32 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useNotificationsUnreadState } from "@/lib/domains/notifications/unread-context";
+
+const READ_WATERMARK_STORAGE_PREFIX = "cobuild:notifications:read:";
 
 type NotificationsReadTrackerProps = {
   watermark: string;
-  shouldRefresh: boolean;
+  hasUnreadItems: boolean;
 };
 
 export function NotificationsReadTracker({
   watermark,
-  shouldRefresh,
+  hasUnreadItems,
 }: NotificationsReadTrackerProps) {
   const router = useRouter();
-  const hasPostedRef = useRef(false);
+  const { markAllRead } = useNotificationsUnreadState();
 
   useEffect(() => {
-    if (hasPostedRef.current || !watermark) return;
-    hasPostedRef.current = true;
+    if (!hasUnreadItems || !watermark || watermark === "0") return;
+
+    const storageKey = `${READ_WATERMARK_STORAGE_PREFIX}${watermark}`;
+    if (window.sessionStorage.getItem(storageKey) === "done") {
+      return;
+    }
+
+    window.sessionStorage.setItem(storageKey, "pending");
 
     void fetch("/api/notifications/read", {
       method: "POST",
@@ -28,14 +37,15 @@ export function NotificationsReadTracker({
         if (!response.ok) {
           throw new Error("Failed to mark notifications read");
         }
-        if (shouldRefresh) {
-          router.refresh();
-        }
+
+        window.sessionStorage.setItem(storageKey, "done");
+        markAllRead();
+        router.refresh();
       })
       .catch(() => {
-        hasPostedRef.current = false;
+        window.sessionStorage.removeItem(storageKey);
       });
-  }, [router, shouldRefresh, watermark]);
+  }, [hasUnreadItems, markAllRead, router, watermark]);
 
   return null;
 }

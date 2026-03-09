@@ -12,6 +12,7 @@ import {
   hasText,
   toNumber,
 } from "./shared";
+import { buildRenderableCastSql } from "./thread/sql";
 import type { DiscussionCastsPage, DiscussionSort, DiscussionSortDirection } from "./types";
 
 const DEFAULT_DISCUSSION_SORT: DiscussionSort = "last";
@@ -102,8 +103,7 @@ export async function getCobuildDiscussionCastsPage(
       AND c.parent_hash IS NULL
       AND c.root_parent_url = ${COBUILD_CHANNEL_URL}
       ${embedFilter}
-      AND c.text IS NOT NULL
-      AND btrim(c.text) <> ''
+      AND ${buildRenderableCastSql("c")}
       AND c.fid IS NOT NULL
       AND p.hidden_at IS NULL
       AND p.neynar_user_score IS NOT NULL

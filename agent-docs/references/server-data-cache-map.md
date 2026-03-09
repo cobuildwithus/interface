@@ -69,7 +69,7 @@ CLI note:
 
 4. Notification read-state drift:
 
-- Notifications unread state is derived from a DB cursor (`last_read_at`) against notification `created_at`; do not mix notification unread logic with the KV-backed topic read model.
+- Notifications unread state is derived from a DB cursor (`last_read_at`) against notification `created_at`; the read route accepts an opaque microsecond watermark string so read-after-write paths do not truncate Postgres timestamp precision. Do not mix notification unread logic with the KV-backed topic read model.
 
 ## Update Rule
 

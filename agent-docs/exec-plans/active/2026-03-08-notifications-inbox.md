@@ -17,7 +17,7 @@ Implement a wallet-scoped notifications inbox with a new `/notifications` page, 
 - Wallet-scoped inbox only for v1; no account-identity abstraction.
 - Discussion v1 includes `mention`, `reply_to_reply`, and `reply_to_root`; excludes likes, recasts, and follows.
 - Reason precedence is `mention` > `reply_to_reply` > `reply_to_root`.
-- Read state is a DB cursor, not KV and not row-level booleans.
+- Read state is a DB cursor, not KV and not row-level booleans. The read API uses an opaque microsecond watermark string so the cursor does not lose Postgres timestamp precision.
 - Use verified Farcaster addresses for discussion notification fanout.
 - Keep notification materialization semantics shared across `interface` and `farcaster-ingestion`.
 

@@ -218,6 +218,8 @@ describe("thread helpers", () => {
     const sqlText = collectSqlChunks(REPLIES_WHERE_SQL).join(" ");
     expect(sqlText).toContain("c.hash <> root.root_hash");
     expect(sqlText).toContain("c.root_parent_url");
+    expect(sqlText).toContain("mentioned_fids");
+    expect(sqlText).toContain("embed_summaries");
   });
 
   it("loads focus index for a reply", async () => {

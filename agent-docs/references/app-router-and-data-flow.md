@@ -51,7 +51,7 @@ Representative route responsibilities:
 ## Notable App Routes
 
 - `apps/web/app/(app)/discussion/page.tsx`: wallet-aware discussion index with per-wallet topic read state.
-- `apps/web/app/(app)/notifications/page.tsx`: wallet-scoped notifications inbox backed by Postgres notification rows plus a DB read cursor.
+- `apps/web/app/(app)/notifications/page.tsx`: wallet-scoped notifications inbox backed by Postgres notification rows plus a DB read cursor; the page read uses primary-safe queries so read-after-write state is accurate after the cursor moves.
 - `apps/web/app/(app)/cast/[hash]/page.tsx`: thread detail and reply composition.
 
 ## Update Rule

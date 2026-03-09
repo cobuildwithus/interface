@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/server/db/cobuild-db-client";
 import { NEYNAR_SCORE_THRESHOLD } from "./shared";
+import { buildRenderableCastSql } from "./thread/sql";
 
 const MERGE_WINDOW_MS = 8_000;
 
@@ -52,8 +53,7 @@ export async function updateThreadStatsForRoots(
       JOIN roots ON roots.root_hash = r.root_parent_hash
       WHERE r.deleted_at IS NULL
         AND r.hidden_at IS NULL
-        AND r.text IS NOT NULL
-        AND btrim(r.text) <> ''
+        AND ${buildRenderableCastSql("r")}
         AND rp.hidden_at IS NULL
         AND rp.neynar_user_score IS NOT NULL
         AND rp.neynar_user_score >= ${NEYNAR_SCORE_THRESHOLD}

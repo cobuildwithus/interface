@@ -10,6 +10,7 @@ vi.mock("@/lib/domains/auth/session", () => ({
 }));
 
 vi.mock("@/lib/domains/notifications/queries", () => ({
+  NOTIFICATION_WATERMARK_PATTERN: /^[0-9]{1,20}$/,
   markNotificationsRead: (...args: Parameters<typeof markNotificationsReadMock>) =>
     markNotificationsReadMock(...args),
 }));
@@ -85,7 +86,7 @@ describe("POST /api/notifications/read", () => {
   });
 
   it("marks notifications read when the watermark is valid", async () => {
-    const watermark = "2026-03-08T12:00:00.000Z";
+    const watermark = "1741435200000001";
     getUserMock.mockResolvedValue("0x0000000000000000000000000000000000000001");
 
     const response = await POST(
@@ -98,8 +99,23 @@ describe("POST /api/notifications/read", () => {
     expect(response.status).toBe(200);
     expect(markNotificationsReadMock).toHaveBeenCalledWith(
       "0x0000000000000000000000000000000000000001",
-      new Date(watermark)
+      watermark
     );
     expect(await response.json()).toEqual({ ok: true, readAt: watermark });
+  });
+
+  it("rejects malformed watermark strings", async () => {
+    getUserMock.mockResolvedValue("0x0000000000000000000000000000000000000001");
+
+    const response = await POST(
+      buildRequest(`${baseUrl}/api/notifications/read`, {
+        headers: { origin: baseUrl, "content-type": "application/json" },
+        body: JSON.stringify({ watermark: "2026-03-08T12:00:00.000Z" }),
+      }) as never
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ ok: false, error: "Invalid watermark." });
+    expect(markNotificationsReadMock).not.toHaveBeenCalled();
   });
 });

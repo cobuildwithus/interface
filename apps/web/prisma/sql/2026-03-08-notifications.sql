@@ -60,6 +60,29 @@ AS $$
   END
 $$;
 
+CREATE OR REPLACE FUNCTION cobuild.cast_has_renderable_content(
+  input_text TEXT,
+  input_mentioned_fids BIGINT[],
+  input_embed_summaries TEXT[],
+  input_embeds_array JSONB
+)
+RETURNS BOOLEAN
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT
+    (
+      input_text IS NOT NULL
+      AND btrim(input_text) <> ''
+    )
+    OR COALESCE(array_length(input_mentioned_fids, 1), 0) > 0
+    OR COALESCE(array_length(input_embed_summaries, 1), 0) > 0
+    OR (
+      input_embeds_array IS NOT NULL
+      AND jsonb_path_exists(input_embeds_array, '$[*] ? (@.url != null)')
+    )
+$$;
+
 CREATE OR REPLACE FUNCTION cobuild.materialize_discussion_notifications(source_hashes BYTEA[])
 RETURNS INTEGER
 LANGUAGE sql
@@ -89,8 +112,12 @@ AS $$
     WHERE source.deleted_at IS NULL
       AND source.hidden_at IS NULL
       AND source.root_parent_url = 'https://farcaster.xyz/~/channel/cobuild'
-      AND source.text IS NOT NULL
-      AND btrim(source.text) <> ''
+      AND cobuild.cast_has_renderable_content(
+        source.text,
+        source.mentioned_fids,
+        source.embed_summaries,
+        source.embeds_array
+      )
       AND source.fid IS NOT NULL
       AND actor.hidden_at IS NULL
       AND actor.neynar_user_score IS NOT NULL
@@ -130,8 +157,12 @@ AS $$
     JOIN reply_root_context root ON root.root_hash = reply.root_parent_hash
     WHERE reply.deleted_at IS NULL
       AND reply.hidden_at IS NULL
-      AND reply.text IS NOT NULL
-      AND btrim(reply.text) <> ''
+      AND cobuild.cast_has_renderable_content(
+        reply.text,
+        reply.mentioned_fids,
+        reply.embed_summaries,
+        reply.embeds_array
+      )
       AND reply.fid IS NOT NULL
       AND actor.hidden_at IS NULL
       AND actor.neynar_user_score IS NOT NULL
@@ -220,10 +251,24 @@ AS $$
         ELSE 'reply_to_reply'
       END AS reason
     FROM source_casts source
+    LEFT JOIN farcaster.casts target ON target.hash = source.parent_hash
     LEFT JOIN merged_replies merged ON merged.hash = source.hash
     WHERE source.parent_hash IS NOT NULL
       AND source.parent_fid IS NOT NULL
       AND source.parent_fid <> source.actor_fid
+      AND (
+        target.hash IS NULL
+        OR (
+          target.deleted_at IS NULL
+          AND target.hidden_at IS NULL
+          AND cobuild.cast_has_renderable_content(
+            target.text,
+            target.mentioned_fids,
+            target.embed_summaries,
+            target.embeds_array
+          )
+        )
+      )
       AND COALESCE(merged.is_merged, FALSE) = FALSE
   ),
   recipient_candidates AS (

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/domains/auth/session";
-import { markNotificationsRead } from "@/lib/domains/notifications/queries";
+import {
+  markNotificationsRead,
+  NOTIFICATION_WATERMARK_PATTERN,
+} from "@/lib/domains/notifications/queries";
 
 function isSameOriginRequest(req: NextRequest): boolean {
   const requestOrigin = req.nextUrl.origin;
@@ -37,15 +40,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Invalid watermark." }, { status: 400 });
   }
 
-  const watermark = new Date(body.watermark);
-  if (Number.isNaN(watermark.getTime())) {
+  if (!NOTIFICATION_WATERMARK_PATTERN.test(body.watermark)) {
     return NextResponse.json({ ok: false, error: "Invalid watermark." }, { status: 400 });
   }
 
-  await markNotificationsRead(address, watermark);
+  await markNotificationsRead(address, body.watermark);
 
   return NextResponse.json(
-    { ok: true, readAt: watermark.toISOString() },
+    { ok: true, readAt: body.watermark },
     { headers: { "cache-control": "no-store" } }
   );
 }

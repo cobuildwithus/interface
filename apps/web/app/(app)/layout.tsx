@@ -3,6 +3,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { getSession } from "@/lib/domains/auth/session";
 import { getUnreadNotificationsCount } from "@/lib/domains/notifications/queries";
+import { NotificationsUnreadProvider } from "@/lib/domains/notifications/unread-context";
 import { getProfile } from "@/lib/domains/profile/get-profile";
 import { getUserResponse } from "@/lib/server/user-response";
 import { UserProvider } from "@/lib/domains/auth/user-context";
@@ -29,14 +30,16 @@ export default async function AppLayout({ children }: LayoutProps) {
     <div className="mx-auto min-h-screen">
       <UserProvider value={user}>
         <WalletIdentityGuard />
-        <SidebarProvider defaultOpen={defaultOpen}>
-          <AppSidebar
-            address={session.address}
-            profile={profile}
-            unreadNotificationsCount={unreadNotificationsCount}
-          />
-          <SidebarInset className="min-w-0">{children}</SidebarInset>
-        </SidebarProvider>
+        <NotificationsUnreadProvider initialCount={unreadNotificationsCount}>
+          <SidebarProvider defaultOpen={defaultOpen}>
+            <AppSidebar
+              address={session.address}
+              profile={profile}
+              unreadNotificationsCount={unreadNotificationsCount}
+            />
+            <SidebarInset className="min-w-0">{children}</SidebarInset>
+          </SidebarProvider>
+        </NotificationsUnreadProvider>
       </UserProvider>
     </div>
   );

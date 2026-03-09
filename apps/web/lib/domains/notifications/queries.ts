@@ -1,18 +1,22 @@
 import "server-only";
 
 import { Prisma } from "@/generated/prisma/client";
+import type { MentionProfileInput } from "@/lib/integrations/farcaster/mentions";
+import { insertMentionsFromProfiles } from "@/lib/integrations/farcaster/mentions";
+import { NEYNAR_SCORE_THRESHOLD } from "@/lib/integrations/farcaster/casts/shared";
 import prisma from "@/lib/server/db/cobuild-db-client";
 import { normalizeAddress } from "@/lib/shared/address";
 import type { NotificationsPageData, NotificationListItem, NotificationReason } from "./types";
 
 export const NOTIFICATIONS_PAGE_SIZE = 20;
+export const NOTIFICATION_WATERMARK_PATTERN = /^[0-9]{1,20}$/;
 
 type CountRow = {
   count: bigint | number | null;
 };
 
 type WatermarkRow = {
-  watermark: Date | null;
+  watermark: string | null;
 };
 
 type NotificationRow = {
@@ -22,6 +26,7 @@ type NotificationRow = {
   eventAt: Date | null;
   createdAt: Date | null;
   lastReadAt: Date | null;
+  isUnread: boolean;
   sourceHash: Buffer | null;
   rootHash: Buffer | null;
   targetHash: Buffer | null;
@@ -30,7 +35,11 @@ type NotificationRow = {
   actorDisplayName: string | null;
   actorAvatarUrl: string | null;
   sourceText: string | null;
+  sourceMentionsPositions: number[] | null;
+  sourceMentionProfiles: Prisma.JsonValue | null;
   rootText: string | null;
+  rootMentionsPositions: number[] | null;
+  rootMentionProfiles: Prisma.JsonValue | null;
   payload: Prisma.JsonValue | null;
 };
 
@@ -77,11 +86,40 @@ function buildHref(row: NotificationRow): string | null {
   return `/cast/${rootHash}?post=${sourceHash}`;
 }
 
+function toMentionProfiles(
+  value: Prisma.JsonValue | null | undefined
+): Array<MentionProfileInput | null> | null {
+  return Array.isArray(value) ? (value as Array<MentionProfileInput | null>) : null;
+}
+
+function buildRenderedText(
+  text: string | null | undefined,
+  mentionPositions: number[] | null | undefined,
+  mentionProfiles: Prisma.JsonValue | null | undefined
+): string | null {
+  const rendered = insertMentionsFromProfiles(
+    text ?? null,
+    mentionPositions ?? null,
+    toMentionProfiles(mentionProfiles)
+  );
+  return rendered.trim() ? rendered : null;
+}
+
 function mapNotificationRow(row: NotificationRow): NotificationListItem {
   const actorName =
     row.actorUsername ??
     row.actorDisplayName ??
     (row.actorFid ? `fid:${toNumber(row.actorFid)}` : "Someone");
+  const sourceText = buildRenderedText(
+    row.sourceText,
+    row.sourceMentionsPositions,
+    row.sourceMentionProfiles
+  );
+  const rootText = buildRenderedText(
+    row.rootText,
+    row.rootMentionsPositions,
+    row.rootMentionProfiles
+  );
 
   return {
     id: String(row.id),
@@ -100,13 +138,13 @@ function mapNotificationRow(row: NotificationRow): NotificationListItem {
         : null,
     eventAt: toIsoString(row.eventAt),
     createdAt: toIsoString(row.createdAt),
-    isUnread: !row.lastReadAt || (row.createdAt?.getTime() ?? 0) > row.lastReadAt.getTime(),
+    isUnread: row.isUnread,
     href: buildHref(row),
     sourceHash: bufferToHash(row.sourceHash),
     rootHash: bufferToHash(row.rootHash),
     targetHash: bufferToHash(row.targetHash),
-    rootTitle: toRootTitle(row.rootText),
-    sourceExcerpt: summarizeText(row.sourceText, 180),
+    rootTitle: toRootTitle(rootText),
+    sourceExcerpt: summarizeText(sourceText, 180),
     payload:
       row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
         ? (row.payload as Record<string, unknown>)
@@ -114,7 +152,32 @@ function mapNotificationRow(row: NotificationRow): NotificationListItem {
   };
 }
 
-const buildVisibleNotificationsSql = (address: string) => Prisma.sql`
+function columnRef(alias: string, column: string): Prisma.Sql {
+  return Prisma.raw(`${alias}.${column}`);
+}
+
+function buildCastHasAttachmentSql(alias: string): Prisma.Sql {
+  const embedSummaries = columnRef(alias, "embed_summaries");
+  const embedsArray = columnRef(alias, "embeds_array");
+
+  return Prisma.sql`(
+    COALESCE(array_length(${embedSummaries}, 1), 0) > 0
+    OR (${embedsArray} IS NOT NULL AND jsonb_path_exists(${embedsArray}, '$[*] ? (@.url != null)'))
+  )`;
+}
+
+function buildRenderableCastSql(alias: string): Prisma.Sql {
+  const text = columnRef(alias, "text");
+  const mentionedFids = columnRef(alias, "mentioned_fids");
+
+  return Prisma.sql`(
+    (${text} IS NOT NULL AND btrim(${text}) <> '')
+    OR COALESCE(array_length(${mentionedFids}, 1), 0) > 0
+    OR ${buildCastHasAttachmentSql(alias)}
+  )`;
+}
+
+const buildNotificationFromSql = Prisma.sql`
   FROM cobuild.notifications notification
   LEFT JOIN cobuild.notification_state state
     ON state.owner_address = notification.recipient_wallet_address
@@ -122,8 +185,15 @@ const buildVisibleNotificationsSql = (address: string) => Prisma.sql`
     ON source.hash = notification.source_cast_hash
   LEFT JOIN farcaster.casts root
     ON root.hash = notification.root_cast_hash
+  LEFT JOIN farcaster.casts target
+    ON target.hash = notification.target_cast_hash
   LEFT JOIN farcaster.profiles actor
     ON actor.fid = notification.actor_fid
+  LEFT JOIN farcaster.profiles root_author
+    ON root_author.fid = root.fid
+`;
+
+const buildVisibleNotificationsWhereSql = (address: string) => Prisma.sql`
   WHERE notification.recipient_wallet_address = ${address}
     AND notification.invalidated_at IS NULL
     AND (
@@ -132,19 +202,26 @@ const buildVisibleNotificationsSql = (address: string) => Prisma.sql`
         source.hash IS NOT NULL
         AND source.deleted_at IS NULL
         AND source.hidden_at IS NULL
-        AND source.text IS NOT NULL
-        AND btrim(source.text) <> ''
+        AND ${buildRenderableCastSql("source")}
         AND root.hash IS NOT NULL
         AND root.deleted_at IS NULL
         AND root.hidden_at IS NULL
-        AND root.text IS NOT NULL
-        AND btrim(root.text) <> ''
-        AND (actor.fid IS NULL OR actor.hidden_at IS NULL)
+        AND ${buildRenderableCastSql("root")}
+        AND root_author.fid IS NOT NULL
+        AND root_author.hidden_at IS NULL
+        AND root_author.neynar_user_score IS NOT NULL
+        AND root_author.neynar_user_score >= ${NEYNAR_SCORE_THRESHOLD}
+        AND actor.fid IS NOT NULL
+        AND actor.hidden_at IS NULL
+        AND actor.neynar_user_score IS NOT NULL
+        AND actor.neynar_user_score >= ${NEYNAR_SCORE_THRESHOLD}
         AND (
-          actor.fid IS NULL
+          notification.reason <> 'reply_to_reply'
           OR (
-            actor.neynar_user_score IS NOT NULL
-            AND actor.neynar_user_score >= 0.55
+            target.hash IS NOT NULL
+            AND target.deleted_at IS NULL
+            AND target.hidden_at IS NULL
+            AND ${buildRenderableCastSql("target")}
           )
         )
       )
@@ -159,10 +236,11 @@ export async function getUnreadNotificationsCount(address: string): Promise<numb
     return 0;
   }
 
-  const visibleSql = buildVisibleNotificationsSql(normalizedAddress);
+  const visibleWhereSql = buildVisibleNotificationsWhereSql(normalizedAddress);
   const rows = await prisma.$replica().$queryRaw<CountRow[]>`
     SELECT COUNT(*)::bigint AS count
-    ${visibleSql}
+    ${buildNotificationFromSql}
+    ${visibleWhereSql}
     AND (
       state.last_read_at IS NULL
       OR notification.created_at > state.last_read_at
@@ -185,30 +263,37 @@ export async function getNotificationsPage(
       page: 1,
       totalPages: 0,
       totalCount: 0,
-      watermark: new Date().toISOString(),
+      watermark: "0",
     };
   }
 
-  const visibleSql = buildVisibleNotificationsSql(normalizedAddress);
-  const countRows = await prisma.$replica().$queryRaw<CountRow[]>`
+  const db = prisma.$primary();
+  const visibleWhereSql = buildVisibleNotificationsWhereSql(normalizedAddress);
+
+  const countRows = await db.$queryRaw<CountRow[]>`
     SELECT COUNT(*)::bigint AS count
-    ${visibleSql}
+    ${buildNotificationFromSql}
+    ${visibleWhereSql}
   `;
-  const watermarkRows = await prisma.$replica().$queryRaw<WatermarkRow[]>`
-    SELECT MAX(notification.created_at) AS watermark
-    ${visibleSql}
+  const watermarkRows = await db.$queryRaw<WatermarkRow[]>`
+    SELECT COALESCE(
+      (EXTRACT(EPOCH FROM MAX(notification.created_at)) * 1000000)::bigint::text,
+      '0'
+    ) AS watermark
+    ${buildNotificationFromSql}
+    ${visibleWhereSql}
   `;
 
   const totalCount = toNumber(countRows[0]?.count);
   const totalPages = totalCount === 0 ? 0 : Math.ceil(totalCount / NOTIFICATIONS_PAGE_SIZE);
   const resolvedPage = totalPages === 0 ? 1 : Math.max(1, Math.min(page, totalPages));
   const offset = (resolvedPage - 1) * NOTIFICATIONS_PAGE_SIZE;
-  const watermark = toIsoString(watermarkRows[0]?.watermark);
+  const watermark = watermarkRows[0]?.watermark ?? "0";
 
   const rows =
     totalCount === 0
       ? []
-      : await prisma.$replica().$queryRaw<NotificationRow[]>`
+      : await db.$queryRaw<NotificationRow[]>`
           SELECT
             notification.id,
             notification.kind,
@@ -216,6 +301,10 @@ export async function getNotificationsPage(
             notification.event_at AS "eventAt",
             notification.created_at AS "createdAt",
             state.last_read_at AS "lastReadAt",
+            (
+              state.last_read_at IS NULL
+              OR notification.created_at > state.last_read_at
+            ) AS "isUnread",
             notification.source_cast_hash AS "sourceHash",
             notification.root_cast_hash AS "rootHash",
             notification.target_cast_hash AS "targetHash",
@@ -224,9 +313,30 @@ export async function getNotificationsPage(
             actor.display_name AS "actorDisplayName",
             actor.avatar_url AS "actorAvatarUrl",
             source.text AS "sourceText",
+            source.mentions_positions_array AS "sourceMentionsPositions",
+            source_mentions.profiles AS "sourceMentionProfiles",
             root.text AS "rootText",
+            root.mentions_positions_array AS "rootMentionsPositions",
+            root_mentions.profiles AS "rootMentionProfiles",
             notification.payload
-          ${visibleSql}
+          ${buildNotificationFromSql}
+          LEFT JOIN LATERAL (
+            SELECT jsonb_agg(
+              jsonb_build_object('fid', profile.fid, 'fname', profile.fname)
+              ORDER BY mention.idx
+            ) AS profiles
+            FROM unnest(source.mentioned_fids) WITH ORDINALITY AS mention(fid, idx)
+            JOIN farcaster.profiles profile ON profile.fid = mention.fid
+          ) source_mentions ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT jsonb_agg(
+              jsonb_build_object('fid', profile.fid, 'fname', profile.fname)
+              ORDER BY mention.idx
+            ) AS profiles
+            FROM unnest(root.mentioned_fids) WITH ORDINALITY AS mention(fid, idx)
+            JOIN farcaster.profiles profile ON profile.fid = mention.fid
+          ) root_mentions ON TRUE
+          ${visibleWhereSql}
           ORDER BY notification.event_at DESC NULLS LAST, notification.created_at DESC, notification.id DESC
           LIMIT ${NOTIFICATIONS_PAGE_SIZE}
           OFFSET ${offset}
@@ -241,7 +351,19 @@ export async function getNotificationsPage(
   };
 }
 
-export async function markNotificationsRead(address: string, watermark: Date): Promise<void> {
+function parseWatermarkMicros(value: string): bigint | null {
+  if (!NOTIFICATION_WATERMARK_PATTERN.test(value)) {
+    return null;
+  }
+
+  try {
+    return BigInt(value);
+  } catch {
+    return null;
+  }
+}
+
+export async function markNotificationsRead(address: string, watermark: string): Promise<void> {
   let normalizedAddress: string;
   try {
     normalizedAddress = normalizeAddress(address);
@@ -249,7 +371,8 @@ export async function markNotificationsRead(address: string, watermark: Date): P
     return;
   }
 
-  if (Number.isNaN(watermark.getTime())) {
+  const watermarkMicros = parseWatermarkMicros(watermark);
+  if (watermarkMicros === null) {
     return;
   }
 
@@ -262,14 +385,14 @@ export async function markNotificationsRead(address: string, watermark: Date): P
     )
     VALUES (
       ${normalizedAddress},
-      ${watermark},
+      TIMESTAMPTZ 'epoch' + ${watermarkMicros} * interval '1 microsecond',
       now(),
       now()
     )
     ON CONFLICT (owner_address) DO UPDATE
     SET
       last_read_at = GREATEST(
-        COALESCE(cobuild.notification_state.last_read_at, to_timestamp(0)),
+        COALESCE(cobuild.notification_state.last_read_at, TIMESTAMPTZ 'epoch'),
         EXCLUDED.last_read_at
       ),
       updated_at = now()
