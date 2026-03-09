@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import { Currency } from "@/components/ui/currency";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -15,8 +13,8 @@ export type Goal = {
   raised: number;
   target: number;
   status: GoalStatus;
-  createdAt: Date;
-  completedAt?: Date;
+  createdAt: Date | string;
+  completedAt?: Date | string;
   contributorCount: number;
 };
 

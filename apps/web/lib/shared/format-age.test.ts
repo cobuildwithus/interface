@@ -26,4 +26,16 @@ describe("formatAge", () => {
     expect(formatAge(new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000))).toBe("3mo old");
     expect(formatAge(new Date(now.getTime() - 400 * 24 * 60 * 60 * 1000))).toBe("1y old");
   });
+
+  it("accepts ISO date strings from serialized server data", () => {
+    expect(formatAge("2025-01-09T12:00:00.000Z")).toBe("1d old");
+  });
+
+  it("clamps future dates to today", () => {
+    expect(formatAge("2025-01-11T12:00:00.000Z")).toBe("today");
+  });
+
+  it("returns a stable fallback for invalid dates", () => {
+    expect(formatAge("not-a-date")).toBe("unknown");
+  });
 });
