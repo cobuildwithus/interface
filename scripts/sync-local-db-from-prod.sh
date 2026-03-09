@@ -68,6 +68,11 @@ if ! command -v pg_restore >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v psql >/dev/null 2>&1; then
+  echo "Error: psql is required but not found on PATH." >&2
+  exit 1
+fi
+
 if [[ -z "${DATABASE_URL:-}" ]]; then
   echo "Error: DATABASE_URL is not set (expected prod primary database URL)." >&2
   exit 1
@@ -141,6 +146,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
+ensure_local_vector_extension() {
+  if psql "${LOCAL_DATABASE_URL}" -v ON_ERROR_STOP=1 -q -c "CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;" >/dev/null; then
+    return 0
+  fi
+
+  echo "Error: failed to enable the 'vector' extension on LOCAL_DATABASE_URL." >&2
+  echo "Install pgvector on the local Postgres server, then retry." >&2
+  echo "Homebrew Postgres typically needs: brew install pgvector" >&2
+  exit 1
+}
+
 echo "Dumping prod schemas (excluding cobuild-onchain) from DATABASE_URL..."
 pg_dump \
   --dbname="${SYNC_SOURCE_DATABASE_URL}" \
@@ -153,6 +169,7 @@ pg_dump \
   --file="${TMP_DUMP}"
 
 echo "Restoring into LOCAL_DATABASE_URL..."
+ensure_local_vector_extension
 pg_restore \
   --dbname="${LOCAL_DATABASE_URL}" \
   --clean \

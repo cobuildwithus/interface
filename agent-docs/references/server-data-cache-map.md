@@ -13,6 +13,7 @@
   - Safety guards fail when source/target URLs match and always require a local `LOCAL_DATABASE_URL` host.
   - The sync helper auto-loads `apps/web/.env` and `apps/web/.env.local` for `DATABASE_URL` and `LOCAL_DATABASE_URL` when those vars are not already exported in the shell.
   - For libpq tools (`pg_dump`), source URLs using `sslmode=verify-ca|verify-full` automatically add `sslrootcert=system` when no explicit root cert path is provided.
+  - Before restore, the helper runs `CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;` on `LOCAL_DATABASE_URL` so pgvector-backed columns/indexes can be restored.
   - The command is available from both the repo root and `apps/web` as `pnpm db:sync:local-from-prod`.
 
 ## Key Files
