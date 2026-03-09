@@ -7,22 +7,25 @@ import { useNotificationsUnreadState } from "@/lib/domains/notifications/unread-
 const READ_WATERMARK_STORAGE_PREFIX = "cobuild:notifications:read:";
 
 type NotificationsReadTrackerProps = {
+  address: string;
   watermark: string;
-  hasUnreadItems: boolean;
+  hasUnread: boolean;
 };
 
 export function NotificationsReadTracker({
+  address,
   watermark,
-  hasUnreadItems,
+  hasUnread,
 }: NotificationsReadTrackerProps) {
   const router = useRouter();
   const { markAllRead } = useNotificationsUnreadState();
 
   useEffect(() => {
-    if (!hasUnreadItems || !watermark || watermark === "0") return;
+    if (!hasUnread || !watermark || watermark === "0") return;
 
-    const storageKey = `${READ_WATERMARK_STORAGE_PREFIX}${watermark}`;
+    const storageKey = `${READ_WATERMARK_STORAGE_PREFIX}${address.toLowerCase()}:${watermark}`;
     if (window.sessionStorage.getItem(storageKey) === "done") {
+      markAllRead(watermark);
       return;
     }
 
@@ -39,13 +42,13 @@ export function NotificationsReadTracker({
         }
 
         window.sessionStorage.setItem(storageKey, "done");
-        markAllRead();
+        markAllRead(watermark);
         router.refresh();
       })
       .catch(() => {
         window.sessionStorage.removeItem(storageKey);
       });
-  }, [hasUnreadItems, markAllRead, router, watermark]);
+  }, [address, hasUnread, markAllRead, router, watermark]);
 
   return null;
 }

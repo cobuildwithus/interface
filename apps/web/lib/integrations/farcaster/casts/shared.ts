@@ -12,6 +12,13 @@ export function hasText(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+export function hasRenderableCastContent(value: {
+  text: string | null | undefined;
+  attachment?: unknown | null;
+}): boolean {
+  return hasText(value.text) || value.attachment !== null;
+}
+
 export function toNumber(value: number | string | bigint | null | undefined): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "bigint") return Number(value);

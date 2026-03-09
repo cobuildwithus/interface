@@ -1,33 +1,59 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 
 type NotificationsUnreadContextValue = {
   unreadCount: number;
-  readOverrideActive: boolean;
-  markAllRead: () => void;
+  markAllRead: (watermark: string) => void;
 };
 
 const NotificationsUnreadContext = createContext<NotificationsUnreadContextValue | null>(null);
 
+function normalizeWatermark(value: string): string {
+  return /^[0-9]{1,20}$/.test(value) ? value : "0";
+}
+
+function compareWatermarks(left: string, right: string): number {
+  const normalizedLeft = normalizeWatermark(left);
+  const normalizedRight = normalizeWatermark(right);
+
+  try {
+    const leftValue = BigInt(normalizedLeft);
+    const rightValue = BigInt(normalizedRight);
+    if (leftValue === rightValue) return 0;
+    return leftValue > rightValue ? 1 : -1;
+  } catch {
+    return normalizedLeft.localeCompare(normalizedRight);
+  }
+}
+
 export function NotificationsUnreadProvider({
   children,
   initialCount,
+  initialWatermark,
 }: {
   children: React.ReactNode;
   initialCount: number;
+  initialWatermark: string;
 }) {
-  const [unreadCount, setUnreadCount] = useState(initialCount);
-  const [readOverrideActive, setReadOverrideActive] = useState(false);
+  const [clearedThroughWatermark, setClearedThroughWatermark] = useState("0");
+  const serverWatermark = normalizeWatermark(initialWatermark);
+  const unreadCount = useMemo(() => {
+    if (serverWatermark === "0") return 0;
+    if (compareWatermarks(serverWatermark, clearedThroughWatermark) <= 0) return 0;
+    return initialCount;
+  }, [clearedThroughWatermark, initialCount, serverWatermark]);
 
   return (
     <NotificationsUnreadContext.Provider
       value={{
         unreadCount,
-        readOverrideActive,
-        markAllRead: () => {
-          setUnreadCount(0);
-          setReadOverrideActive(true);
+        markAllRead: (watermark) => {
+          const nextWatermark = normalizeWatermark(watermark);
+          if (nextWatermark === "0") return;
+          setClearedThroughWatermark((current) =>
+            compareWatermarks(nextWatermark, current) > 0 ? nextWatermark : current
+          );
         },
       }}
     >
@@ -41,7 +67,6 @@ export function useNotificationsUnreadState(): NotificationsUnreadContextValue {
   if (!context) {
     return {
       unreadCount: 0,
-      readOverrideActive: false,
       markAllRead: () => {},
     };
   }

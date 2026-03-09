@@ -103,7 +103,7 @@ describe("getCobuildDiscussionCastsPage", () => {
     getTitleAndExcerptMock.mockReset();
   });
 
-  it("maps and paginates rows while filtering empty-text rows", async () => {
+  it("maps and paginates rows without dropping renderable mention-only posts", async () => {
     queryRawMock.mockResolvedValueOnce([{ count: 5n }]).mockResolvedValueOnce([
       createRow({
         text: "Row 1",
@@ -114,7 +114,9 @@ describe("getCobuildDiscussionCastsPage", () => {
       }),
       createRow({
         hash: Buffer.from("bb".repeat(20), "hex"),
-        text: "   ",
+        text: "",
+        mentionsPositions: [0],
+        mentionProfiles: [{ fid: 456, fname: "alice" }],
       }),
       createRow({
         hash: Buffer.from("cc".repeat(20), "hex"),
@@ -122,13 +124,16 @@ describe("getCobuildDiscussionCastsPage", () => {
       }),
     ]);
 
-    mapCastRowToFarcasterCastMock.mockImplementation((row: { hash: Buffer; text: string }) => ({
-      hash: `0x${row.hash.toString("hex")}`,
-      text: `mapped:${row.text}`,
-      timestamp: "2025-01-01T00:00:00.000Z",
-      author: { username: "alice" },
-      embeds: [{ url: "https://example.com/post/1" }],
-    }));
+    mapCastRowToFarcasterCastMock.mockImplementation((row: { hash: Buffer; text: string }) => {
+      const hash = row.hash.toString("hex");
+      return {
+        hash: `0x${hash}`,
+        text: hash.startsWith("bb") ? "@alice" : `mapped:${row.text}`,
+        timestamp: "2025-01-01T00:00:00.000Z",
+        author: { username: "alice" },
+        embeds: [{ url: "https://example.com/post/1" }],
+      };
+    });
     getPrimaryAttachmentMock.mockReturnValue({
       kind: "link",
       url: "https://example.com/post/1",
@@ -166,13 +171,31 @@ describe("getCobuildDiscussionCastsPage", () => {
           authorUsername: "unknown",
         },
       },
+      {
+        hash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        title: "Title",
+        excerpt: "Excerpt",
+        text: "@alice",
+        author: { username: "alice" },
+        createdAt: "2025-01-01T00:00:00.000Z",
+        replyCount: 1,
+        viewCount: 2,
+        attachment: {
+          kind: "link",
+          url: "https://example.com/post/1",
+          label: "example.com",
+          sourceUrl: "https://example.com/post/1",
+        },
+        lastReply: null,
+      },
     ]);
-    expect(mapCastRowToFarcasterCastMock).toHaveBeenCalledTimes(1);
+    expect(mapCastRowToFarcasterCastMock).toHaveBeenCalledTimes(2);
     expect(getPrimaryAttachmentMock).toHaveBeenCalledWith(
       [{ url: "https://example.com/post/1" }],
       ["summary-1"]
     );
     expect(getTitleAndExcerptMock).toHaveBeenCalledWith("mapped:Row 1");
+    expect(getTitleAndExcerptMock).toHaveBeenCalledWith("@alice");
   });
 
   it("normalizes valid embed URLs and omits embed filter for invalid URLs", async () => {

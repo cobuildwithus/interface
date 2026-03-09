@@ -26,9 +26,9 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
         page: 1,
         totalPages: 0,
         totalCount: 0,
+        unreadCount: 0,
         watermark: "0",
       };
-  const hasUnreadItems = pageData.items.some((item) => item.isUnread);
 
   return (
     <main className="w-full p-4 md:p-6">
@@ -37,7 +37,11 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
         description="Replies, mentions, and future protocol updates for your wallet inbox."
       />
       {address ? (
-        <NotificationsReadTracker watermark={pageData.watermark} hasUnreadItems={hasUnreadItems} />
+        <NotificationsReadTracker
+          address={address}
+          watermark={pageData.watermark}
+          hasUnread={pageData.unreadCount > 0}
+        />
       ) : null}
       <NotificationsList pageData={pageData} />
     </main>

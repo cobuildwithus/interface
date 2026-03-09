@@ -31,5 +31,11 @@ export type NotificationsPageData = {
   page: number;
   totalPages: number;
   totalCount: number;
+  unreadCount: number;
+  watermark: string;
+};
+
+export type NotificationsUnreadState = {
+  count: number;
   watermark: string;
 };

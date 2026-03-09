@@ -325,6 +325,34 @@ describe("thread helpers", () => {
     expect(slices).toBeNull();
   });
 
+  it("keeps attachment-only replies in visible thread slices", () => {
+    const rootHash = Buffer.from("a".repeat(40), "hex");
+    const mapped = mapThreadRows([
+      {
+        ...baseRow,
+        hash: rootHash,
+        text: "",
+        fid: 1n,
+        parentHash: null,
+        embedsArray: [{ url: "https://example.com/root.png" }],
+        embedSummaries: [],
+      },
+      {
+        ...baseRow,
+        hash: Buffer.from("b".repeat(40), "hex"),
+        text: "",
+        fid: 2n,
+        parentHash: rootHash,
+        embedsArray: [{ url: "https://example.com/reply.png" }],
+        embedSummaries: [],
+      },
+    ]);
+
+    const slices = getThreadSlices(mapped, `0x${"a".repeat(40)}`);
+
+    expect(slices?.visibleReplies.map((cast) => cast.hash)).toEqual([`0x${"b".repeat(40)}`]);
+  });
+
   it("does not merge replies from other authors", () => {
     const rootHash = Buffer.from("a".repeat(40), "hex");
     const rows = [

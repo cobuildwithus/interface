@@ -4,7 +4,7 @@ import { normalizeEntityId } from "@/lib/shared/entity-id";
 import { castHashToBuffer } from "@/lib/domains/rules/cast-rules/normalize";
 import { getCobuildActivityByFids } from "@/lib/integrations/farcaster/activity";
 import { isFullCastHash } from "@/lib/integrations/farcaster/parse-cast-url";
-import { THREAD_PAGE_SIZE, bufferToHash, hasText, toFidNumber } from "./shared";
+import { THREAD_PAGE_SIZE, bufferToHash, hasRenderableCastContent, toFidNumber } from "./shared";
 import type { FlatCastThread, ThreadCast } from "./types";
 import {
   getThreadSlices,
@@ -141,8 +141,6 @@ export async function getCobuildFlatCastThread(
   });
   const replyCount = replyPage.replyCount;
 
-  if (replyCount === 0 && !hasText(rootRow.text)) return null;
-
   const totalPages = Math.max(1, Math.ceil(replyCount / THREAD_PAGE_SIZE));
   const safePage = showAll ? 1 : Math.max(1, Math.min(initialPage, totalPages));
   const resolvedPage = showAll ? 0 : safePage;
@@ -169,7 +167,7 @@ export async function getCobuildFlatCastThread(
   );
 
   const rootCast = mapThreadRows([rootRow], activityMap)[0];
-  if (!rootCast || !hasText(rootCast.text)) return null;
+  if (!rootCast || !hasRenderableCastContent(rootCast)) return null;
 
   const replyCasts = mapThreadRows(replyRows, activityMap);
   const parentCasts = mapThreadRows(parentRows, activityMap);

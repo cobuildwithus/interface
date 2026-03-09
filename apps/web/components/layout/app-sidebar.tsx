@@ -21,7 +21,6 @@ import { SidebarUserMenu } from "@/components/layout/sidebar/sidebar-user-menu";
 type AppSidebarProps = {
   address?: string;
   profile?: Profile;
-  unreadNotificationsCount?: number;
 };
 
 function formatUnreadBadge(count: number | undefined): string | null {
@@ -29,14 +28,10 @@ function formatUnreadBadge(count: number | undefined): string | null {
   return count > 99 ? "99+" : count.toString();
 }
 
-export function AppSidebar({ address, profile, unreadNotificationsCount }: AppSidebarProps) {
+export function AppSidebar({ address, profile }: AppSidebarProps) {
   const pathname = usePathname();
-  const { readOverrideActive } = useNotificationsUnreadState();
-  const effectiveUnreadCount =
-    readOverrideActive && pathname.startsWith("/notifications")
-      ? 0
-      : (unreadNotificationsCount ?? 0);
-  const notificationsBadge = formatUnreadBadge(effectiveUnreadCount);
+  const { unreadCount } = useNotificationsUnreadState();
+  const notificationsBadge = formatUnreadBadge(unreadCount);
 
   return (
     <Sidebar collapsible="offcanvas" className="px-3">

@@ -37,9 +37,13 @@ describe("NotificationsReadTracker", () => {
     const fetchMock = vi.mocked(fetch);
 
     const { rerender } = render(
-      <NotificationsUnreadProvider initialCount={4}>
+      <NotificationsUnreadProvider initialCount={4} initialWatermark="1741435200000001">
         <UnreadCountProbe />
-        <NotificationsReadTracker watermark="1741435200000001" hasUnreadItems />
+        <NotificationsReadTracker
+          address="0x0000000000000000000000000000000000000001"
+          watermark="1741435200000001"
+          hasUnread
+        />
       </NotificationsUnreadProvider>
     );
 
@@ -47,15 +51,21 @@ describe("NotificationsReadTracker", () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(refreshMock).toHaveBeenCalledTimes(1);
       expect(screen.getByTestId("unread-count").textContent).toBe("0");
-      expect(window.sessionStorage.getItem("cobuild:notifications:read:1741435200000001")).toBe(
-        "done"
-      );
+      expect(
+        window.sessionStorage.getItem(
+          "cobuild:notifications:read:0x0000000000000000000000000000000000000001:1741435200000001"
+        )
+      ).toBe("done");
     });
 
     rerender(
-      <NotificationsUnreadProvider initialCount={4}>
+      <NotificationsUnreadProvider initialCount={4} initialWatermark="1741435200000001">
         <UnreadCountProbe />
-        <NotificationsReadTracker watermark="1741435200000001" hasUnreadItems />
+        <NotificationsReadTracker
+          address="0x0000000000000000000000000000000000000001"
+          watermark="1741435200000001"
+          hasUnread
+        />
       </NotificationsUnreadProvider>
     );
 
@@ -68,13 +78,74 @@ describe("NotificationsReadTracker", () => {
     const fetchMock = vi.mocked(fetch);
 
     render(
-      <NotificationsUnreadProvider initialCount={0}>
-        <NotificationsReadTracker watermark="1741435200000001" hasUnreadItems={false} />
+      <NotificationsUnreadProvider initialCount={0} initialWatermark="0">
+        <NotificationsReadTracker
+          address="0x0000000000000000000000000000000000000001"
+          watermark="1741435200000001"
+          hasUnread={false}
+        />
       </NotificationsUnreadProvider>
     );
 
     await waitFor(() => {
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it("shows new unread again when the server watermark advances past the optimistic clear", async () => {
+    const { rerender } = render(
+      <NotificationsUnreadProvider initialCount={4} initialWatermark="1741435200000001">
+        <UnreadCountProbe />
+        <NotificationsReadTracker
+          address="0x0000000000000000000000000000000000000001"
+          watermark="1741435200000001"
+          hasUnread
+        />
+      </NotificationsUnreadProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unread-count").textContent).toBe("0");
+    });
+
+    rerender(
+      <NotificationsUnreadProvider initialCount={1} initialWatermark="1741435200000002">
+        <UnreadCountProbe />
+      </NotificationsUnreadProvider>
+    );
+
+    expect(screen.getByTestId("unread-count").textContent).toBe("1");
+  });
+
+  it("dedupes read posts per wallet address, not just per watermark", async () => {
+    const fetchMock = vi.mocked(fetch);
+
+    const { rerender } = render(
+      <NotificationsUnreadProvider initialCount={1} initialWatermark="1741435200000001">
+        <NotificationsReadTracker
+          address="0x0000000000000000000000000000000000000001"
+          watermark="1741435200000001"
+          hasUnread
+        />
+      </NotificationsUnreadProvider>
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(
+      <NotificationsUnreadProvider initialCount={1} initialWatermark="1741435200000001">
+        <NotificationsReadTracker
+          address="0x0000000000000000000000000000000000000002"
+          watermark="1741435200000001"
+          hasUnread
+        />
+      </NotificationsUnreadProvider>
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
 });

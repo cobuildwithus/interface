@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { getSession } from "@/lib/domains/auth/session";
-import { getUnreadNotificationsCount } from "@/lib/domains/notifications/queries";
+import { getUnreadNotificationsState } from "@/lib/domains/notifications/queries";
 import { NotificationsUnreadProvider } from "@/lib/domains/notifications/unread-context";
 import { getProfile } from "@/lib/domains/profile/get-profile";
 import { getUserResponse } from "@/lib/server/user-response";
@@ -20,9 +20,9 @@ export default async function AppLayout({ children }: LayoutProps) {
   const session = await getSession();
   const address = session.address ?? null;
 
-  const [profile, unreadNotificationsCount] = await Promise.all([
+  const [profile, unreadNotificationsState] = await Promise.all([
     address ? getProfile(address) : Promise.resolve(undefined),
-    address ? getUnreadNotificationsCount(address) : Promise.resolve(0),
+    address ? getUnreadNotificationsState(address) : Promise.resolve({ count: 0, watermark: "0" }),
   ]);
   const user = getUserResponse(session);
 
@@ -30,13 +30,13 @@ export default async function AppLayout({ children }: LayoutProps) {
     <div className="mx-auto min-h-screen">
       <UserProvider value={user}>
         <WalletIdentityGuard />
-        <NotificationsUnreadProvider initialCount={unreadNotificationsCount}>
+        <NotificationsUnreadProvider
+          key={`notifications:${address ?? "anon"}`}
+          initialCount={unreadNotificationsState.count}
+          initialWatermark={unreadNotificationsState.watermark}
+        >
           <SidebarProvider defaultOpen={defaultOpen}>
-            <AppSidebar
-              address={session.address}
-              profile={profile}
-              unreadNotificationsCount={unreadNotificationsCount}
-            />
+            <AppSidebar address={session.address} profile={profile} />
             <SidebarInset className="min-w-0">{children}</SidebarInset>
           </SidebarProvider>
         </NotificationsUnreadProvider>

@@ -4,9 +4,15 @@ import { Prisma } from "@/generated/prisma/client";
 import type { MentionProfileInput } from "@/lib/integrations/farcaster/mentions";
 import { insertMentionsFromProfiles } from "@/lib/integrations/farcaster/mentions";
 import { NEYNAR_SCORE_THRESHOLD } from "@/lib/integrations/farcaster/casts/shared";
+import { buildRenderableCastSql } from "@/lib/integrations/farcaster/casts/thread/sql";
 import prisma from "@/lib/server/db/cobuild-db-client";
 import { normalizeAddress } from "@/lib/shared/address";
-import type { NotificationsPageData, NotificationListItem, NotificationReason } from "./types";
+import type {
+  NotificationsPageData,
+  NotificationListItem,
+  NotificationReason,
+  NotificationsUnreadState,
+} from "./types";
 
 export const NOTIFICATIONS_PAGE_SIZE = 20;
 export const NOTIFICATION_WATERMARK_PATTERN = /^[0-9]{1,20}$/;
@@ -152,31 +158,6 @@ function mapNotificationRow(row: NotificationRow): NotificationListItem {
   };
 }
 
-function columnRef(alias: string, column: string): Prisma.Sql {
-  return Prisma.raw(`${alias}.${column}`);
-}
-
-function buildCastHasAttachmentSql(alias: string): Prisma.Sql {
-  const embedSummaries = columnRef(alias, "embed_summaries");
-  const embedsArray = columnRef(alias, "embeds_array");
-
-  return Prisma.sql`(
-    COALESCE(array_length(${embedSummaries}, 1), 0) > 0
-    OR (${embedsArray} IS NOT NULL AND jsonb_path_exists(${embedsArray}, '$[*] ? (@.url != null)'))
-  )`;
-}
-
-function buildRenderableCastSql(alias: string): Prisma.Sql {
-  const text = columnRef(alias, "text");
-  const mentionedFids = columnRef(alias, "mentioned_fids");
-
-  return Prisma.sql`(
-    (${text} IS NOT NULL AND btrim(${text}) <> '')
-    OR COALESCE(array_length(${mentionedFids}, 1), 0) > 0
-    OR ${buildCastHasAttachmentSql(alias)}
-  )`;
-}
-
 const buildNotificationFromSql = Prisma.sql`
   FROM cobuild.notifications notification
   LEFT JOIN cobuild.notification_state state
@@ -228,17 +209,20 @@ const buildVisibleNotificationsWhereSql = (address: string) => Prisma.sql`
     )
 `;
 
-export async function getUnreadNotificationsCount(address: string): Promise<number> {
-  let normalizedAddress: string;
-  try {
-    normalizedAddress = normalizeAddress(address);
-  } catch {
-    return 0;
-  }
-
-  const visibleWhereSql = buildVisibleNotificationsWhereSql(normalizedAddress);
-  const rows = await prisma.$replica().$queryRaw<CountRow[]>`
-    SELECT COUNT(*)::bigint AS count
+async function getUnreadNotificationsStateInternal(
+  address: string,
+  db: Pick<typeof prisma, "$queryRaw">
+): Promise<NotificationsUnreadState> {
+  const visibleWhereSql = buildVisibleNotificationsWhereSql(address);
+  const rows = await db.$queryRaw<
+    Array<{ count: bigint | number | null; watermark: string | null }>
+  >`
+    SELECT
+      COUNT(*)::bigint AS count,
+      COALESCE(
+        (EXTRACT(EPOCH FROM MAX(notification.created_at)) * 1000000)::bigint::text,
+        '0'
+      ) AS watermark
     ${buildNotificationFromSql}
     ${visibleWhereSql}
     AND (
@@ -247,7 +231,27 @@ export async function getUnreadNotificationsCount(address: string): Promise<numb
     )
   `;
 
-  return toNumber(rows[0]?.count);
+  return {
+    count: toNumber(rows[0]?.count),
+    watermark: rows[0]?.watermark ?? "0",
+  };
+}
+
+export async function getUnreadNotificationsState(
+  address: string
+): Promise<NotificationsUnreadState> {
+  let normalizedAddress: string;
+  try {
+    normalizedAddress = normalizeAddress(address);
+  } catch {
+    return { count: 0, watermark: "0" };
+  }
+
+  return getUnreadNotificationsStateInternal(normalizedAddress, prisma.$replica());
+}
+
+export async function getUnreadNotificationsCount(address: string): Promise<number> {
+  return (await getUnreadNotificationsState(address)).count;
 }
 
 export async function getNotificationsPage(
@@ -263,12 +267,14 @@ export async function getNotificationsPage(
       page: 1,
       totalPages: 0,
       totalCount: 0,
+      unreadCount: 0,
       watermark: "0",
     };
   }
 
   const db = prisma.$primary();
   const visibleWhereSql = buildVisibleNotificationsWhereSql(normalizedAddress);
+  const unreadState = await getUnreadNotificationsStateInternal(normalizedAddress, db);
 
   const countRows = await db.$queryRaw<CountRow[]>`
     SELECT COUNT(*)::bigint AS count
@@ -347,6 +353,7 @@ export async function getNotificationsPage(
     page: resolvedPage,
     totalPages,
     totalCount,
+    unreadCount: unreadState.count,
     watermark,
   };
 }

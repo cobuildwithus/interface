@@ -9,7 +9,7 @@ import {
   COBUILD_CHANNEL_URL,
   DISCUSSION_PAGE_SIZE,
   NEYNAR_SCORE_THRESHOLD,
-  hasText,
+  hasRenderableCastContent,
   toNumber,
 } from "./shared";
 import { buildRenderableCastSql } from "./thread/sql";
@@ -165,34 +165,37 @@ export async function getCobuildDiscussionCastsPage(
   `;
 
   const hasMore = safeOffset + pageSize < totalCount;
-  const pageRows = (rows.length > pageSize ? rows.slice(0, pageSize) : rows).filter((row) =>
-    hasText(row.text)
-  );
+  const pageRows = rows.length > pageSize ? rows.slice(0, pageSize) : rows;
 
   return {
-    items: pageRows.map((row) => {
+    items: pageRows.flatMap((row) => {
       const cast = mapCastRowToFarcasterCast(row);
       const attachment = getPrimaryAttachment(cast.embeds, row.embedSummaries);
+      if (!hasRenderableCastContent({ text: cast.text, attachment })) {
+        return [];
+      }
       const { title, excerpt } = getTitleAndExcerpt(cast.text);
       const replyCount = toNumber(row.replyCount) ?? 0;
 
-      return {
-        hash: cast.hash,
-        title,
-        excerpt,
-        text: cast.text,
-        author: cast.author,
-        createdAt: cast.timestamp,
-        replyCount,
-        viewCount: toNumber(row.viewCount) ?? 0,
-        attachment,
-        lastReply: row.lastReplyTimestamp
-          ? {
-              createdAt: row.lastReplyTimestamp.toISOString(),
-              authorUsername: row.lastReplyAuthorFname ?? "unknown",
-            }
-          : null,
-      };
+      return [
+        {
+          hash: cast.hash,
+          title,
+          excerpt,
+          text: cast.text,
+          author: cast.author,
+          createdAt: cast.timestamp,
+          replyCount,
+          viewCount: toNumber(row.viewCount) ?? 0,
+          attachment,
+          lastReply: row.lastReplyTimestamp
+            ? {
+                createdAt: row.lastReplyTimestamp.toISOString(),
+                authorUsername: row.lastReplyAuthorFname ?? "unknown",
+              }
+            : null,
+        },
+      ];
     }),
     hasMore,
     totalCount,

@@ -7,7 +7,7 @@ import {
   COBUILD_CHANNEL_URL,
   NEYNAR_SCORE_THRESHOLD,
   bufferToHash,
-  hasText,
+  hasRenderableCastContent,
   toFidNumber,
   toNumber,
 } from "@/lib/integrations/farcaster/casts/shared";
@@ -525,12 +525,12 @@ export function getThreadSlices(mapped: ThreadCast[], rootHash: string) {
   const root = mapped.find((cast) => cast.hash === rootHash) ?? null;
   if (!root) return null;
 
-  const castsWithText = mapped.filter((cast) => hasText(cast.text));
-  const visibleReplies = castsWithText
+  const renderableCasts = mapped.filter((cast) => hasRenderableCastContent(cast));
+  const visibleReplies = renderableCasts
     .filter((cast) => cast.hash !== rootHash)
     .filter((cast) => (cast.author.neynar_score ?? 0) >= NEYNAR_SCORE_THRESHOLD);
 
-  return { root, castsWithText, visibleReplies };
+  return { root, castsWithText: renderableCasts, visibleReplies };
 }
 
 export function mergeRootAuthorReplies(

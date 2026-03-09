@@ -22,6 +22,7 @@ vi.mock("@/lib/server/db/cobuild-db-client", () => ({
 
 import {
   getNotificationsPage,
+  getUnreadNotificationsState,
   getUnreadNotificationsCount,
   markNotificationsRead,
 } from "./queries";
@@ -34,11 +35,22 @@ describe("notifications queries", () => {
   });
 
   it("returns unread count for a wallet inbox", async () => {
-    replicaQueryRawMock.mockResolvedValueOnce([{ count: 3n }]);
+    replicaQueryRawMock.mockResolvedValueOnce([{ count: 3n, watermark: "1741435200000001" }]);
 
     await expect(
       getUnreadNotificationsCount("0x0000000000000000000000000000000000000001")
     ).resolves.toBe(3);
+  });
+
+  it("returns unread watermark state for a wallet inbox", async () => {
+    replicaQueryRawMock.mockResolvedValueOnce([{ count: 2n, watermark: "1741435200000003" }]);
+
+    await expect(
+      getUnreadNotificationsState("0x0000000000000000000000000000000000000001")
+    ).resolves.toEqual({
+      count: 2,
+      watermark: "1741435200000003",
+    });
   });
 
   it("returns zero unread count when the address is invalid", async () => {
@@ -46,13 +58,14 @@ describe("notifications queries", () => {
     expect(replicaQueryRawMock).not.toHaveBeenCalled();
   });
 
-  it("maps notification rows with SQL unread state and reconstructed mentions", async () => {
+  it("returns inbox unread count even when the current page rows are already read", async () => {
     const sourceHash = Buffer.from("11".repeat(20), "hex");
     const rootHash = Buffer.from("22".repeat(20), "hex");
     const targetHash = Buffer.from("33".repeat(20), "hex");
     const createdAt = new Date("2026-03-08T12:00:00.000Z");
 
     primaryQueryRawMock
+      .mockResolvedValueOnce([{ count: 2n, watermark: "1741435200000001" }])
       .mockResolvedValueOnce([{ count: 1n }])
       .mockResolvedValueOnce([{ watermark: "1741435200000001" }])
       .mockResolvedValueOnce([
@@ -63,7 +76,7 @@ describe("notifications queries", () => {
           eventAt: createdAt,
           createdAt,
           lastReadAt: new Date("2026-03-08T13:00:00.000Z"),
-          isUnread: true,
+          isUnread: false,
           sourceHash,
           rootHash,
           targetHash,
@@ -85,6 +98,7 @@ describe("notifications queries", () => {
 
     expect(page.totalCount).toBe(1);
     expect(page.totalPages).toBe(1);
+    expect(page.unreadCount).toBe(2);
     expect(page.items).toEqual([
       expect.objectContaining({
         id: "7",
@@ -96,7 +110,7 @@ describe("notifications queries", () => {
         targetHash: `0x${targetHash.toString("hex")}`,
         rootTitle: "@topic-owner",
         sourceExcerpt: "@alice",
-        isUnread: true,
+        isUnread: false,
         actor: {
           fid: 99,
           name: "alice",
@@ -114,6 +128,7 @@ describe("notifications queries", () => {
       page: 1,
       totalPages: 0,
       totalCount: 0,
+      unreadCount: 0,
       watermark: "0",
     });
     expect(primaryQueryRawMock).not.toHaveBeenCalled();
