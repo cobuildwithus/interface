@@ -51,8 +51,8 @@ importers:
         specifier: ^3.0.41
         version: 3.0.41(react@19.2.1)(zod@4.2.1)
       '@cobuild/wire':
-        specifier: ^0.1.4
-        version: 0.1.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.2.1)
+        specifier: ^0.1.6
+        version: 0.1.6(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.2.1)
       '@coinbase/cdp-sdk':
         specifier: ^1.44.1
         version: 1.44.1(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -548,8 +548,8 @@ packages:
     resolution: {integrity: sha512-wxpb5fwLya/DjNlBS1YOzqrccPk73OoEFxViMpMVDmIfI+UjcA16qSzO+hLndwpGAY3Xnzbk2yMvlZvtrlkDbw==}
     hasBin: true
 
-  '@cobuild/wire@0.1.4':
-    resolution: {integrity: sha512-QcXc6nJ5namG4UPAlG62ZL9XywXxNC4PzChiGvTsOtfIyfKU+xSnR9iWWz9NOpJ+R/AzMwIPo50kAQ68Rrvnhg==}
+  '@cobuild/wire@0.1.6':
+    resolution: {integrity: sha512-6cuKwJNqQ1xNjHK2kaS/wS9ZhNlPJXvpT8shaXaDzZ+f7Zt1n6QL0Eom+nrSsL9B5USPPo8ljE1qs88sM/xMeQ==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -8744,7 +8744,7 @@ snapshots:
 
   '@cobuild/review-gpt@0.2.15': {}
 
-  '@cobuild/wire@0.1.4(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.2.1)':
+  '@cobuild/wire@0.1.6(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.2.1)':
     dependencies:
       viem: 2.46.3(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.2.1)
     transitivePeerDependencies:
