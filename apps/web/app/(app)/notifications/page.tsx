@@ -32,18 +32,20 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
 
   return (
     <main className="w-full p-4 md:p-6">
-      <PageHeader
-        title="Notifications"
-        description="Replies, mentions, and future protocol updates for your wallet inbox."
-      />
-      {address ? (
-        <NotificationsReadTracker
-          address={address}
-          watermark={pageData.watermark}
-          hasUnread={pageData.unreadCount > 0}
+      <div className="w-full max-w-3xl">
+        <PageHeader
+          title="Notifications"
+          description="Replies, mentions, and future protocol updates for your wallet inbox."
         />
-      ) : null}
-      <NotificationsList pageData={pageData} />
+        {address ? (
+          <NotificationsReadTracker
+            address={address}
+            watermark={pageData.watermark}
+            hasUnread={pageData.unreadCount > 0}
+          />
+        ) : null}
+        <NotificationsList pageData={pageData} />
+      </div>
     </main>
   );
 }
