@@ -263,6 +263,7 @@ function buildDeployParams(owner: Address, form: FormState) {
         slashCallerBountyBps: DEFAULT_TCR_SLASH_CALLER_BOUNTY_BPS,
       },
     },
+    goalSpendPolicy: ZERO_ADDRESS as Address,
   } as const;
 }
 

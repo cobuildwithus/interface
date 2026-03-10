@@ -4,12 +4,11 @@ import { useCallback, useMemo } from "react";
 import { DefaultChatTransport } from "ai";
 import { chatApiBase } from "@/lib/domains/chat/api";
 import { getChatGeoHeaders } from "@/lib/domains/chat/geo";
-import { CHAT_GRANT_HEADER, readChatGrant, writeChatGrant } from "@/lib/domains/chat/grant";
 import {
   safeSessionStorageGet,
   IDENTITY_TOKEN_STORAGE_KEY,
 } from "@/lib/domains/chat/chat-client-utils";
-import { isPendingAssistantMessage } from "@/lib/domains/chat/messages";
+import { getMessageFiles, getMessageText } from "@/lib/domains/chat/messages";
 import type { JsonRecord } from "@/lib/shared/json";
 
 type UseChatTransportOptions = {
@@ -24,8 +23,6 @@ type UseChatTransportOptions = {
 
 export function useChatTransport({
   chatId,
-  type,
-  data,
   context,
   clientDevice,
   activeIdentityToken,
@@ -37,39 +34,26 @@ export function useChatTransport({
     if (token) {
       headers["privy-id-token"] = token;
     }
-    const grant = readChatGrant(chatId);
-    if (grant) {
-      headers[CHAT_GRANT_HEADER] = grant;
-    }
     if (clientDevice) {
       headers["x-client-device"] = clientDevice;
     }
     return headers;
-  }, [activeIdentityToken, chatId, clientDevice]);
+  }, [activeIdentityToken, clientDevice]);
 
   const resolveBody = useCallback(() => {
     const trimmedContext = context?.trim();
-    const body = {
-      type,
-      id: chatId,
-      ...(trimmedContext ? { context: trimmedContext } : {}),
-    };
-    return data ? { ...body, data } : body;
-  }, [chatId, context, data, type]);
+    return trimmedContext ? { context: trimmedContext } : {};
+  }, [context]);
 
-  const fetchWithGrant = useCallback(
+  const fetchWithAuth = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const response = await fetch(input, init);
       if (response.status === 401) {
         onAuthExpired();
       }
-      const refreshedGrant = response.headers.get(CHAT_GRANT_HEADER);
-      if (refreshedGrant) {
-        writeChatGrant(chatId, refreshedGrant);
-      }
       return response;
     },
-    [chatId, onAuthExpired]
+    [onAuthExpired]
   );
 
   const transport = useMemo(
@@ -78,18 +62,42 @@ export function useChatTransport({
         api: `${chatApiBase}/api/chat`,
         body: resolveBody,
         headers: resolveHeaders,
-        fetch: fetchWithGrant,
-        prepareSendMessagesRequest: ({ body, messages, trigger, messageId }) => ({
-          body: {
-            ...body,
-            messages: messages.filter((message) => !isPendingAssistantMessage(message)),
-            trigger,
-            messageId,
-          },
-        }),
+        fetch: fetchWithAuth,
+        prepareSendMessagesRequest: ({ body = {}, messages, messageId, trigger }) => {
+          if (trigger !== "submit-message") {
+            throw new Error(
+              `Unsupported chat transport trigger: ${trigger} (${messageId ?? "unknown"})`
+            );
+          }
+
+          const requestBody = body;
+          const lastUserMessage = [...messages].reverse().find((message) => {
+            return message.role === "user";
+          });
+          if (!lastUserMessage?.id) {
+            throw new Error("No user message available to send.");
+          }
+
+          const attachments = getMessageFiles(lastUserMessage);
+          const clientMessageId =
+            typeof requestBody.clientMessageId === "string" &&
+            requestBody.clientMessageId.trim().length > 0
+              ? requestBody.clientMessageId.trim()
+              : lastUserMessage.id;
+
+          return {
+            body: {
+              ...requestBody,
+              chatId,
+              clientMessageId,
+              userMessage: getMessageText(lastUserMessage),
+              ...(attachments.length > 0 ? { attachments } : {}),
+            },
+          };
+        },
       }),
-    [fetchWithGrant, resolveBody, resolveHeaders]
+    [chatId, fetchWithAuth, resolveBody, resolveHeaders]
   );
 
-  return { transport, fetchWithGrant, resolveHeaders };
+  return { transport, fetchWithAuth, resolveHeaders };
 }
