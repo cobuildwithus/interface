@@ -23,9 +23,9 @@ export default async function Home() {
       <section className="relative flex min-h-screen flex-col overflow-hidden">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute inset-0 bg-[linear-gradient(180deg,#070708_0%,#020202_52%,#000000_100%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_22%,_rgba(255,255,255,0.16),_transparent_24%),radial-gradient(circle_at_74%_16%,_rgba(110,138,180,0.16),_transparent_18%),radial-gradient(circle_at_54%_82%,_rgba(171,118,45,0.1),_transparent_24%)]" />
-          <div className="absolute -top-24 left-[6%] h-[32rem] w-[32rem] rounded-full bg-white/7 blur-[140px]" />
-          <div className="absolute top-[-6%] left-[44%] h-[38rem] w-[18rem] -translate-x-1/2 rotate-[14deg] bg-white/[0.05] blur-[150px]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_22%,_rgba(255,255,255,0.12),_transparent_24%),radial-gradient(circle_at_74%_16%,_rgba(110,138,180,0.16),_transparent_18%),radial-gradient(circle_at_54%_82%,_rgba(171,118,45,0.1),_transparent_24%)]" />
+          <div className="absolute -top-24 left-[6%] h-[32rem] w-[32rem] rounded-full bg-white/5 blur-[140px]" />
+          <div className="absolute top-[-6%] left-[44%] h-[38rem] w-[18rem] -translate-x-1/2 rotate-[14deg] bg-white/[0.035] blur-[150px]" />
           <div className="absolute top-[6%] right-[-8%] h-[30rem] w-[30rem] rounded-full bg-[#5f7da5]/[0.12] blur-[170px]" />
           <div className="absolute inset-0 bg-[linear-gradient(118deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.02)_20%,transparent_40%),linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.32)_100%)]" />
           <div
