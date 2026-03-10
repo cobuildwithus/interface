@@ -1,17 +1,15 @@
 "use client";
 
-import { baseAddresses, goalFactoryAbi, goalFactoryAddress } from "@cobuild/wire";
+import {
+  baseAddresses,
+  buildGoalCreateTransaction,
+  decodeGoalDeployedEvent,
+  goalFactoryAbi,
+  goalFactoryAddress,
+} from "@cobuild/wire";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import {
-  isAddress,
-  keccak256,
-  parseEventLogs,
-  parseUnits,
-  stringToHex,
-  type Address,
-  type Hex,
-} from "viem";
+import { isAddress, keccak256, parseUnits, stringToHex, type Address, type Hex } from "viem";
 import { usePublicClient } from "wagmi";
 import { AuthButton } from "@/components/ui/auth-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +55,8 @@ type FormState = {
   successBond: string;
   successResolver: string;
   budgetSuccessResolver: string;
+  goalSpendPolicy: string;
+  budgetSpendPolicy: string;
 };
 
 type DeploymentState = {
@@ -91,6 +91,8 @@ const initialFormState: FormState = {
   successBond: "0",
   successResolver: defaultSuccessResolver,
   budgetSuccessResolver: defaultBudgetSuccessResolver,
+  goalSpendPolicy: "",
+  budgetSpendPolicy: "",
 };
 
 function normalizeAddress(value: string, label: string): Address {
@@ -133,7 +135,7 @@ function parseUint256(value: string, label: string): bigint {
   return BigInt(trimmed);
 }
 
-function buildDeployParams(owner: Address, form: FormState) {
+function buildDeployParams(allocationMechanismAdmin: Address, form: FormState) {
   const goalName = form.goalName.trim();
   if (!goalName) throw new Error("Goal name is required.");
 
@@ -190,13 +192,14 @@ function buildDeployParams(owner: Address, form: FormState) {
     form.budgetSuccessResolver,
     "Budget success resolver"
   );
+  const goalSpendPolicy = normalizeAddress(form.goalSpendPolicy, "Goal spend policy");
+  const budgetSpendPolicy = normalizeAddress(form.budgetSpendPolicy, "Budget spend policy");
 
   const successOracleSpecHash = keccak256(stringToHex(successSpec));
   const successAssertionPolicyHash = keccak256(stringToHex(successPolicy));
 
   return {
     revnet: {
-      owner,
       name: goalName,
       ticker: goalTicker,
       uri: goalUri,
@@ -224,12 +227,11 @@ function buildDeployParams(owner: Address, form: FormState) {
       url: form.websiteUrl.trim(),
     },
     underwriting: {
-      coverageLambda: 0n,
       budgetPremiumPpm: 0,
       budgetSlashPpm: 0,
     },
     budgetTCR: {
-      allocationMechanismAdmin: owner,
+      allocationMechanismAdmin,
       invalidRoundRewardsSink: defaultInvalidRoundRewardsSink as Address,
       submissionDepositStrategy: ZERO_ADDRESS as Address,
       submissionBaseDeposit: 0n,
@@ -254,6 +256,7 @@ function buildDeployParams(owner: Address, form: FormState) {
         bondAmount: DEFAULT_TCR_ORACLE_BOND,
       },
       budgetSuccessResolver,
+      budgetSpendPolicy,
       arbitratorParams: {
         votingPeriod: DEFAULT_TCR_VOTING_PERIOD_SECONDS,
         votingDelay: DEFAULT_TCR_VOTING_DELAY_SECONDS,
@@ -263,7 +266,7 @@ function buildDeployParams(owner: Address, form: FormState) {
         slashCallerBountyBps: DEFAULT_TCR_SLASH_CALLER_BOUNTY_BPS,
       },
     },
-    goalSpendPolicy: ZERO_ADDRESS as Address,
+    goalSpendPolicy,
   } as const;
 }
 
@@ -284,16 +287,8 @@ export function CreateGoalForm() {
 
       try {
         const receipt = await publicClient.getTransactionReceipt({ hash: hash as Hex });
-        const events = parseEventLogs({
-          abi: goalFactoryAbi,
-          eventName: "GoalDeployed",
-          logs: receipt.logs,
-          strict: false,
-        });
-        const latest = events.at(-1);
-        const stack = latest?.args?.stack as
-          | { goalTreasury?: string; goalFlow?: string; goalRevnetId?: bigint }
-          | undefined;
+        const deploymentEvent = decodeGoalDeployedEvent(receipt.logs);
+        const stack = deploymentEvent?.stack;
 
         const goalTreasury =
           typeof stack?.goalTreasury === "string" && isAddress(stack.goalTreasury)
@@ -342,16 +337,24 @@ export function CreateGoalForm() {
 
     try {
       // Validate curated inputs before opening wallet/deploy toasts.
-      buildDeployParams(ZERO_ADDRESS as Address, form);
+      const preflightDeployParams = buildDeployParams(ZERO_ADDRESS as Address, form);
+      buildGoalCreateTransaction({
+        deployParams: preflightDeployParams,
+      });
 
       await tx.prepareWallet();
       if (!tx.account) return;
 
-      const owner = normalizeAddress(tx.account, "Owner");
-      const deployParams = buildDeployParams(owner, form);
+      const deployParams = buildDeployParams(
+        normalizeAddress(tx.account, "Allocation mechanism admin"),
+        form
+      );
+      const goalCreateTx = buildGoalCreateTransaction({
+        deployParams,
+      });
 
       await tx.writeContractAsync({
-        address: goalFactoryAddress as Address,
+        address: goalCreateTx.to,
         abi: goalFactoryAbi,
         functionName: "deployGoal",
         args: [deployParams],
@@ -368,7 +371,8 @@ export function CreateGoalForm() {
         <CardHeader>
           <CardTitle>Goal Details</CardTitle>
           <CardDescription>
-            Curated inputs only. Advanced deployment parameters are fixed to protocol defaults.
+            Curated inputs plus required treasury spend-policy addresses. Advanced TCR parameters
+            stay pinned to protocol defaults.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -560,6 +564,35 @@ export function CreateGoalForm() {
               value={form.successPolicy}
               onChange={(event) => updateField("successPolicy", event.target.value)}
               placeholder="Policy constraints for success assertion"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Treasury Policies</CardTitle>
+          <CardDescription>
+            These spend-policy contracts are now required by the deployed GoalFactory.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="goal-spend-policy">Goal spend policy</Label>
+            <Input
+              id="goal-spend-policy"
+              value={form.goalSpendPolicy}
+              onChange={(event) => updateField("goalSpendPolicy", event.target.value)}
+              placeholder="0x..."
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="budget-spend-policy">Budget spend policy</Label>
+            <Input
+              id="budget-spend-policy"
+              value={form.budgetSpendPolicy}
+              onChange={(event) => updateField("budgetSpendPolicy", event.target.value)}
+              placeholder="0x..."
             />
           </div>
         </CardContent>
