@@ -1,3 +1,4 @@
+import { normalizeEvmAddress } from "@cobuild/wire";
 import { parseEther, parseUnits } from "viem";
 import { z } from "zod";
 import { RequestValidationError } from "@/lib/server/cli/http";
@@ -25,6 +26,12 @@ export const ExecRequestSchema = z.discriminatedUnion("kind", [
     valueEth: z.string().trim().default("0"),
     data: z.string().regex(/^0x([0-9a-fA-F]{2})*$/),
   }),
+  ExecRequestBaseSchema.extend({
+    kind: z.literal("protocol-step"),
+    action: z.string().trim().min(1).max(128),
+    riskClass: z.string().trim().min(1).max(64),
+    step: z.unknown(),
+  }),
 ]);
 
 const TransferNetworkSchema = z.enum(CLI_EXEC_NETWORKS);
@@ -43,6 +50,20 @@ export function parseUnitsInput(value: string, decimals: number, fieldName: stri
     return parseUnits(value, decimals);
   } catch {
     throw new RequestValidationError(`${fieldName} must be a valid decimal amount`);
+  }
+}
+
+export function parseEvmAddressInput(
+  value: string,
+  fieldName: string,
+  errorMessage?: string
+): `0x${string}` {
+  try {
+    return normalizeEvmAddress(value, fieldName);
+  } catch {
+    throw new RequestValidationError(
+      errorMessage ?? `${fieldName} must be a valid 20-byte hex address (0x + 40 hex chars).`
+    );
   }
 }
 

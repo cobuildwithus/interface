@@ -319,20 +319,57 @@ export function assertTxIdempotencyMatch(params: {
   valueWei: bigint;
   data: `0x${string}`;
 }) {
+  assertStoredCallIdempotencyMatch({
+    existing: params.existing,
+    expectedKind: "tx",
+    network: params.network,
+    to: params.to,
+    valueWei: params.valueWei,
+    data: params.data,
+    conflictMessage: "Idempotency key is already associated with a different transaction request",
+  });
+}
+
+export function assertProtocolStepIdempotencyMatch(params: {
+  existing: CliTxLogReplayRecord;
+  logKind: string;
+  network: string;
+  to: string;
+  valueWei: bigint;
+  data: `0x${string}`;
+}) {
+  assertStoredCallIdempotencyMatch({
+    existing: params.existing,
+    expectedKind: params.logKind,
+    network: params.network,
+    to: params.to,
+    valueWei: params.valueWei,
+    data: params.data,
+    conflictMessage: "Idempotency key is already associated with a different protocol-step request",
+  });
+}
+
+function assertStoredCallIdempotencyMatch(params: {
+  existing: CliTxLogReplayRecord;
+  expectedKind: string;
+  network: string;
+  to: string;
+  valueWei: bigint;
+  data: `0x${string}`;
+  conflictMessage: string;
+}) {
   const existingData =
     typeof params.existing.data === "string"
       ? canonicalizeBaseBuilderCodeAttributedData(params.existing.data as Hex)
       : null;
   const requestedData = canonicalizeBaseBuilderCodeAttributedData(params.data as Hex);
   if (
-    params.existing.kind !== "tx" ||
+    params.existing.kind !== params.expectedKind ||
     params.existing.network !== params.network ||
     params.existing.to !== params.to ||
     existingData !== requestedData
   ) {
-    throw new IdempotencyConflictError(
-      "Idempotency key is already associated with a different transaction request"
-    );
+    throw new IdempotencyConflictError(params.conflictMessage);
   }
 
   const loggedValueEth = params.existing.valueEth;
@@ -342,14 +379,12 @@ export function assertTxIdempotencyMatch(params: {
 
   const loggedValueWei = parseEtherInput(loggedValueEth, "stored valueEth");
   if (loggedValueWei !== params.valueWei) {
-    throw new IdempotencyConflictError(
-      "Idempotency key is already associated with a different transaction request"
-    );
+    throw new IdempotencyConflictError(params.conflictMessage);
   }
 }
 
 function buildReplayResponse(params: {
-  kind: "transfer" | "tx";
+  kind: "transfer" | "tx" | "protocol-step";
   walletAddress?: string;
   existing: CliTxLogReplayRecord;
 }) {
@@ -382,7 +417,7 @@ async function resolveExistingCliTxLog(params: {
   data: CliTxLogCreateData;
   existing: CliTxLogReplayRecord;
   walletAddress?: string;
-  kind: "transfer" | "tx";
+  kind: "transfer" | "tx" | "protocol-step";
   assertMatch: (existing: CliTxLogReplayRecord) => void;
 }): Promise<ReserveOrReplayResult> {
   params.assertMatch(params.existing);
@@ -474,7 +509,7 @@ export async function replayIfFinalized(params: {
   agentKey: string;
   idempotencyKey: string | null;
   walletAddress?: string;
-  kind: "transfer" | "tx";
+  kind: "transfer" | "tx" | "protocol-step";
   assertMatch: (existing: CliTxLogReplayRecord) => void;
 }): Promise<NextResponse | null> {
   const existing = await findCliTxLogByIdempotency({
@@ -506,7 +541,7 @@ export async function reserveOrReplay(params: {
   idempotencyKey: string | null;
   data: CliTxLogCreateData;
   walletAddress?: string;
-  kind: "transfer" | "tx";
+  kind: "transfer" | "tx" | "protocol-step";
   assertMatch: (existing: CliTxLogReplayRecord) => void;
 }): Promise<ReserveOrReplayResult> {
   if (!params.idempotencyKey) {

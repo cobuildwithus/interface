@@ -31,7 +31,11 @@
 - Client reads: wagmi/viem hooks and quote helpers.
 - Server cached reads: revnet/project stats/ETH price helpers.
 - Server writes (cli API):
-  - `app/api/cli/exec/route.ts` via CDP smart-account user operations (`transfer` / `sendUserOperation` + `waitForUserOperation`), scoped to Base mainnet only. Stored/default network aliases are normalized to `base`, but explicit exec requests reject `base-sepolia`.
+  - `app/api/cli/exec/route.ts` via CDP smart-account user operations, scoped to Base mainnet only. Stored/default network aliases are normalized to `base`, but explicit exec requests reject `base-sepolia`.
+  - Hosted CLI exec now has three first-class write envelopes:
+    - `transfer` for token transfers
+    - `tx` for explicit generic raw calldata execution
+    - `protocol-step` for shared protocol writes whose action/risk/step semantics are validated through `@cobuild/wire` before submission
   - `app/api/cli/farcaster/signup/route.ts` via CDP smart-account user operations on `optimism` for Farcaster `IdGateway.register` and `KeyGateway.add`, including smart-account EIP-712 typed-data signing for SignedKeyRequest metadata.
 
 ## Hosted Exec Idempotency States

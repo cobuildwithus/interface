@@ -1,10 +1,8 @@
 import { requireCliBearerAuth } from "@/lib/server/cli/auth";
 import { cliErrorResponse, parseJsonStrict } from "@/lib/server/cli/http";
-import { getCliDefaultNetwork } from "@/lib/server/cli/env";
 import { resolveIdempotencyKey } from "@/lib/server/cli/idempotency";
-import { getCliAgentWallet } from "@/lib/server/cli/wallet-store";
-import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 import { cliExecPrimaryDb } from "./idempotency";
+import { handleProtocolStepExecution } from "./protocol-step";
 import { execErrorResponse } from "./response";
 import { handleTransferExecution } from "./transfer";
 import { handleTxExecution } from "./tx";
@@ -29,16 +27,6 @@ export async function POST(request: Request) {
     const idempotencyKey = resolveIdempotencyKey(request, input.idempotencyKey);
     const db = cliExecPrimaryDb();
 
-    const wallet = await getCliAgentWallet({
-      ownerAddress: auth.ownerAddress,
-      agentKey: auth.agentKey,
-    });
-    const requestedNetwork = input.network ?? wallet?.defaultNetwork ?? getCliDefaultNetwork();
-    const walletAddress =
-      typeof wallet?.address === "string" && wallet.address.length > 0
-        ? normalizeAddress(wallet.address, "wallet.address")
-        : undefined;
-
     if (input.kind === "transfer") {
       return await handleTransferExecution({
         db,
@@ -47,9 +35,19 @@ export async function POST(request: Request) {
           agentKey: auth.agentKey,
         },
         input,
-        requestedNetwork,
         idempotencyKey,
-        walletAddress,
+      });
+    }
+
+    if (input.kind === "protocol-step") {
+      return await handleProtocolStepExecution({
+        db,
+        auth: {
+          ownerAddress: auth.ownerAddress,
+          agentKey: auth.agentKey,
+        },
+        input,
+        idempotencyKey,
       });
     }
 
@@ -60,9 +58,7 @@ export async function POST(request: Request) {
         agentKey: auth.agentKey,
       },
       input,
-      requestedNetwork,
       idempotencyKey,
-      walletAddress,
     });
   } catch (error) {
     return cliErrorResponse(error, {

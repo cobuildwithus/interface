@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseEther, parseUnits } from "viem";
+import { buildCliProtocolStepRequest, buildPremiumClaimPlan } from "@cobuild/wire";
 
 vi.mock("server-only", () => ({}));
 
-import { assertCliTransferAllowed, assertCliTxAllowed } from "@/lib/server/cli/policy";
+import {
+  assertCliProtocolStepAllowed,
+  assertCliTransferAllowed,
+  assertCliTxAllowed,
+} from "@/lib/server/cli/policy";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -169,6 +174,44 @@ describe("cli policy", () => {
         data: "0x12345678",
       })
     ).not.toThrow();
+  });
+
+  it("allows canonical protocol-step requests without generic tx allowlists", () => {
+    setEnv({
+      CLI_ALLOWED_NETWORKS: "base",
+    });
+    const plan = buildPremiumClaimPlan({
+      premiumEscrowAddress: "0x00000000000000000000000000000000000000aa",
+      recipient: "0x00000000000000000000000000000000000000bb",
+    });
+    const request = buildCliProtocolStepRequest({
+      network: plan.network,
+      action: plan.action,
+      riskClass: plan.riskClass,
+      step: plan.steps[0]!,
+    });
+
+    expect(() => assertCliProtocolStepAllowed(request)).not.toThrow();
+  });
+
+  it("rejects protocol-step requests whose action metadata does not match the step semantics", () => {
+    const plan = buildPremiumClaimPlan({
+      premiumEscrowAddress: "0x00000000000000000000000000000000000000aa",
+      recipient: "0x00000000000000000000000000000000000000bb",
+    });
+    const request = buildCliProtocolStepRequest({
+      network: plan.network,
+      action: plan.action,
+      riskClass: plan.riskClass,
+      step: plan.steps[0]!,
+    });
+
+    expect(() =>
+      assertCliProtocolStepAllowed({
+        ...request,
+        riskClass: "stake",
+      } as typeof request)
+    ).toThrow('riskClass must be "claim" for action "premium.claim"');
   });
 
   it("requires allowed networks in strict mode", () => {

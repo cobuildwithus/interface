@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseUnits } from "viem";
+import { buildPremiumClaimPlan } from "@cobuild/wire";
 
 vi.mock("server-only", () => ({}));
 
@@ -9,6 +10,7 @@ const {
   getOrCreateCliAgentSmartAccountMock,
   assertCliTransferAllowedMock,
   assertCliTxAllowedMock,
+  assertCliProtocolStepAllowedMock,
   txLogFindUniqueMock,
   txLogCreateMock,
   txLogUpdateMock,
@@ -19,6 +21,7 @@ const {
   getOrCreateCliAgentSmartAccountMock: vi.fn(),
   assertCliTransferAllowedMock: vi.fn(),
   assertCliTxAllowedMock: vi.fn(),
+  assertCliProtocolStepAllowedMock: vi.fn(),
   txLogFindUniqueMock: vi.fn(),
   txLogCreateMock: vi.fn(),
   txLogUpdateMock: vi.fn(),
@@ -30,14 +33,26 @@ vi.mock("@/lib/server/cli/auth", () => ({
 }));
 
 vi.mock("@/lib/server/cli/wallet-store", () => ({
-  getCliAgentWallet: (...args: unknown[]) => getOrCreateCliAgentWalletMock(...args),
-  getOrCreateCliAgentExecutionContext: (...args: unknown[]) =>
-    getOrCreateCliAgentSmartAccountMock(...args),
+  resolveCliExecWalletContext: async (...args: unknown[]) => {
+    const [params] = args as [{ requestedNetwork?: string }?];
+    const wallet = await getOrCreateCliAgentWalletMock(...args);
+    return {
+      requestedNetwork:
+        typeof params?.requestedNetwork === "string"
+          ? params.requestedNetwork
+          : typeof wallet?.defaultNetwork === "string"
+            ? wallet.defaultNetwork
+            : "base",
+      walletAddress: typeof wallet?.address === "string" ? wallet.address : undefined,
+      getExecutionContext: () => getOrCreateCliAgentSmartAccountMock(...args),
+    };
+  },
 }));
 
 vi.mock("@/lib/server/cli/policy", () => ({
   assertCliTransferAllowed: (...args: unknown[]) => assertCliTransferAllowedMock(...args),
   assertCliTxAllowed: (...args: unknown[]) => assertCliTxAllowedMock(...args),
+  assertCliProtocolStepAllowed: (...args: unknown[]) => assertCliProtocolStepAllowedMock(...args),
 }));
 
 vi.mock("@/lib/server/db/cobuild-db-client", () => ({
@@ -196,6 +211,129 @@ describe("cli exec route", () => {
     expect(txLogCreateMock).toHaveBeenCalled();
   });
 
+  it("executes protocol-step requests with semantic validation instead of raw tx policy gates", async () => {
+    const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xprotocol-op" });
+    const waitForUserOperationMock = vi
+      .fn()
+      .mockResolvedValue({ status: "complete", transactionHash: "0xprotocol-tx" });
+    setSmartAccountMocks({ sendUserOperationMock, waitForUserOperationMock });
+
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base",
+    });
+
+    const plan = buildPremiumClaimPlan({
+      premiumEscrowAddress: "0x00000000000000000000000000000000000000aa",
+      recipient: "0x00000000000000000000000000000000000000bb",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "protocol-step",
+        network: "base",
+        action: plan.action,
+        riskClass: plan.riskClass,
+        step: plan.steps[0],
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      kind: "protocol-step",
+      transactionHash: "0xprotocol-tx",
+    });
+
+    expect(assertCliProtocolStepAllowedMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "protocol-step",
+        action: "premium.claim",
+        riskClass: "claim",
+      })
+    );
+    expect(assertCliTxAllowedMock).not.toHaveBeenCalled();
+    expect(sendUserOperationMock).toHaveBeenCalledWith({
+      network: "base",
+      calls: [
+        {
+          to: plan.steps[0]!.transaction.to,
+          value: 0n,
+          data: plan.steps[0]!.transaction.data,
+        },
+      ],
+      dataSuffix: BASE_BUILDER_SUFFIX,
+      idempotencyKey: undefined,
+    });
+    expect(txLogCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          kind: "protocol-step:premium.claim",
+        }),
+      })
+    );
+  });
+
+  it("prefers an explicit transfer network over an unsupported stored wallet default", async () => {
+    const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xtransfer-op" });
+    const waitForUserOperationMock = vi
+      .fn()
+      .mockResolvedValue({ status: "complete", transactionHash: "0xtx" });
+    setSmartAccountMocks({ sendUserOperationMock, waitForUserOperationMock });
+
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      address: "0x0000000000000000000000000000000000000002",
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base-sepolia",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "transfer",
+        network: "base",
+        token: "usdc",
+        amount: "0.25",
+        to: "0x000000000000000000000000000000000000dEaD",
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(getOrCreateCliAgentWalletMock).toHaveBeenCalledWith({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      agentKey: "default",
+      requestedNetwork: "base",
+    });
+    expect(sendUserOperationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        network: "base",
+      })
+    );
+    expect(txLogCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          network: "base",
+        }),
+      })
+    );
+  });
+
   it("returns success when transfer log persistence fails", async () => {
     const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xtransfer-op" });
     const waitForUserOperationMock = vi
@@ -340,6 +478,58 @@ describe("cli exec route", () => {
     expect(body.transactionHash).toBe("0xabc");
     expect(sendUserOperationMock).toHaveBeenCalled();
     expect(txLogCreateMock).toHaveBeenCalled();
+  });
+
+  it("prefers an explicit tx network over an unsupported stored wallet default", async () => {
+    const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xtx-user-op" });
+    const waitForUserOperationMock = vi
+      .fn()
+      .mockResolvedValue({ status: "complete", transactionHash: "0xabc" });
+    setSmartAccountMocks({ sendUserOperationMock, waitForUserOperationMock });
+
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      address: "0x0000000000000000000000000000000000000002",
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base-sepolia",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "tx",
+        network: "base",
+        to: "0x000000000000000000000000000000000000dEaD",
+        data: "0x12345678",
+        valueEth: "0",
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(getOrCreateCliAgentWalletMock).toHaveBeenCalledWith({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      agentKey: "default",
+      requestedNetwork: "base",
+    });
+    expect(sendUserOperationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        network: "base",
+      })
+    );
+    expect(txLogCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          network: "base",
+        }),
+      })
+    );
   });
 
   it("keeps empty tx calldata and forwards builder suffix at user-op level", async () => {
@@ -529,6 +719,37 @@ describe("cli exec route", () => {
     expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
   });
 
+  it("rejects transfer when the stored wallet default network is unsupported and the request omits network", async () => {
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base-sepolia",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "transfer",
+        token: "eth",
+        amount: "0.1",
+        to: "0x000000000000000000000000000000000000dEaD",
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "Unsupported transfer network: base-sepolia",
+    });
+    expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
+  });
+
   it("rejects unsupported tx networks before execution", async () => {
     requireCliBearerAuthMock.mockResolvedValue({
       ownerAddress: "0x0000000000000000000000000000000000000001",
@@ -556,6 +777,36 @@ describe("cli exec route", () => {
     expect(await response.json()).toEqual({
       ok: false,
       error: "Unsupported transaction network: zora",
+    });
+    expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects tx when the stored wallet default network is unsupported and the request omits network", async () => {
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base-sepolia",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "tx",
+        to: "0x000000000000000000000000000000000000dEaD",
+        data: "0x12345678",
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "Unsupported transaction network: base-sepolia",
     });
     expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
   });
@@ -902,6 +1153,65 @@ describe("cli exec route", () => {
     expect(txLogCreateMock).not.toHaveBeenCalled();
   });
 
+  it("replays protocol-step response for an existing idempotency key", async () => {
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      agentKey: "default",
+      address: "0x0000000000000000000000000000000000000002",
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base",
+    });
+    const plan = buildPremiumClaimPlan({
+      premiumEscrowAddress: "0x00000000000000000000000000000000000000aa",
+      recipient: "0x00000000000000000000000000000000000000bb",
+    });
+    txLogFindUniqueMock.mockResolvedValue(
+      createCliTxLogRecord({
+        kind: "protocol-step:premium.claim",
+        to: plan.steps[0]!.transaction.to,
+        token: null,
+        amount: null,
+        valueEth: "0",
+        data: plan.steps[0]!.transaction.data,
+      })
+    );
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "44b4cb35-2f3c-4d76-8cc0-e48f9642de5f",
+      },
+      body: JSON.stringify({
+        kind: "protocol-step",
+        action: plan.action,
+        riskClass: plan.riskClass,
+        step: plan.steps[0],
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      kind: "protocol-step",
+      status: "confirmed",
+      replayed: true,
+      wallet: {
+        address: "0x0000000000000000000000000000000000000002",
+      },
+      transactionHash: "0xexisting",
+      explorerUrl: "https://basescan.org/tx/0xexisting",
+    });
+    expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
+    expect(txLogCreateMock).not.toHaveBeenCalled();
+  });
+
   it("rejects transfer idempotency-key reuse with a different payload", async () => {
     requireCliBearerAuthMock.mockResolvedValue({
       ownerAddress: "0x0000000000000000000000000000000000000001",
@@ -944,6 +1254,58 @@ describe("cli exec route", () => {
     expect(await response.json()).toEqual({
       ok: false,
       error: "Idempotency key is already associated with a different transfer request",
+    });
+  });
+
+  it("rejects protocol-step idempotency-key reuse with a different payload", async () => {
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      address: "0x0000000000000000000000000000000000000002",
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base",
+    });
+    const storedPlan = buildPremiumClaimPlan({
+      premiumEscrowAddress: "0x00000000000000000000000000000000000000aa",
+      recipient: "0x00000000000000000000000000000000000000bb",
+    });
+    const requestPlan = buildPremiumClaimPlan({
+      premiumEscrowAddress: "0x00000000000000000000000000000000000000aa",
+      recipient: "0x00000000000000000000000000000000000000cc",
+    });
+    txLogFindUniqueMock.mockResolvedValue(
+      createCliTxLogRecord({
+        kind: "protocol-step:premium.claim",
+        to: storedPlan.steps[0]!.transaction.to,
+        token: null,
+        amount: null,
+        valueEth: "0",
+        data: storedPlan.steps[0]!.transaction.data,
+      })
+    );
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "55c4cb35-2f3c-4d76-8cc0-e48f9642de5f",
+      },
+      body: JSON.stringify({
+        kind: "protocol-step",
+        action: requestPlan.action,
+        riskClass: requestPlan.riskClass,
+        step: requestPlan.steps[0],
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "Idempotency key is already associated with a different protocol-step request",
     });
   });
 
@@ -1528,6 +1890,88 @@ describe("cli exec route", () => {
           data: {
             status: "timed_out",
             userOpHash: "0xpending-transfer-op",
+            expiresAt: null,
+          },
+        })
+      );
+      expect(txLogUpdateMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns 202 pending for protocol-step requests when confirmation exceeds the hosted wait timeout", async () => {
+    vi.useFakeTimers();
+    const sendUserOperationMock = vi
+      .fn()
+      .mockResolvedValue({ userOpHash: "0xpending-protocol-op" });
+    const waitForUserOperationMock = vi.fn().mockImplementation(() => new Promise<never>(() => {}));
+    setSmartAccountMocks({ sendUserOperationMock, waitForUserOperationMock });
+
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      address: "0x0000000000000000000000000000000000000002",
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base",
+    });
+    const plan = buildPremiumClaimPlan({
+      premiumEscrowAddress: "0x00000000000000000000000000000000000000aa",
+      recipient: "0x00000000000000000000000000000000000000bb",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "44444444-3333-4444-8555-666666666666",
+      },
+      body: JSON.stringify({
+        kind: "protocol-step",
+        action: plan.action,
+        riskClass: plan.riskClass,
+        step: plan.steps[0],
+      }),
+    });
+
+    try {
+      const responsePromise = POST(request);
+      await vi.advanceTimersByTimeAsync(20_000);
+      const response = await responsePromise;
+
+      expect(response.status).toBe(202);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(await response.json()).toEqual({
+        ok: true,
+        kind: "protocol-step",
+        status: "pending",
+        pending: true,
+        wallet: {
+          address: "0x0000000000000000000000000000000000000002",
+        },
+        transactionHash: null,
+        userOpHash: "0xpending-protocol-op",
+        explorerUrl: null,
+      });
+      expect(txLogUpdateMock).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          data: {
+            status: "submitted",
+            userOpHash: "0xpending-protocol-op",
+            expiresAt: null,
+          },
+        })
+      );
+      expect(txLogUpdateMock).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          data: {
+            status: "timed_out",
+            userOpHash: "0xpending-protocol-op",
             expiresAt: null,
           },
         })

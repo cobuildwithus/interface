@@ -1,6 +1,7 @@
 import "server-only";
 
 import { isAddress, parseEther, parseUnits } from "viem";
+import { type CliProtocolStepRequest, validateCliProtocolStepRequest } from "@cobuild/wire";
 import { CliPolicyError } from "./errors";
 import {
   canonicalizeCliConfiguredNetwork,
@@ -175,4 +176,12 @@ export function assertCliTxAllowed(input: {
   assertTxContractAllowed(input.to);
   assertSelectorAllowed(input.data);
   assertEthTransferCap(input.valueWei);
+}
+
+export function assertCliProtocolStepAllowed(input: CliProtocolStepRequest): void {
+  try {
+    validateCliProtocolStepRequest(input);
+  } catch (error) {
+    throw new CliPolicyError(error instanceof Error ? error.message : String(error));
+  }
 }

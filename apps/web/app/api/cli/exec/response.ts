@@ -18,7 +18,7 @@ export function execErrorResponse(error: unknown) {
 }
 
 export function buildSuccessResponse(params: {
-  kind: "transfer" | "tx";
+  kind: "transfer" | "tx" | "protocol-step";
   walletAddress: string;
   network: string;
   transactionHash: string | null;
@@ -43,7 +43,7 @@ export function buildSuccessResponse(params: {
 }
 
 export function buildPendingResponse(params: {
-  kind: "transfer" | "tx";
+  kind: "transfer" | "tx" | "protocol-step";
   walletAddress: string;
   network: string;
   userOpHash: string;
