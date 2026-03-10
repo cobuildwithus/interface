@@ -116,10 +116,6 @@ AS $$
       event_at = EXCLUDED.event_at,
       payload = EXCLUDED.payload,
       invalidated_at = NULL,
-      created_at = CASE
-        WHEN notification.invalidated_at IS NOT NULL THEN clock_timestamp()
-        ELSE notification.created_at
-      END,
       updated_at = clock_timestamp()
     RETURNING 1
   ),
@@ -242,10 +238,6 @@ AS $$
       event_at = EXCLUDED.event_at,
       payload = EXCLUDED.payload,
       invalidated_at = NULL,
-      created_at = CASE
-        WHEN notification.invalidated_at IS NOT NULL THEN clock_timestamp()
-        ELSE notification.created_at
-      END,
       updated_at = clock_timestamp()
     RETURNING 1
   )
