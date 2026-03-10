@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sqlPath = path.join(process.cwd(), "prisma/sql/2026-03-10-protocol-notifications.sql");
+const discussionSqlPath = path.join(process.cwd(), "prisma/sql/2026-03-08-notifications.sql");
 
 type ScheduleRow = {
   id: string;
@@ -75,7 +76,100 @@ function modeledMaterializedScheduleIds(args: {
     .map((schedule) => schedule.id);
 }
 
+function sqlForFunction(sql: string, functionName: string): string {
+  const startToken = `CREATE OR REPLACE FUNCTION cobuild.${functionName}`;
+  const startIndex = sql.indexOf(startToken);
+  if (startIndex === -1) {
+    throw new Error(`Missing SQL definition for ${functionName}`);
+  }
+
+  const endIndex = sql.indexOf("\n$$;", startIndex);
+  if (endIndex === -1) {
+    throw new Error(`Missing SQL terminator for ${functionName}`);
+  }
+
+  return sql.slice(startIndex, endIndex + "\n$$;".length);
+}
+
+function conflictUpdateSetClause(sql: string, functionName: string): string {
+  const functionSql = sqlForFunction(sql, functionName);
+  const match = functionSql.match(
+    /ON CONFLICT \(recipient_wallet_address, source_type, source_id\) DO UPDATE\s+SET\s+([\s\S]*?)\s+RETURNING 1/
+  );
+
+  if (!match?.[1]) {
+    throw new Error(`Missing ON CONFLICT update block for ${functionName}`);
+  }
+
+  return match[1];
+}
+
+function modeledIsUnread(args: {
+  createdAt: string;
+  notificationId: number;
+  lastReadAt: string | null;
+  lastReadNotificationId: number | null;
+}): boolean {
+  if (!args.lastReadAt) return true;
+
+  const createdAt = Date.parse(args.createdAt);
+  const lastReadAt = Date.parse(args.lastReadAt);
+  if (createdAt > lastReadAt) return true;
+  return createdAt === lastReadAt && args.notificationId > (args.lastReadNotificationId ?? 0);
+}
+
+function modeledUnreadAfterReopen(args: {
+  originalCreatedAt: string;
+  reopenedAt: string;
+  notificationId: number;
+  lastReadAt: string;
+  lastReadNotificationId: number;
+  resetsCreatedAtOnReopen: boolean;
+}): boolean {
+  return modeledIsUnread({
+    createdAt: args.resetsCreatedAtOnReopen ? args.reopenedAt : args.originalCreatedAt,
+    notificationId: args.notificationId,
+    lastReadAt: args.lastReadAt,
+    lastReadNotificationId: args.lastReadNotificationId,
+  });
+}
+
 describe("protocol notification schedule SQL", () => {
+  it("preserves existing inbox created_at in both protocol re-materialization paths", () => {
+    const sql = readFileSync(sqlPath, "utf8");
+    const discussionSql = readFileSync(discussionSqlPath, "utf8");
+    const discussionSetClause = conflictUpdateSetClause(
+      discussionSql,
+      "materialize_discussion_notifications"
+    );
+    const protocolSetClauses = [
+      conflictUpdateSetClause(sql, "materialize_protocol_notifications"),
+      conflictUpdateSetClause(sql, "materialize_protocol_notification_schedules"),
+    ];
+
+    expect(discussionSetClause).toContain("invalidated_at = NULL");
+    expect(discussionSetClause).toContain("updated_at = clock_timestamp()");
+
+    for (const setClause of protocolSetClauses) {
+      expect(setClause).toContain("invalidated_at = NULL");
+      expect(setClause).toContain("updated_at = clock_timestamp()");
+      expect(setClause).not.toMatch(/\bcreated_at\s*=/);
+    }
+  });
+
+  it("models why preserving created_at keeps reopened protocol rows from becoming unread again", () => {
+    const args = {
+      originalCreatedAt: "2026-03-08T10:00:00.000Z",
+      reopenedAt: "2026-03-09T10:00:00.000Z",
+      notificationId: 42,
+      lastReadAt: "2026-03-08T10:00:00.000Z",
+      lastReadNotificationId: 42,
+    };
+
+    expect(modeledUnreadAfterReopen({ ...args, resetsCreatedAtOnReopen: false })).toBe(false);
+    expect(modeledUnreadAfterReopen({ ...args, resetsCreatedAtOnReopen: true })).toBe(true);
+  });
+
   it("pins the latest outbox ordering and join keys used to suppress stale reopens", () => {
     const sql = readFileSync(sqlPath, "utf8");
 
