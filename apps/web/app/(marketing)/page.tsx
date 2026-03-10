@@ -22,15 +22,14 @@ export default async function Home() {
       {/* Hero Section */}
       <section className="relative flex min-h-screen flex-col overflow-hidden">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,#050505_0%,#020202_55%,#000000_100%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_26%,_rgba(255,255,255,0.17),_transparent_24%),radial-gradient(circle_at_74%_18%,_rgba(132,166,214,0.14),_transparent_18%),radial-gradient(circle_at_82%_78%,_rgba(199,146,60,0.08),_transparent_20%)]" />
-          <div className="absolute -top-28 left-[8%] h-[30rem] w-[30rem] rounded-full bg-white/8 blur-[120px]" />
-          <div className="absolute top-[14%] right-[10%] h-[20rem] w-[20rem] rounded-full border border-white/10 opacity-40" />
-          <div className="absolute top-[20%] right-[14%] h-[12rem] w-[12rem] rounded-full border border-white/6 opacity-30" />
-          <div className="absolute inset-y-0 left-[42%] hidden w-px bg-gradient-to-b from-transparent via-white/10 to-transparent lg:block" />
-          <div className="absolute inset-0 bg-[linear-gradient(118deg,rgba(255,255,255,0.08)_0%,transparent_34%),linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.28)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,#070708_0%,#020202_52%,#000000_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_22%,_rgba(255,255,255,0.16),_transparent_24%),radial-gradient(circle_at_74%_16%,_rgba(110,138,180,0.16),_transparent_18%),radial-gradient(circle_at_54%_82%,_rgba(171,118,45,0.1),_transparent_24%)]" />
+          <div className="absolute -top-24 left-[6%] h-[32rem] w-[32rem] rounded-full bg-white/7 blur-[140px]" />
+          <div className="absolute top-[-6%] left-[44%] h-[38rem] w-[18rem] -translate-x-1/2 rotate-[14deg] bg-white/[0.05] blur-[150px]" />
+          <div className="absolute top-[6%] right-[-8%] h-[30rem] w-[30rem] rounded-full bg-[#5f7da5]/[0.12] blur-[170px]" />
+          <div className="absolute inset-0 bg-[linear-gradient(118deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.02)_20%,transparent_40%),linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.32)_100%)]" />
           <div
-            className="absolute inset-0 opacity-[0.03]"
+            className="absolute inset-0 opacity-[0.02]"
             style={{
               backgroundImage: `
                 linear-gradient(to right, white 1px, transparent 1px),
@@ -39,7 +38,7 @@ export default async function Home() {
               backgroundSize: "96px 96px",
             }}
           />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_48%,rgba(0,0,0,0.52)_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_46%,rgba(0,0,0,0.56)_100%)]" />
         </div>
         <Header />
 
