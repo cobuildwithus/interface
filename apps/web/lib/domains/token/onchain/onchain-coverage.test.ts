@@ -89,14 +89,42 @@ describe("onchain clients", () => {
     const baseClient = getClient(8453);
     const baseClientAgain = getClient(8453);
     const optimismClient = getClient(10);
+    const optimismClientAgain = getClient(10);
     const mainnetClient = getClient(1);
+    const mainnetClientAgain = getClient(1);
 
     expect(baseClient).toBe(baseClientAgain);
+    expect(optimismClient).toBe(optimismClientAgain);
+    expect(mainnetClient).toBe(mainnetClientAgain);
     expect(mainnetClient).not.toBe(baseClient);
     expect(mainnetClient).not.toBe(optimismClient);
     expect(createPublicClient).toHaveBeenCalledTimes(3);
     expect(http).toHaveBeenCalled();
     expect(getRpcUrl).toHaveBeenCalled();
+  });
+
+  it("rejects unsupported chain ids instead of falling back to mainnet", async () => {
+    const createPublicClient = vi.fn((opts) => ({ opts }));
+    const http = vi.fn((...args) => ({ args }));
+
+    vi.doMock("viem", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("viem")>();
+      return { ...actual, createPublicClient, http };
+    });
+    vi.doMock("viem/chains", () => ({
+      base: { id: 8453 },
+      mainnet: { id: 1 },
+      optimism: { id: 10 },
+    }));
+    const getAlchemyKey = vi.fn().mockReturnValue("key");
+    const getRpcUrl = vi.fn(() => "http://rpc");
+    vi.doMock("@/lib/domains/token/onchain/chains", () => ({ getAlchemyKey, getRpcUrl }));
+
+    const { getClient } = await import("@/lib/domains/token/onchain/clients");
+
+    expect(() => getClient(999)).toThrow("Unsupported chainId: 999");
+    expect(createPublicClient).not.toHaveBeenCalled();
+    expect(getRpcUrl).not.toHaveBeenCalled();
   });
 });
 

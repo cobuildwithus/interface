@@ -20,15 +20,18 @@ let baseClient: PublicClient | null = null;
 let mainnetClient: PublicClient | null = null;
 let optimismClient: PublicClient | null = null;
 
-export function getClient(chainId: SupportedChainId): PublicClient {
-  if (chainId === base.id) {
-    if (!baseClient) baseClient = createClient(base.id);
-    return baseClient;
+export function getClient(chainId: number): PublicClient {
+  switch (chainId) {
+    case base.id:
+      if (!baseClient) baseClient = createClient(base.id);
+      return baseClient;
+    case optimism.id:
+      if (!optimismClient) optimismClient = createClient(optimism.id);
+      return optimismClient;
+    case mainnet.id:
+      if (!mainnetClient) mainnetClient = createClient(mainnet.id);
+      return mainnetClient;
+    default:
+      throw new Error(`Unsupported chainId: ${chainId}`);
   }
-  if (chainId === optimism.id) {
-    if (!optimismClient) optimismClient = createClient(optimism.id);
-    return optimismClient;
-  }
-  if (!mainnetClient) mainnetClient = createClient(mainnet.id);
-  return mainnetClient;
 }

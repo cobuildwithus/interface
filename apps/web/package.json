@@ -25,7 +25,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^3.0.9",
     "@ai-sdk/react": "^3.0.41",
-    "@cobuild/wire": "^0.1.10",
+    "@cobuild/wire": "link:../../../wire",
     "@coinbase/cdp-sdk": "^1.44.1",
     "@farcaster/core": "^0.18.9",
     "@prisma/adapter-pg": "^7.1.0",
