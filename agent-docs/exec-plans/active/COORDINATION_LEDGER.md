@@ -4,9 +4,8 @@ Use this file only for currently active coding work. Keep it minimal and current
 
 ## Open Entries
 
-| Agent/Session                 | Task                                        | Files in Scope                      | Symbols (add/rename/delete)        | Dependency Notes                                                                      | Updated (YYYY-MM-DD) |
-| ----------------------------- | ------------------------------------------- | ----------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------- | -------------------- |
-| codex-hero-background-refresh | Improve marketing hero background treatment | `apps/web/app/(marketing)/page.tsx` | update hero background layers only | Route-local marketing visual change only; must not touch active CLI remediation files | 2026-03-10           |
+| Agent/Session | Task | Files in Scope | Symbols (add/rename/delete) | Dependency Notes | Updated (YYYY-MM-DD) |
+| ------------- | ---- | -------------- | --------------------------- | ---------------- | -------------------- |
 
 ## Rules
 
