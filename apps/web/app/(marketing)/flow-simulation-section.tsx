@@ -17,7 +17,9 @@ type FlowSimulationCopyProps = {
   headingClassName: string;
   descriptionClassName: string;
   toggleClassName: string;
+  blurbClassName: string;
   description: ReactNode;
+  activeBlurb: string;
   activeId: TopicId;
   onChange: (id: TopicId) => void;
 };
@@ -44,7 +46,9 @@ function FlowSimulationCopy({
   headingClassName,
   descriptionClassName,
   toggleClassName,
+  blurbClassName,
   description,
+  activeBlurb,
   activeId,
   onChange,
 }: FlowSimulationCopyProps) {
@@ -55,6 +59,7 @@ function FlowSimulationCopy({
       <div className={toggleClassName}>
         <GoalTopicToggle topics={TOPIC_OPTIONS} value={activeId} onChange={onChange} />
       </div>
+      <p className={blurbClassName}>{activeBlurb}</p>
     </div>
   );
 }
@@ -107,12 +112,14 @@ export function FlowSimulationSection() {
             headingClassName="text-2xl leading-[1.1] font-bold tracking-tight uppercase sm:text-3xl md:text-4xl"
             descriptionClassName="mt-5 text-sm leading-relaxed text-neutral-400 md:text-base"
             toggleClassName="mt-8"
+            blurbClassName="mt-4 text-xs leading-relaxed text-neutral-500 md:text-sm"
             description={
               <>
                 Communities pool money to fund and build software they wish existed. AI coordinates
                 budgets and routes payouts, while maintainers review work and decide what ships.
               </>
             }
+            activeBlurb={activeTopic.blurb}
             activeId={activeId}
             onChange={handleTopicChange}
           />
@@ -130,12 +137,14 @@ export function FlowSimulationSection() {
             headingClassName="text-4xl leading-[1.1] font-bold tracking-tight uppercase xl:text-5xl"
             descriptionClassName="mt-5 text-base leading-relaxed text-neutral-400"
             toggleClassName="mt-10"
+            blurbClassName="mt-5 max-w-sm text-sm leading-relaxed text-neutral-500"
             description={
               <>
                 Communities pool money to fund and build software they wish existed. AI coordinates
                 budgets and routes payouts, while maintainers review work and decide what ships.
               </>
             }
+            activeBlurb={activeTopic.blurb}
             activeId={activeId}
             onChange={handleTopicChange}
           />
