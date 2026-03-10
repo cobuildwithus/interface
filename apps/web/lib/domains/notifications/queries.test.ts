@@ -263,7 +263,58 @@ describe("notifications queries", () => {
         },
         rootTitle: "New budget proposed in Alpha.",
         sourceExcerpt: "0x0000...00aa opened a new budget request.",
-        href: "/0x00000000000000000000000000000000000000bb/events",
+        href: "/0x00000000000000000000000000000000000000bb/events?focus=request",
+      })
+    );
+  });
+
+  it("uses allocate-focused links for actionable premium notifications", async () => {
+    const createdAt = new Date("2026-03-08T12:00:00.000Z");
+
+    primaryQueryRawMock
+      .mockResolvedValueOnce([{ count: 1n, watermark: "1741435200000001:10" }])
+      .mockResolvedValueOnce([{ count: 1n }])
+      .mockResolvedValueOnce([{ watermark: "1741435200000001:10" }])
+      .mockResolvedValueOnce([
+        {
+          id: 10n,
+          kind: "protocol",
+          reason: "premium_claimable",
+          eventAt: createdAt,
+          createdAt,
+          lastReadAt: null,
+          isUnread: true,
+          sourceHash: null,
+          rootHash: null,
+          targetHash: null,
+          actorFid: null,
+          actorWalletAddress: null,
+          actorUsername: null,
+          actorDisplayName: null,
+          actorAvatarUrl: null,
+          sourceText: null,
+          sourceMentionsPositions: null,
+          sourceMentionProfiles: null,
+          rootText: null,
+          rootMentionsPositions: null,
+          rootMentionProfiles: null,
+          payload: {
+            labels: { goalName: "Alpha" },
+            resource: {
+              goalTreasury: "0x00000000000000000000000000000000000000bb",
+              budgetTreasury: "0x00000000000000000000000000000000000000cc",
+            },
+          },
+        },
+      ]);
+
+    const page = await getNotificationsPage("0x0000000000000000000000000000000000000001", 1);
+
+    expect(page.items[0]).toEqual(
+      expect.objectContaining({
+        rootTitle: "Premium ready to claim in Alpha.",
+        sourceExcerpt: "Premium is now claimable on this underwriting position.",
+        href: "/0x00000000000000000000000000000000000000bb/allocate?budgetTreasury=0x00000000000000000000000000000000000000cc&focus=premium",
       })
     );
   });
