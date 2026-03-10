@@ -32,3 +32,7 @@ Cut the web-owned CLI OAuth authorize route over to the shared `@cobuild/wire` O
 - `pnpm test:coverage` failed on the same unrelated test files.
 - `pnpm --filter web build:ci` passed.
 - Focused route coverage for this task passed in `app/api/cli/oauth/authorize/route.test.ts`.
+
+## Status
+
+completed

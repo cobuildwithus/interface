@@ -4,9 +4,8 @@ Use this file only for currently active coding work. Keep it minimal and current
 
 ## Open Entries
 
-| Agent/Session              | Task                                                                                    | Files in Scope                                                                                                                                                                                                                        | Symbols (add/rename/delete)                                                                                                                | Dependency Notes                                                                                                  | Updated (YYYY-MM-DD) |
-| -------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | -------------------- |
-| Codex / chat-grant-cutover | Remove chat grant storage/transport and align chat-api contracts to ownership-only auth | `apps/web/app/(app)/[goalAddress]/c/[chatId]/chat-section.tsx`, `apps/web/components/features/chat/**`, `apps/web/components/features/goals/goal-ai-input-client.tsx`, `apps/web/lib/domains/chat/**`, matching `agent-docs/**` notes | Delete grant storage helpers and `initialGrant` plumbing, remove grant request/response assumptions from chat create/get helpers and tests | Depends on chat-api removing grant headers/payloads in the same change; do not touch unrelated notifications work | 2026-03-10           |
+| Agent/Session | Task | Files in Scope | Symbols (add/rename/delete) | Dependency Notes | Updated (YYYY-MM-DD) |
+| ------------- | ---- | -------------- | --------------------------- | ---------------- | -------------------- |
 
 ## Rules
 
