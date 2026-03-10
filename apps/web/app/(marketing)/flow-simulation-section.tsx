@@ -2,7 +2,6 @@
 
 import type { ComponentProps, ReactNode, Key } from "react";
 import { useMemo, useState } from "react";
-import { GlossaryTerm } from "@/components/common/glossary-term";
 import { GoalTopicToggle } from "@/components/common/goal-topic-toggle";
 import { DaoFlowDiagram } from "@/components/visuals/dao-flow-diagram/dao-flow-diagram";
 import {
@@ -37,16 +36,6 @@ function FlowSimulationHeading({ className }: { className: string }) {
       <br />
       <span className="whitespace-nowrap text-neutral-500">Humans build</span>
     </h2>
-  );
-}
-
-function StakingTerm() {
-  return (
-    <GlossaryTerm
-      term="Staking"
-      title="Stake-based funding"
-      definition="The amount of money a participant locks behind a budget. Higher stakes mean stronger influence over where funds flow. Staker rewards unlock only when the goal succeeds."
-    />
   );
 }
 
@@ -120,8 +109,8 @@ export function FlowSimulationSection() {
             toggleClassName="mt-8"
             description={
               <>
-                AI allocates capital effectively to goals and their allocation mechanisms.{" "}
-                <StakingTerm /> steers the money stream in real time.
+                Communities pool money to fund and build software they wish existed. AI coordinates
+                budgets and routes payouts, while maintainers review work and decide what ships.
               </>
             }
             activeId={activeId}
@@ -143,8 +132,8 @@ export function FlowSimulationSection() {
             toggleClassName="mt-10"
             description={
               <>
-                People fund ambitious goals. AI allocates capital to pay contributors around the
-                world. <StakingTerm /> steers the money stream in real time.
+                Communities pool money to fund and build software they wish existed. AI coordinates
+                budgets and routes payouts, while maintainers review work and decide what ships.
               </>
             }
             activeId={activeId}
