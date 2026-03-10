@@ -117,7 +117,7 @@ describe("cli exec route", () => {
 
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const request = new Request("http://localhost/api/cli/exec", {
@@ -160,7 +160,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
     txLogCreateMock.mockRejectedValue(new Error("db unavailable"));
 
@@ -196,7 +196,7 @@ describe("cli exec route", () => {
 
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     assertCliTransferAllowedMock.mockImplementation(() => {
@@ -267,7 +267,7 @@ describe("cli exec route", () => {
 
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const request = new Request("http://localhost/api/cli/exec", {
@@ -306,7 +306,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const request = new Request("http://localhost/api/cli/exec", {
@@ -323,7 +323,7 @@ describe("cli exec route", () => {
     const response = await POST(request);
     expect(response.status).toBe(200);
     expect(sendUserOperationMock).toHaveBeenCalledWith({
-      network: "base-sepolia",
+      network: "base",
       calls: [
         {
           to: "0x000000000000000000000000000000000000dead",
@@ -350,7 +350,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
     txLogCreateMock.mockRejectedValue(new Error("db unavailable"));
 
@@ -423,7 +423,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const request = new Request("http://localhost/api/cli/exec", {
@@ -447,6 +447,38 @@ describe("cli exec route", () => {
     expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
   });
 
+  it("rejects base-sepolia transfer requests after the Base-only cutover", async () => {
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "transfer",
+        network: "base-sepolia",
+        token: "eth",
+        amount: "0.1",
+        to: "0x000000000000000000000000000000000000dEaD",
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "Unsupported transfer network: base-sepolia",
+    });
+    expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
+  });
+
   it("rejects unsupported tx networks before execution", async () => {
     requireCliBearerAuthMock.mockResolvedValue({
       ownerAddress: "0x0000000000000000000000000000000000000001",
@@ -455,7 +487,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const request = new Request("http://localhost/api/cli/exec", {
@@ -478,6 +510,37 @@ describe("cli exec route", () => {
     expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
   });
 
+  it("rejects base-sepolia tx requests after the Base-only cutover", async () => {
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "tx",
+        network: "base-sepolia",
+        to: "0x000000000000000000000000000000000000dEaD",
+        data: "0x12345678",
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "Unsupported transaction network: base-sepolia",
+    });
+    expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
+  });
+
   it("rejects transfer when amount is non-positive", async () => {
     requireCliBearerAuthMock.mockResolvedValue({
       ownerAddress: "0x0000000000000000000000000000000000000001",
@@ -486,7 +549,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const request = new Request("http://localhost/api/cli/exec", {
@@ -519,7 +582,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const request = new Request("http://localhost/api/cli/exec", {
@@ -554,7 +617,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const request = new Request("http://localhost/api/cli/exec", {
@@ -572,13 +635,13 @@ describe("cli exec route", () => {
     const response = await POST(request);
     expect(response.status).toBe(200);
     expect(assertCliTransferAllowedMock).toHaveBeenCalledWith({
-      network: "base-sepolia",
+      network: "base",
       to: "0x000000000000000000000000000000000000dead",
       token: "0x000000000000000000000000000000000000beef",
       amountAtomic: parseUnits("1.5", 18),
     });
     expect(sendUserOperationMock).toHaveBeenCalledWith({
-      network: "base-sepolia",
+      network: "base",
       calls: [
         expect.objectContaining({
           to: "0x000000000000000000000000000000000000beef",
@@ -602,7 +665,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
     assertCliTxAllowedMock.mockImplementation(() => {
       throw new CliPolicyError("blocked tx");
@@ -632,7 +695,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
     assertCliTxAllowedMock.mockImplementation(() => {
       throw new CliPolicyError("blocked tx");
@@ -666,7 +729,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const request = new Request("http://localhost/api/cli/exec", {
@@ -700,11 +763,11 @@ describe("cli exec route", () => {
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       address: "0x0000000000000000000000000000000000000002",
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
     txLogFindUniqueMock.mockResolvedValue({
       kind: "transfer",
-      network: "base-sepolia",
+      network: "base",
       to: "0x000000000000000000000000000000000000dead",
       token: "usdc",
       amount: "0.25",
@@ -738,7 +801,7 @@ describe("cli exec route", () => {
         address: "0x0000000000000000000000000000000000000002",
       },
       transactionHash: "0xexisting",
-      explorerUrl: "https://sepolia.basescan.org/tx/0xexisting",
+      explorerUrl: "https://basescan.org/tx/0xexisting",
     });
     expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
     expect(txLogCreateMock).not.toHaveBeenCalled();
@@ -755,11 +818,11 @@ describe("cli exec route", () => {
       agentKey: "default",
       address: "0x0000000000000000000000000000000000000002",
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
     txLogFindUniqueMock.mockResolvedValue({
       kind: "tx",
-      network: "base-sepolia",
+      network: "base",
       to: "0x000000000000000000000000000000000000dead",
       token: null,
       amount: null,
@@ -793,7 +856,7 @@ describe("cli exec route", () => {
         address: "0x0000000000000000000000000000000000000002",
       },
       transactionHash: "0xexisting",
-      explorerUrl: "https://sepolia.basescan.org/tx/0xexisting",
+      explorerUrl: "https://basescan.org/tx/0xexisting",
     });
     expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
     expect(txLogCreateMock).not.toHaveBeenCalled();
@@ -808,11 +871,11 @@ describe("cli exec route", () => {
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       address: "0x0000000000000000000000000000000000000002",
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
     txLogFindUniqueMock.mockResolvedValue({
       kind: "transfer",
-      network: "base-sepolia",
+      network: "base",
       to: "0x000000000000000000000000000000000000dead",
       token: "usdc",
       amount: "0.20",
@@ -854,7 +917,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const request = new Request("http://localhost/api/cli/exec", {
@@ -874,7 +937,7 @@ describe("cli exec route", () => {
     const response = await POST(request);
     expect(response.status).toBe(200);
     expect(sendUserOperationMock).toHaveBeenCalledWith({
-      network: "base-sepolia",
+      network: "base",
       calls: [
         {
           to: "0x000000000000000000000000000000000000dead",
@@ -904,7 +967,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const idempotencyKey = "aa2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
@@ -925,7 +988,7 @@ describe("cli exec route", () => {
     const response = await POST(request);
     expect(response.status).toBe(200);
     expect(sendUserOperationMock).toHaveBeenCalledWith({
-      network: "base-sepolia",
+      network: "base",
       calls: [
         {
           to: "0x000000000000000000000000000000000000dead",
@@ -956,11 +1019,11 @@ describe("cli exec route", () => {
       agentKey: "default",
       address: "0x0000000000000000000000000000000000000002",
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
     txLogFindUniqueMock.mockResolvedValueOnce(null).mockResolvedValueOnce({
       kind: "transfer",
-      network: "base-sepolia",
+      network: "base",
       to: "0x000000000000000000000000000000000000dead",
       token: "usdc",
       amount: "0.25",
@@ -995,7 +1058,7 @@ describe("cli exec route", () => {
         address: "0x0000000000000000000000000000000000000002",
       },
       transactionHash: "0xexisting",
-      explorerUrl: "https://sepolia.basescan.org/tx/0xexisting",
+      explorerUrl: "https://basescan.org/tx/0xexisting",
     });
     expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
     expect(txLogUpdateMock).not.toHaveBeenCalled();
@@ -1011,7 +1074,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
     txLogUpdateMock.mockRejectedValue(new Error("db unavailable"));
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -1086,11 +1149,11 @@ describe("cli exec route", () => {
       agentKey: "default",
       address: "0x0000000000000000000000000000000000000002",
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
     txLogFindUniqueMock.mockResolvedValue({
       kind: "tx",
-      network: "base-sepolia",
+      network: "base",
       to: "0x000000000000000000000000000000000000dead",
       token: null,
       amount: null,
@@ -1132,7 +1195,7 @@ describe("cli exec route", () => {
     });
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const request = new Request("http://localhost/api/cli/exec", {
@@ -1202,11 +1265,11 @@ describe("cli exec route", () => {
       agentKey: "default",
       address: "0x0000000000000000000000000000000000000002",
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
     txLogFindUniqueMock.mockResolvedValue({
       kind: "tx",
-      network: "base-sepolia",
+      network: "base",
       to: "0x000000000000000000000000000000000000dead",
       token: null,
       amount: null,
@@ -1252,11 +1315,11 @@ describe("cli exec route", () => {
       agentKey: "default",
       address: "0x0000000000000000000000000000000000000002",
       cdpAccountName: "cli-123",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
     txLogFindUniqueMock.mockResolvedValue({
       kind: "tx",
-      network: "base-sepolia",
+      network: "base",
       to: "0x000000000000000000000000000000000000dead",
       token: null,
       amount: null,

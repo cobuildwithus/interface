@@ -38,7 +38,7 @@ describe("cli wallet route", () => {
       ownerAddress: "0x0000000000000000000000000000000000000001",
       agentKey: "default",
       address: "0x0000000000000000000000000000000000000002",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     const request = new Request("http://localhost/api/cli/wallet", {
@@ -59,7 +59,7 @@ describe("cli wallet route", () => {
         ownerAddress: "0x0000000000000000000000000000000000000001",
         agentKey: "default",
         address: "0x0000000000000000000000000000000000000002",
-        defaultNetwork: "base-sepolia",
+        defaultNetwork: "base",
       },
     });
   });

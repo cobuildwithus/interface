@@ -2,7 +2,12 @@ import "server-only";
 
 import { isAddress, parseEther, parseUnits } from "viem";
 import { CliPolicyError } from "./errors";
-import { getCliEnv, parseCliBoolean, parseCliCsvSet } from "./env";
+import {
+  canonicalizeCliConfiguredNetwork,
+  getCliEnv,
+  parseCliBoolean,
+  parseCliCsvSet,
+} from "./env";
 
 function isStrictModeEnabled(): boolean {
   return parseCliBoolean("STRICT");
@@ -50,10 +55,15 @@ function assertStrictBaseline(kind: "transfer" | "tx") {
 }
 
 function assertNetworkAllowed(network: string) {
-  const allowed = parseCliCsvSet("ALLOWED_NETWORKS");
+  const allowed = new Set(
+    [...parseCliCsvSet("ALLOWED_NETWORKS")]
+      .map((value) => canonicalizeCliConfiguredNetwork(value))
+      .filter((value): value is string => value !== null)
+  );
   if (allowed.size === 0) return;
 
-  if (!allowed.has(network.toLowerCase())) {
+  const normalizedNetwork = canonicalizeCliConfiguredNetwork(network) ?? network.toLowerCase();
+  if (!allowed.has(normalizedNetwork)) {
     throw new CliPolicyError(`Network not allowed: ${network}`);
   }
 }

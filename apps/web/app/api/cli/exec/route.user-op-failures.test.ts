@@ -73,7 +73,7 @@ describe("cli exec route user-op failure handling", () => {
     getOrCreateCliAgentWalletMock.mockResolvedValue({
       address: "0x0000000000000000000000000000000000000002",
       cdpAccountName: "cli-smart",
-      defaultNetwork: "base-sepolia",
+      defaultNetwork: "base",
     });
 
     txLogFindUniqueMock.mockResolvedValue(null);
@@ -115,10 +115,9 @@ describe("cli exec route user-op failure handling", () => {
     });
 
     expect(sendUserOperationMock).toHaveBeenCalledWith({
-      network: "base-sepolia",
+      network: "base",
       calls: [
         expect.objectContaining({
-          to: "0x036CbD53842c5426634e7929541eC2318f3dCf7e",
           value: 0n,
         }),
       ],
@@ -127,9 +126,10 @@ describe("cli exec route user-op failure handling", () => {
     });
     const transferCall = (
       sendUserOperationMock.mock.calls[0]?.[0] as {
-        calls?: Array<{ data?: string }>;
+        calls?: Array<{ data?: string; to?: string }>;
       }
     )?.calls?.[0];
+    expect(transferCall?.to?.toLowerCase()).toBe("0x833589fcd6edb6e08f4c7c32d4f71b54bda02913");
     expect(transferCall?.data?.endsWith(BASE_BUILDER_SUFFIX.slice(2))).toBe(false);
     expect(waitForUserOperationMock).toHaveBeenCalledWith({
       userOpHash: "0xtransfer-user-op",
@@ -181,7 +181,7 @@ describe("cli exec route user-op failure handling", () => {
     });
 
     expect(sendUserOperationMock).toHaveBeenCalledWith({
-      network: "base-sepolia",
+      network: "base",
       calls: [
         {
           to: "0x000000000000000000000000000000000000dead",

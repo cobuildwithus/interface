@@ -3,7 +3,7 @@ import { z } from "zod";
 import { RequestValidationError } from "@/lib/server/cli/http";
 import { IdempotencyKeySchema } from "@/lib/server/cli/idempotency";
 
-export const CLI_EXEC_NETWORKS = ["base", "base-sepolia"] as const;
+export const CLI_EXEC_NETWORKS = ["base"] as const;
 
 const ExecRequestBaseSchema = z.object({
   network: z.string().trim().min(1).max(64).optional(),

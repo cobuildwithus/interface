@@ -1,6 +1,6 @@
 # Interface Agent Docs Index
 
-Last verified: 2026-03-05 (web DB target routing + local sync helper; docs-drift simplification)
+Last verified: 2026-03-10 (hosted CLI Base-only execution cutover)
 
 ## Purpose
 
@@ -35,13 +35,13 @@ This index is the table of contents for durable, repository-local context that a
 | `agent-docs/references/app-router-and-data-flow.md` | App router topology + API route + data flow map.                        | `apps/web/app/**`, `apps/web/lib/**`                           | Web Maintainers           | Per route/data-flow PR       | High        | 2026-02-25    |
 | `agent-docs/references/auth-wallet-model.md`        | Auth/session/wallet identity model and invariants.                      | `apps/web/lib/domains/auth/**`, auth components/hooks          | Web Maintainers           | Per auth/wallet PR           | High        | 2026-02-25    |
 | `agent-docs/references/server-data-cache-map.md`    | Prisma/KV/cache topology and consistency notes.                         | `apps/web/lib/server/**`, `apps/web/lib/domains/**`            | Web Maintainers           | Per data/cache PR            | High        | 2026-03-05    |
-| `agent-docs/references/onchain-execution-map.md`    | Onchain read/write execution paths and generated artifacts.             | `apps/contracts/**`, onchain hooks/components                  | Web Maintainers           | Per onchain PR               | High        | 2026-02-25    |
+| `agent-docs/references/onchain-execution-map.md`    | Onchain read/write execution paths and generated artifacts.             | `apps/contracts/**`, onchain hooks/components                  | Web Maintainers           | Per onchain PR               | High        | 2026-03-10    |
 | `agent-docs/references/testing-ci-map.md`           | Verification and CI enforcement map.                                    | `.github/workflows/**`, test scripts, doc scripts              | Web Maintainers           | Per CI/process PR            | Medium      | 2026-03-05    |
 | `agent-docs/references/nextjs-llms.txt`             | External Next.js/App Router reference pack.                             | Next.js docs                                                   | Web Maintainers           | Quarterly                    | Low         | 2026-02-18    |
 | `agent-docs/references/prisma-llms.txt`             | External Prisma/read-replica reference pack.                            | Prisma docs                                                    | Web Maintainers           | Quarterly                    | Low         | 2026-02-18    |
 | `agent-docs/references/wagmi-llms.txt`              | External wagmi/viem/onchain reference pack.                             | Wagmi + Viem docs                                              | Web Maintainers           | Quarterly                    | Low         | 2026-02-18    |
 | `agent-docs/generated/README.md`                    | Generated doc artifacts produced by scripts.                            | `agent-docs/generated/**`                                      | Web Maintainers           | Per script change            | Medium      | 2026-02-18    |
-| `agent-docs/exec-plans/`                            | Execution plans for active and completed work.                          | PR-linked plan docs                                            | Web Maintainers           | Per multi-file/high-risk PR  | High        | 2026-02-18    |
+| `agent-docs/exec-plans/`                            | Execution plans for active and completed work.                          | PR-linked plan docs                                            | Web Maintainers           | Per multi-file/high-risk PR  | High        | 2026-03-10    |
 | `agent-docs/exec-plans/tech-debt-tracker.md`        | Rolling debt register with owner/priority/status.                       | Audits, incidents, reviews                                     | Web Maintainers           | Bi-weekly                    | Medium      | 2026-02-18    |
 
 ## Conventions

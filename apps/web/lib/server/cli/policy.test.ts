@@ -27,7 +27,7 @@ describe("cli policy", () => {
   it("allows transfer when no limits are configured", () => {
     expect(() =>
       assertCliTransferAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         token: "eth",
         amountAtomic: parseEther("0.001"),
@@ -40,7 +40,7 @@ describe("cli policy", () => {
 
     expect(() =>
       assertCliTransferAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         token: "eth",
         amountAtomic: parseEther("0.02"),
@@ -53,7 +53,7 @@ describe("cli policy", () => {
 
     expect(() =>
       assertCliTransferAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         token: "usdc",
         amountAtomic: parseUnits("2", 6),
@@ -62,16 +62,16 @@ describe("cli policy", () => {
   });
 
   it("rejects transfer when network is not allowlisted", () => {
-    setEnv({ CLI_ALLOWED_NETWORKS: "base" });
+    setEnv({ CLI_ALLOWED_NETWORKS: "optimism" });
 
     expect(() =>
       assertCliTransferAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         token: "eth",
         amountAtomic: parseEther("0.001"),
       })
-    ).toThrow("Network not allowed: base-sepolia");
+    ).toThrow("Network not allowed: base");
   });
 
   it("rejects transfer when recipient is not allowlisted", () => {
@@ -79,7 +79,7 @@ describe("cli policy", () => {
 
     expect(() =>
       assertCliTransferAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x0000000000000000000000000000000000000001",
         token: "eth",
         amountAtomic: parseEther("0.001"),
@@ -92,7 +92,7 @@ describe("cli policy", () => {
 
     expect(() =>
       assertCliTransferAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x0000000000000000000000000000000000000001",
         token: "0x000000000000000000000000000000000000beef",
         amountAtomic: parseUnits("1", 18),
@@ -102,14 +102,14 @@ describe("cli policy", () => {
 
   it("treats allowlists as case-insensitive", () => {
     setEnv({
-      CLI_ALLOWED_NETWORKS: "BASE-SEPOLIA",
+      CLI_ALLOWED_NETWORKS: "BASE-MAINNET",
       CLI_ALLOWED_RECIPIENTS: "0X000000000000000000000000000000000000DEAD",
       CLI_ALLOWED_CONTRACTS: "0X000000000000000000000000000000000000BEEF",
     });
 
     expect(() =>
       assertCliTransferAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         token: "0x000000000000000000000000000000000000beef",
         amountAtomic: parseUnits("1", 18),
@@ -120,7 +120,7 @@ describe("cli policy", () => {
   it("disables generic tx when contract allowlist is unset", () => {
     expect(() =>
       assertCliTxAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         valueWei: 0n,
         data: "0x12345678",
@@ -136,7 +136,7 @@ describe("cli policy", () => {
 
     expect(() =>
       assertCliTxAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         valueWei: 0n,
         data: "0x12345678",
@@ -152,7 +152,7 @@ describe("cli policy", () => {
 
     expect(() =>
       assertCliTxAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         valueWei: 0n,
         data: "0x12345678",
@@ -169,7 +169,7 @@ describe("cli policy", () => {
 
     expect(() =>
       assertCliTransferAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         token: "eth",
         amountAtomic: parseEther("0.001"),
@@ -180,12 +180,12 @@ describe("cli policy", () => {
   it("requires ETH and USDC caps in strict mode", () => {
     setEnv({
       CLI_STRICT: "1",
-      CLI_ALLOWED_NETWORKS: "base-sepolia",
+      CLI_ALLOWED_NETWORKS: "base",
     });
 
     expect(() =>
       assertCliTransferAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         token: "eth",
         amountAtomic: parseEther("0.001"),
@@ -194,13 +194,13 @@ describe("cli policy", () => {
 
     setEnv({
       CLI_STRICT: "1",
-      CLI_ALLOWED_NETWORKS: "base-sepolia",
+      CLI_ALLOWED_NETWORKS: "base",
       CLI_MAX_ETH_PER_TX: "0.01",
     });
 
     expect(() =>
       assertCliTransferAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         token: "eth",
         amountAtomic: parseEther("0.001"),
@@ -211,7 +211,7 @@ describe("cli policy", () => {
   it("requires selector allowlist in strict mode when contracts are configured", () => {
     setEnv({
       CLI_STRICT: "1",
-      CLI_ALLOWED_NETWORKS: "base-sepolia",
+      CLI_ALLOWED_NETWORKS: "base",
       CLI_MAX_ETH_PER_TX: "0.01",
       CLI_MAX_USDC_PER_TX: "1",
       CLI_ALLOWED_CONTRACTS: "0x000000000000000000000000000000000000dead",
@@ -219,7 +219,7 @@ describe("cli policy", () => {
 
     expect(() =>
       assertCliTxAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         valueWei: 0n,
         data: "0x12345678",
@@ -231,14 +231,14 @@ describe("cli policy", () => {
     setEnv({
       CLI_STRICT: "1",
       CLI_STRICT_REQUIRE_ALLOWED_RECIPIENTS: "1",
-      CLI_ALLOWED_NETWORKS: "base-sepolia",
+      CLI_ALLOWED_NETWORKS: "base",
       CLI_MAX_ETH_PER_TX: "0.01",
       CLI_MAX_USDC_PER_TX: "1",
     });
 
     expect(() =>
       assertCliTransferAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         token: "eth",
         amountAtomic: parseEther("0.001"),
@@ -255,7 +255,7 @@ describe("cli policy", () => {
 
     expect(() =>
       assertCliTxAllowed({
-        network: "base-sepolia",
+        network: "base",
         to: "0x000000000000000000000000000000000000dEaD",
         valueWei: parseEther("0.02"),
         data: "0x12345678",

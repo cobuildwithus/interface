@@ -5,7 +5,11 @@ import type { EvmSmartAccount } from "@coinbase/cdp-sdk";
 import prisma, { prismaPrimary } from "@/lib/server/db/cobuild-db-client";
 import { normalizeAddress } from "@/lib/shared/address";
 import { getCliCdpClient } from "./cdp-client";
-import { getCliAccountPolicyId, getCliDefaultNetwork } from "./env";
+import {
+  canonicalizeCliConfiguredNetwork,
+  getCliAccountPolicyId,
+  getCliDefaultNetwork,
+} from "./env";
 import { isPrismaUniqueViolation } from "./prisma-errors";
 
 const MAX_CREATE_ATTEMPTS = 5;
@@ -20,6 +24,7 @@ type CliWalletDb = {
   cliAgentWallet: {
     findUnique: typeof prisma.cliAgentWallet.findUnique;
     create: typeof prisma.cliAgentWallet.create;
+    update: typeof prisma.cliAgentWallet.update;
   };
 };
 
@@ -48,6 +53,28 @@ function assertSmartWalletRecord(params: {
     );
   }
   return params.wallet;
+}
+
+async function maybeNormalizeWalletDefaultNetwork(params: {
+  db: CliWalletDb;
+  wallet: CliAgentWalletRecord;
+}): Promise<CliAgentWalletRecord> {
+  const normalizedDefaultNetwork = canonicalizeCliConfiguredNetwork(params.wallet.defaultNetwork);
+  if (!normalizedDefaultNetwork || normalizedDefaultNetwork === params.wallet.defaultNetwork) {
+    return params.wallet;
+  }
+
+  return params.db.cliAgentWallet.update({
+    where: {
+      ownerAddress_agentKey: {
+        ownerAddress: params.wallet.ownerAddress,
+        agentKey: params.wallet.agentKey,
+      },
+    },
+    data: {
+      defaultNetwork: normalizedDefaultNetwork,
+    },
+  });
 }
 
 function deterministicAccountSuffix(params: {
@@ -146,9 +173,12 @@ export async function getOrCreateCliAgentWallet(params: {
 
   const existing = await findCurrentWallet();
   if (existing) {
-    return assertSmartWalletRecord({
-      wallet: existing,
-      expectedSmartAccountName: cdpAccountName,
+    return maybeNormalizeWalletDefaultNetwork({
+      db: primaryDb,
+      wallet: assertSmartWalletRecord({
+        wallet: existing,
+        expectedSmartAccountName: cdpAccountName,
+      }),
     });
   }
 
@@ -174,18 +204,24 @@ export async function getOrCreateCliAgentWallet(params: {
       if (isPrismaUniqueViolation(error)) {
         const conflicted = await findCurrentWallet();
         if (conflicted) {
-          return assertSmartWalletRecord({
-            wallet: conflicted,
-            expectedSmartAccountName: cdpAccountName,
+          return maybeNormalizeWalletDefaultNetwork({
+            db: primaryDb,
+            wallet: assertSmartWalletRecord({
+              wallet: conflicted,
+              expectedSmartAccountName: cdpAccountName,
+            }),
           });
         }
       }
 
       const raced = await findCurrentWallet();
       if (raced) {
-        return assertSmartWalletRecord({
-          wallet: raced,
-          expectedSmartAccountName: cdpAccountName,
+        return maybeNormalizeWalletDefaultNetwork({
+          db: primaryDb,
+          wallet: assertSmartWalletRecord({
+            wallet: raced,
+            expectedSmartAccountName: cdpAccountName,
+          }),
         });
       }
 

@@ -31,7 +31,7 @@
 - Client reads: wagmi/viem hooks and quote helpers.
 - Server cached reads: revnet/project stats/ETH price helpers.
 - Server writes (cli API):
-  - `app/api/cli/exec/route.ts` via CDP smart-account user operations (`transfer` / `sendUserOperation` + `waitForUserOperation`), currently scoped to `base` and `base-sepolia`.
+  - `app/api/cli/exec/route.ts` via CDP smart-account user operations (`transfer` / `sendUserOperation` + `waitForUserOperation`), scoped to Base mainnet only. Stored/default network aliases are normalized to `base`, but explicit exec requests reject `base-sepolia`.
   - `app/api/cli/farcaster/signup/route.ts` via CDP smart-account user operations on `optimism` for Farcaster `IdGateway.register` and `KeyGateway.add`, including smart-account EIP-712 typed-data signing for SignedKeyRequest metadata.
 
 ## Auth and Wallet Gating
