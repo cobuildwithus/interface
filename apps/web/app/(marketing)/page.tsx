@@ -11,7 +11,7 @@ import { buildPageMetadata } from "@/lib/shared/page-metadata";
 export const metadata = buildPageMetadata({
   title: "Cobuild | Crowdfund Software You Wish Existed",
   description:
-    "Cobuild helps communities crowdfund software together, then pay contributors to build it and keep it alive.",
+    "Cobuild helps communities crowdfund open source software, coordinate contributors, and allocate funds where they matter most.",
 });
 
 const whatIsCobuildDocsUrl = `${docsUrl}/quickstart/what-is-cobuild`;
@@ -21,8 +21,14 @@ export default async function Home() {
     <div className="dark bg-black text-white selection:bg-white selection:text-black">
       {/* Hero Section */}
       <section className="relative flex min-h-screen flex-col overflow-hidden">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.12),_transparent_32%),radial-gradient(circle_at_78%_24%,_rgba(255,255,255,0.06),_transparent_22%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_24%)]" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,#050505_0%,#020202_55%,#000000_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_26%,_rgba(255,255,255,0.17),_transparent_24%),radial-gradient(circle_at_74%_18%,_rgba(132,166,214,0.14),_transparent_18%),radial-gradient(circle_at_82%_78%,_rgba(199,146,60,0.08),_transparent_20%)]" />
+          <div className="absolute -top-28 left-[8%] h-[30rem] w-[30rem] rounded-full bg-white/8 blur-[120px]" />
+          <div className="absolute top-[14%] right-[10%] h-[20rem] w-[20rem] rounded-full border border-white/10 opacity-40" />
+          <div className="absolute top-[20%] right-[14%] h-[12rem] w-[12rem] rounded-full border border-white/6 opacity-30" />
+          <div className="absolute inset-y-0 left-[42%] hidden w-px bg-gradient-to-b from-transparent via-white/10 to-transparent lg:block" />
+          <div className="absolute inset-0 bg-[linear-gradient(118deg,rgba(255,255,255,0.08)_0%,transparent_34%),linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.28)_100%)]" />
           <div
             className="absolute inset-0 opacity-[0.03]"
             style={{
@@ -33,6 +39,7 @@ export default async function Home() {
               backgroundSize: "96px 96px",
             }}
           />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_48%,rgba(0,0,0,0.52)_100%)]" />
         </div>
         <Header />
 
@@ -45,8 +52,8 @@ export default async function Home() {
                 </h1>
 
                 <p className="max-w-2xl text-sm leading-relaxed text-neutral-300 md:text-base">
-                  Cobuild helps communities crowdfund software together, then pay contributors to
-                  build it and keep it alive.
+                  Cobuild helps communities crowdfund open source software, coordinate contributors,
+                  and allocate funds where they matter most.
                 </p>
 
                 <div className="flex flex-wrap items-center gap-4 pt-1">

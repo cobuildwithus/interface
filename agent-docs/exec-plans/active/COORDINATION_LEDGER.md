@@ -4,10 +4,9 @@ Use this file only for currently active coding work. Keep it minimal and current
 
 ## Open Entries
 
-| Agent/Session                 | Task                                                           | Files in Scope                      | Symbols (add/rename/delete)                             | Dependency Notes                                                                                                                | Updated (YYYY-MM-DD) |
-| ----------------------------- | -------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| codex-hero-background-refresh | Improve marketing hero background treatment                    | `apps/web/app/(marketing)/page.tsx` | update hero background layers only                      | Route-local marketing visual change only; must not touch active CLI remediation files                                           | 2026-03-10           |
-| codex-homepage-subheader-copy | Update homepage subheader copy to new OSS coordination wording | `apps/web/app/(marketing)/page.tsx` | rename hero subheader string only; no symbol add/delete | Must stay isolated to hero copy in the marketing page and avoid background-layer edits owned by `codex-hero-background-refresh` | 2026-03-10           |
+| Agent/Session                 | Task                                        | Files in Scope                      | Symbols (add/rename/delete)        | Dependency Notes                                                                      | Updated (YYYY-MM-DD) |
+| ----------------------------- | ------------------------------------------- | ----------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------- | -------------------- |
+| codex-hero-background-refresh | Improve marketing hero background treatment | `apps/web/app/(marketing)/page.tsx` | update hero background layers only | Route-local marketing visual change only; must not touch active CLI remediation files | 2026-03-10           |
 
 ## Rules
 
