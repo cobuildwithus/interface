@@ -24,7 +24,7 @@ import { useArrowKeyNavigation } from "@/lib/shared/use-arrow-key-navigation";
 
 type CliSetupCompleteModalProps = {
   agentKey: string;
-  payerMode?: "hosted" | "local-generate" | "local-key" | "skip" | null;
+  walletMode?: "hosted" | "local-generate" | "local-key" | "skip" | null;
 };
 
 type SlideItem = {
@@ -48,7 +48,7 @@ export function CliSetupCompleteModal(props: CliSetupCompleteModalProps) {
 
   const slides = useMemo<SetupSlide[]>(() => {
     const walletText =
-      props.payerMode === "hosted"
+      props.walletMode === "hosted"
         ? "Agent wallet is live with hosted payments"
         : "Agent wallet is live and ready";
 
@@ -104,7 +104,7 @@ export function CliSetupCompleteModal(props: CliSetupCompleteModalProps) {
         ],
       },
     ];
-  }, [props.payerMode]);
+  }, [props.walletMode]);
 
   const activeSlide = slides[slideIndex];
 

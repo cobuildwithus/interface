@@ -44,13 +44,13 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   let oauthRequest: CliOAuthAuthorizeRequest | null = null;
   let oauthError: string | undefined;
-  const rawPayerMode = query.get("payer_mode");
-  const setupPayerMode =
-    rawPayerMode === "hosted" ||
-    rawPayerMode === "local-generate" ||
-    rawPayerMode === "local-key" ||
-    rawPayerMode === "skip"
-      ? rawPayerMode
+  const rawWalletMode = query.get("wallet_mode");
+  const setupWalletMode =
+    rawWalletMode === "hosted" ||
+    rawWalletMode === "local-generate" ||
+    rawWalletMode === "local-key" ||
+    rawWalletMode === "skip"
+      ? rawWalletMode
       : null;
   const showSetupCompleteModal = query.get("cli_setup_complete") === "1";
   const setupAgentKey = query.get("agent_key")?.trim() || "default";
@@ -99,7 +99,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       {oauthRequest || oauthError ? (
         <CliOAuthAuthorizeModal request={oauthRequest} error={oauthError} />
       ) : showSetupCompleteModal ? (
-        <CliSetupCompleteModal agentKey={setupAgentKey} payerMode={setupPayerMode} />
+        <CliSetupCompleteModal agentKey={setupAgentKey} walletMode={setupWalletMode} />
       ) : null}
     </main>
   );

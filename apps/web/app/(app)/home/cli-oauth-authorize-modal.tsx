@@ -31,7 +31,7 @@ function summarizeAuthorizedActions(request: CliOAuthAuthorizeRequest): string[]
   const hasOfflineAccess = request.scopes.includes("offline_access");
 
   if (hasWalletRead || hasWalletExecute) {
-    if (request.payerMode === "hosted") {
+    if (request.walletMode === "hosted") {
       actions.push("Create and use a hosted wallet for this agent.");
     } else {
       actions.push("Create and use a wallet for this agent.");
