@@ -22,6 +22,11 @@ function getNotificationPreview(item: NotificationsPageData["items"][number]): s
   return item.sourceExcerpt?.trim() || null;
 }
 
+function getDiscussionTitle(item: NotificationsPageData["items"][number]): string {
+  const actorLabel = item.actor?.name ?? "Someone";
+  return `${actorLabel} ${getReasonLabel(item.reason)}.`;
+}
+
 export function NotificationsList({ pageData }: { pageData: NotificationsPageData }) {
   if (pageData.items.length === 0) {
     return (
@@ -47,6 +52,10 @@ export function NotificationsList({ pageData }: { pageData: NotificationsPageDat
           const actorLabel = actor?.name ?? "Someone";
           const href = item.href ?? "/notifications";
           const preview = getNotificationPreview(item);
+          const title =
+            item.kind === "protocol"
+              ? (item.rootTitle ?? "Protocol update.")
+              : getDiscussionTitle(item);
 
           return (
             <Link
@@ -64,11 +73,12 @@ export function NotificationsList({ pageData }: { pageData: NotificationsPageDat
               <div className="min-w-0 flex-1">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate pr-2 text-[15px] leading-6">
+                    <p
+                      className={`pr-2 text-[15px] leading-6 ${item.kind === "protocol" ? "" : "truncate"}`}
+                    >
                       <span className={item.isUnread ? "font-semibold" : "font-medium"}>
-                        {actorLabel}
-                      </span>{" "}
-                      <span className="text-muted-foreground">{getReasonLabel(item.reason)}.</span>
+                        {title}
+                      </span>
                     </p>
                     {preview ? (
                       <p className="text-foreground/70 mt-1 [display:-webkit-box] overflow-hidden pr-4 text-sm leading-5 break-words [-webkit-box-orient:vertical] [-webkit-line-clamp:8]">

@@ -10,6 +10,7 @@ import {
 } from "@/lib/integrations/farcaster/casts/thread/sql";
 import prisma from "@/lib/server/db/cobuild-db-client";
 import { normalizeAddress } from "@/lib/shared/address";
+import { buildProtocolNotificationPresentation } from "./presentation";
 import type {
   NotificationsPageData,
   NotificationListItem,
@@ -38,6 +39,7 @@ type NotificationRow = {
   rootHash: Buffer | null;
   targetHash: Buffer | null;
   actorFid: bigint | number | null;
+  actorWalletAddress: string | null;
   actorUsername: string | null;
   actorDisplayName: string | null;
   actorAvatarUrl: string | null;
@@ -136,6 +138,17 @@ function toRootTitle(text: string | null | undefined): string | null {
 }
 
 function buildHref(row: NotificationRow): string | null {
+  if (row.kind === "protocol") {
+    const payload =
+      row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
+        ? (row.payload as Record<string, unknown>)
+        : null;
+    return buildProtocolNotificationPresentation({
+      reason: row.reason,
+      payload,
+      actorWalletAddress: row.actorWalletAddress,
+    }).href;
+  }
   if (row.kind !== "discussion") return null;
   const sourceHash = bufferToHash(row.sourceHash);
   const rootHash = bufferToHash(row.rootHash);
@@ -166,7 +179,20 @@ function buildRenderedText(
 }
 
 function mapNotificationRow(row: NotificationRow): NotificationListItem {
+  const payload =
+    row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
+      ? (row.payload as Record<string, unknown>)
+      : null;
+  const protocolPresentation =
+    row.kind === "protocol"
+      ? buildProtocolNotificationPresentation({
+          reason: row.reason,
+          payload,
+          actorWalletAddress: row.actorWalletAddress,
+        })
+      : null;
   const actorName =
+    protocolPresentation?.actorName ??
     row.actorUsername ??
     row.actorDisplayName ??
     (row.actorFid ? `fid:${toNumber(row.actorFid)}` : "Someone");
@@ -188,7 +214,12 @@ function mapNotificationRow(row: NotificationRow): NotificationListItem {
       : "discussion") as NotificationListItem["kind"],
     reason: row.reason as NotificationReason,
     actor:
-      row.actorFid || row.actorUsername || row.actorDisplayName || row.actorAvatarUrl
+      row.actorFid ||
+      row.actorWalletAddress ||
+      row.actorUsername ||
+      row.actorDisplayName ||
+      row.actorAvatarUrl ||
+      protocolPresentation?.actorName
         ? {
             fid: row.actorFid == null ? null : toNumber(row.actorFid),
             name: actorName,
@@ -203,12 +234,9 @@ function mapNotificationRow(row: NotificationRow): NotificationListItem {
     sourceHash: bufferToHash(row.sourceHash),
     rootHash: bufferToHash(row.rootHash),
     targetHash: bufferToHash(row.targetHash),
-    rootTitle: toRootTitle(rootText),
-    sourceExcerpt: normalizeText(sourceText),
-    payload:
-      row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
-        ? (row.payload as Record<string, unknown>)
-        : null,
+    rootTitle: protocolPresentation?.title ?? toRootTitle(rootText),
+    sourceExcerpt: protocolPresentation?.excerpt ?? normalizeText(sourceText),
+    payload,
   };
 }
 
@@ -374,6 +402,7 @@ export async function getNotificationsPage(
                 notification.root_cast_hash AS "rootHash",
                 notification.target_cast_hash AS "targetHash",
                 notification.actor_fid AS "actorFid",
+                notification.actor_wallet_address AS "actorWalletAddress",
                 actor.fname AS "actorUsername",
                 actor.display_name AS "actorDisplayName",
                 actor.avatar_url AS "actorAvatarUrl",

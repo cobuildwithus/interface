@@ -210,4 +210,61 @@ describe("notifications queries", () => {
       "first line with detail second line keeps going with more context and should not be cut off by the query mapper even when it gets long enough to previously trigger truncation"
     );
   });
+
+  it("preserves protocol actor labels when only actor_wallet_address is present", async () => {
+    const createdAt = new Date("2026-03-08T12:00:00.000Z");
+
+    primaryQueryRawMock
+      .mockResolvedValueOnce([{ count: 1n, watermark: "1741435200000001:9" }])
+      .mockResolvedValueOnce([{ count: 1n }])
+      .mockResolvedValueOnce([{ watermark: "1741435200000001:9" }])
+      .mockResolvedValueOnce([
+        {
+          id: 9n,
+          kind: "protocol",
+          reason: "budget_proposed",
+          eventAt: createdAt,
+          createdAt,
+          lastReadAt: null,
+          isUnread: true,
+          sourceHash: null,
+          rootHash: null,
+          targetHash: null,
+          actorFid: null,
+          actorWalletAddress: "0x00000000000000000000000000000000000000aa",
+          actorUsername: null,
+          actorDisplayName: null,
+          actorAvatarUrl: null,
+          sourceText: null,
+          sourceMentionsPositions: null,
+          sourceMentionProfiles: null,
+          rootText: null,
+          rootMentionsPositions: null,
+          rootMentionProfiles: null,
+          payload: {
+            labels: { goalName: "Alpha" },
+            resource: {
+              goalTreasury: "0x00000000000000000000000000000000000000bb",
+            },
+          },
+        },
+      ]);
+
+    const page = await getNotificationsPage("0x0000000000000000000000000000000000000001", 1);
+
+    expect(page.items[0]).toEqual(
+      expect.objectContaining({
+        kind: "protocol",
+        actor: {
+          fid: null,
+          name: "0x0000...00aa",
+          username: null,
+          avatarUrl: null,
+        },
+        rootTitle: "New budget proposed in Alpha.",
+        sourceExcerpt: "0x0000...00aa opened a new budget request.",
+        href: "/0x00000000000000000000000000000000000000bb/events",
+      })
+    );
+  });
 });
