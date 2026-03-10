@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ProtocolRouteHint } from "@/components/features/notifications/protocol-route-hint";
+import type { ProtocolRouteHint as ProtocolRouteHintData } from "@/lib/domains/notifications/protocol-route-state";
 import { dismissAllocateHowItWorks } from "./actions";
 import { ActivityFeed } from "./components/activity-feed";
 import { AllocateHeader } from "./components/allocate-header";
@@ -28,6 +30,8 @@ type AllocatePageClientProps = {
   initialSubGoals: SGSummary[];
   initialShowHowItWorks: boolean;
   canPersistIntroDismissal: boolean;
+  routeHint: ProtocolRouteHintData | null;
+  initialFocusSectionId: "position-summary" | "funding-flow" | null;
 };
 
 function applyFundingFlow(goals: SGSummary[]) {
@@ -51,6 +55,8 @@ export function AllocatePageClient({
   initialSubGoals,
   initialShowHowItWorks,
   canPersistIntroDismissal,
+  routeHint,
+  initialFocusSectionId,
 }: AllocatePageClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -71,6 +77,14 @@ export function AllocatePageClient({
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!initialFocusSectionId) return;
+
+    const element = document.getElementById(initialFocusSectionId);
+    if (!element) return;
+    element.scrollIntoView({ block: "start" });
+  }, [initialFocusSectionId]);
+
   const handleDismissHowItWorks = () => {
     setIsHowItWorksVisible(false);
 
@@ -87,13 +101,16 @@ export function AllocatePageClient({
   return (
     <main className="relative min-h-screen w-full">
       <div className="w-full p-4 md:p-6 lg:p-8">
+        {routeHint ? <ProtocolRouteHint hint={routeHint} /> : null}
         <HowThisWorksCard
           isVisible={isHowItWorksVisible}
           isPending={isPending}
           onDismiss={handleDismissHowItWorks}
         />
         <AllocateHeader goalTitle={goalTitle} systemStats={systemStats} />
-        <PositionSummary userStats={userStats} />
+        <div id="position-summary">
+          <PositionSummary userStats={userStats} />
+        </div>
 
         <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
           <div className="space-y-8">
@@ -102,11 +119,13 @@ export function AllocatePageClient({
           <ActivityFeed recentActivity={recentActivity} />
         </div>
 
-        <FundingFlow
-          subGoals={subGoals}
-          treasuryBalance={treasuryBalance}
-          systemStats={systemStats}
-        />
+        <div id="funding-flow">
+          <FundingFlow
+            subGoals={subGoals}
+            treasuryBalance={treasuryBalance}
+            systemStats={systemStats}
+          />
+        </div>
       </div>
     </main>
   );
