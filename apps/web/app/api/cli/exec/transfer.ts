@@ -17,6 +17,7 @@ import {
   failCliTxLog,
   finalizeCliTxLog,
   markCliTxSubmitted,
+  markCliTxTimedOut,
   replayIfFinalized,
   reserveOrReplay,
   type CliExecDb,
@@ -223,6 +224,15 @@ export async function handleTransferExecution(params: {
     });
   } catch (error) {
     if (error instanceof UserOperationTimeoutError) {
+      if (params.idempotencyKey) {
+        await markCliTxTimedOut({
+          db: params.db,
+          ownerAddress: params.auth.ownerAddress,
+          agentKey: params.auth.agentKey,
+          idempotencyKey: params.idempotencyKey,
+          userOpHash,
+        });
+      }
       return buildPendingResponse({
         kind: "transfer",
         walletAddress,

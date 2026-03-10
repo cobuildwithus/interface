@@ -1444,10 +1444,250 @@ describe("cli exec route", () => {
           },
         })
       );
-      expect(txLogUpdateMock).toHaveBeenCalledTimes(1);
+      expect(txLogUpdateMock).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          data: {
+            status: "timed_out",
+            userOpHash: "0xpending-user-op",
+            expiresAt: null,
+          },
+        })
+      );
+      expect(txLogUpdateMock).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("returns 202 pending for transfers when confirmation exceeds the hosted wait timeout", async () => {
+    vi.useFakeTimers();
+    const sendUserOperationMock = vi
+      .fn()
+      .mockResolvedValue({ userOpHash: "0xpending-transfer-op" });
+    const waitForUserOperationMock = vi.fn().mockImplementation(() => new Promise<never>(() => {}));
+    setSmartAccountMocks({ sendUserOperationMock, waitForUserOperationMock });
+
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      address: "0x0000000000000000000000000000000000000002",
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "22222222-3333-4444-8555-666666666666",
+      },
+      body: JSON.stringify({
+        kind: "transfer",
+        token: "usdc",
+        amount: "0.25",
+        to: "0x000000000000000000000000000000000000dEaD",
+      }),
+    });
+
+    try {
+      const responsePromise = POST(request);
+      await vi.advanceTimersByTimeAsync(20_000);
+      const response = await responsePromise;
+
+      expect(response.status).toBe(202);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(await response.json()).toEqual({
+        ok: true,
+        kind: "transfer",
+        status: "pending",
+        pending: true,
+        wallet: {
+          address: "0x0000000000000000000000000000000000000002",
+        },
+        transactionHash: null,
+        userOpHash: "0xpending-transfer-op",
+        explorerUrl: null,
+      });
+      expect(txLogUpdateMock).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          data: {
+            status: "submitted",
+            userOpHash: "0xpending-transfer-op",
+            expiresAt: null,
+          },
+        })
+      );
+      expect(txLogUpdateMock).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          data: {
+            status: "timed_out",
+            userOpHash: "0xpending-transfer-op",
+            expiresAt: null,
+          },
+        })
+      );
+      expect(txLogUpdateMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("resumes a submitted tx idempotency record without re-submitting the user operation", async () => {
+    const waitForUserOperationMock = vi.fn().mockResolvedValue({
+      status: "complete",
+      transactionHash: "0xsubmitted",
+    });
+    const sendUserOperationMock = vi.fn();
+    setSmartAccountMocks({ sendUserOperationMock, waitForUserOperationMock });
+
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      address: "0x0000000000000000000000000000000000000002",
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base",
+    });
+    txLogFindUniqueMock.mockResolvedValue(
+      createCliTxLogRecord({
+        kind: "tx",
+        token: null,
+        amount: null,
+        valueEth: "0",
+        data: "0x12345678",
+        txHash: null,
+        userOpHash: "0xsubmitted-user-op",
+        status: "submitted",
+      })
+    );
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "2f7f8d9c-4444-4555-8666-888888888888",
+      },
+      body: JSON.stringify({
+        kind: "tx",
+        to: "0x000000000000000000000000000000000000dEaD",
+        data: "0x12345678",
+        valueEth: "0",
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      kind: "tx",
+      status: "confirmed",
+      wallet: {
+        address: "0x0000000000000000000000000000000000000002",
+      },
+      transactionHash: "0xsubmitted",
+      userOpHash: "0xsubmitted-user-op",
+      explorerUrl: "https://basescan.org/tx/0xsubmitted",
+    });
+    expect(sendUserOperationMock).not.toHaveBeenCalled();
+    expect(waitForUserOperationMock).toHaveBeenCalledWith({
+      userOpHash: "0xsubmitted-user-op",
+    });
+    expect(txLogUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          status: "confirmed",
+          txHash: "0xsubmitted",
+          userOpHash: "0xsubmitted-user-op",
+          expiresAt: null,
+        },
+      })
+    );
+    expect(txLogCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("resumes a timed-out tx idempotency record without re-submitting the user operation", async () => {
+    const waitForUserOperationMock = vi.fn().mockResolvedValue({
+      status: "complete",
+      transactionHash: "0xresumed",
+    });
+    const sendUserOperationMock = vi.fn();
+    setSmartAccountMocks({ sendUserOperationMock, waitForUserOperationMock });
+
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      address: "0x0000000000000000000000000000000000000002",
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base",
+    });
+    txLogFindUniqueMock.mockResolvedValue(
+      createCliTxLogRecord({
+        kind: "tx",
+        token: null,
+        amount: null,
+        valueEth: "0",
+        data: "0x12345678",
+        txHash: null,
+        userOpHash: "0xtimed-out-user-op",
+        status: "timed_out",
+      })
+    );
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "33333333-4444-4555-8666-777777777777",
+      },
+      body: JSON.stringify({
+        kind: "tx",
+        to: "0x000000000000000000000000000000000000dEaD",
+        data: "0x12345678",
+        valueEth: "0",
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      kind: "tx",
+      status: "confirmed",
+      wallet: {
+        address: "0x0000000000000000000000000000000000000002",
+      },
+      transactionHash: "0xresumed",
+      userOpHash: "0xtimed-out-user-op",
+      explorerUrl: "https://basescan.org/tx/0xresumed",
+    });
+    expect(sendUserOperationMock).not.toHaveBeenCalled();
+    expect(waitForUserOperationMock).toHaveBeenCalledWith({
+      userOpHash: "0xtimed-out-user-op",
+    });
+    expect(txLogUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          status: "confirmed",
+          txHash: "0xresumed",
+          userOpHash: "0xtimed-out-user-op",
+          expiresAt: null,
+        },
+      })
+    );
+    expect(txLogCreateMock).not.toHaveBeenCalled();
   });
 
   it("rejects oversized request bodies before execution", async () => {

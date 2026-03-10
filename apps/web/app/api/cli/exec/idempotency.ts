@@ -22,11 +22,12 @@ const CLI_TX_LOG_REPLAY_SELECT = {
   updatedAt: true,
 } as const;
 
-const CLI_TX_LOG_PENDING_RESERVATION_TTL_MS = 30_000;
+const CLI_TX_LOG_RESERVATION_TTL_MS = 30_000;
 
 export const CLI_TX_LOG_STATUSES = {
   PENDING: "pending",
   SUBMITTED: "submitted",
+  TIMED_OUT: "timed_out",
   CONFIRMED: "confirmed",
   FAILED: "failed",
   EXPIRED: "expired",
@@ -91,11 +92,11 @@ async function findCliTxLogByIdempotency(params: {
   });
 }
 
-function pendingReservationExpiresAt(): Date {
-  return new Date(Date.now() + CLI_TX_LOG_PENDING_RESERVATION_TTL_MS);
+function reservationExpiresAt(): Date {
+  return new Date(Date.now() + CLI_TX_LOG_RESERVATION_TTL_MS);
 }
 
-function isPendingReservationExpired(existing: CliTxLogReplayRecord): boolean {
+function isReservationExpired(existing: CliTxLogReplayRecord): boolean {
   return (
     existing.status === CLI_TX_LOG_STATUSES.PENDING &&
     existing.expiresAt instanceof Date &&
@@ -103,23 +104,23 @@ function isPendingReservationExpired(existing: CliTxLogReplayRecord): boolean {
   );
 }
 
-function createPendingReservationData(data: CliTxLogCreateData): CliTxLogCreateData {
+function createReservationData(data: CliTxLogCreateData): CliTxLogCreateData {
   return {
     ...data,
     status: CLI_TX_LOG_STATUSES.PENDING,
     txHash: null,
     userOpHash: null,
-    expiresAt: pendingReservationExpiresAt(),
+    expiresAt: reservationExpiresAt(),
   };
 }
 
-function createPendingReservationUpdateData(data: CliTxLogCreateData): CliTxLogUpdateData {
+function createReservationUpdateData(data: CliTxLogCreateData): CliTxLogUpdateData {
   return {
     ...data,
     status: CLI_TX_LOG_STATUSES.PENDING,
     txHash: null,
     userOpHash: null,
-    expiresAt: pendingReservationExpiresAt(),
+    expiresAt: reservationExpiresAt(),
     updatedAt: new Date(),
   };
 }
@@ -130,7 +131,7 @@ async function tryReserveCliTxLog(params: {
 }): Promise<boolean> {
   try {
     await params.db.cliTxLog.create({
-      data: createPendingReservationData(params.data),
+      data: createReservationData(params.data),
     });
     return true;
   } catch (error) {
@@ -157,7 +158,7 @@ async function resetCliTxLogReservation(params: {
       status: params.existing.status,
       updatedAt: params.existing.updatedAt,
     },
-    data: createPendingReservationUpdateData(params.data),
+    data: createReservationUpdateData(params.data),
   });
   return reset.count === 1;
 }
@@ -179,6 +180,29 @@ export async function markCliTxSubmitted(params: {
     },
     data: {
       status: CLI_TX_LOG_STATUSES.SUBMITTED,
+      userOpHash: params.userOpHash,
+      expiresAt: null,
+    },
+  });
+}
+
+export async function markCliTxTimedOut(params: {
+  db: CliExecDb;
+  ownerAddress: `0x${string}`;
+  agentKey: string;
+  idempotencyKey: string;
+  userOpHash: `0x${string}`;
+}) {
+  await params.db.cliTxLog.update({
+    where: {
+      ownerAddress_agentKey_idempotencyKey: {
+        ownerAddress: params.ownerAddress,
+        agentKey: params.agentKey,
+        idempotencyKey: params.idempotencyKey,
+      },
+    },
+    data: {
+      status: CLI_TX_LOG_STATUSES.TIMED_OUT,
       userOpHash: params.userOpHash,
       expiresAt: null,
     },
@@ -346,6 +370,10 @@ function buildReplayResponse(params: {
   });
 }
 
+function isResumableUserOperationStatus(status: string): boolean {
+  return status === CLI_TX_LOG_STATUSES.SUBMITTED || status === CLI_TX_LOG_STATUSES.TIMED_OUT;
+}
+
 async function resolveExistingCliTxLog(params: {
   db: CliExecDb;
   ownerAddress: `0x${string}`;
@@ -372,9 +400,9 @@ async function resolveExistingCliTxLog(params: {
     };
   }
 
-  if (params.existing.status === CLI_TX_LOG_STATUSES.SUBMITTED) {
+  if (isResumableUserOperationStatus(params.existing.status)) {
     if (!params.existing.userOpHash) {
-      throw new Error("Submitted idempotency record is missing userOpHash");
+      throw new Error("Resumable idempotency record is missing userOpHash");
     }
     return {
       resumeUserOpHash: params.existing.userOpHash as `0x${string}`,
@@ -383,7 +411,7 @@ async function resolveExistingCliTxLog(params: {
 
   if (
     params.existing.status === CLI_TX_LOG_STATUSES.PENDING &&
-    !isPendingReservationExpired(params.existing)
+    !isReservationExpired(params.existing)
   ) {
     throw new IdempotencyConflictError(
       "Idempotency key reservation is still in progress; retry shortly"
@@ -392,7 +420,7 @@ async function resolveExistingCliTxLog(params: {
 
   if (
     params.existing.status === CLI_TX_LOG_STATUSES.PENDING &&
-    isPendingReservationExpired(params.existing)
+    isReservationExpired(params.existing)
   ) {
     await expireCliTxLog({
       db: params.db,
@@ -405,7 +433,7 @@ async function resolveExistingCliTxLog(params: {
   if (
     params.existing.status === CLI_TX_LOG_STATUSES.FAILED ||
     params.existing.status === CLI_TX_LOG_STATUSES.EXPIRED ||
-    isPendingReservationExpired(params.existing)
+    isReservationExpired(params.existing)
   ) {
     const reset = await resetCliTxLogReservation({
       db: params.db,

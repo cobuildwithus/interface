@@ -34,6 +34,14 @@
   - `app/api/cli/exec/route.ts` via CDP smart-account user operations (`transfer` / `sendUserOperation` + `waitForUserOperation`), scoped to Base mainnet only. Stored/default network aliases are normalized to `base`, but explicit exec requests reject `base-sepolia`.
   - `app/api/cli/farcaster/signup/route.ts` via CDP smart-account user operations on `optimism` for Farcaster `IdGateway.register` and `KeyGateway.add`, including smart-account EIP-712 typed-data signing for SignedKeyRequest metadata.
 
+## Hosted Exec Idempotency States
+
+- `app/api/cli/exec/idempotency.ts` persists hosted exec state in `cli_tx_logs`.
+- Reservation state remains `pending` until a request either submits a user operation or the reservation TTL expires.
+- Submitted user operations persist `submitted` with `userOpHash`.
+- Server wait timeouts persist `timed_out` with `userOpHash` and still return public `202 { status: "pending" }` so the CLI can resume on the same idempotency key.
+- Confirmed user operations persist `confirmed` with `txHash`; execution or settlement failures persist `failed`; expired reservations persist `expired`.
+
 ## Auth and Wallet Gating
 
 - Onchain action buttons should use `AuthButton`.

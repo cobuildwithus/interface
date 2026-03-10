@@ -4,8 +4,10 @@ Use this file only for currently active coding work. Keep it minimal and current
 
 ## Open Entries
 
-| Agent/Session | Task | Files in Scope | Symbols (add/rename/delete) | Dependency Notes | Updated (YYYY-MM-DD) |
-| ------------- | ---- | -------------- | --------------------------- | ---------------- | -------------------- |
+| Agent/Session                      | Task                                                                              | Files in Scope                                                                                                 | Symbols (add/rename/delete)                                                     | Dependency Notes                                                                                                               | Updated (YYYY-MM-DD) |
+| ---------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| codex                              | Cut hosted CLI auth over to shared wire bearer verifier                           | `apps/web/lib/server/cli/auth.ts`, `apps/web/lib/server/cli/auth.test.ts`, auth docs                           | update bearer verifier wrapper only; preserve route call sites                  | Must keep one-wallet session auth local while aligning bearer auth with shared `wire` helper and existing `chat-api` semantics | 2026-03-10           |
+| codex-onchain-client-network-guard | Reject unsupported onchain client chain IDs instead of falling through to mainnet | `apps/web/lib/domains/token/onchain/clients.ts`, `apps/web/lib/domains/token/onchain/onchain-coverage.test.ts` | add supported-chain guard for `getClient`; update rejection regression coverage | Isolated to token onchain client helper; avoid hosted CLI exec and auth files owned by other active tasks                      | 2026-03-10           |
 
 ## Rules
 

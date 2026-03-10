@@ -48,6 +48,7 @@ CLI note:
 
 - CLI token/wallet/tx-log reads and writes are DB-backed only (no cache layer), with bearer-token auth state persisted via hashed token rows.
 - `cli_tx_logs` also stores optional idempotency keys and enforces uniqueness on `(ownerAddress, agentKey, idempotencyKey)` for replay-safe exec calls.
+- Hosted exec state is persisted per request as `pending` (reservation), `submitted`/`timed_out` (user op hash known, safe to resume), `confirmed` (tx hash known), `failed`, or `expired`.
 - Notifications are DB-backed only: `cobuild.notifications` stores wallet inbox rows and `cobuild.notification_state` stores the wallet read cursor. These do not use KV caching.
 
 ## Consistency Guidance

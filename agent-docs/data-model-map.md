@@ -34,7 +34,7 @@ The database is multi‑schema Postgres with Prisma mapping across:
 - `UserDisallowedTokenCategory`: token category exclusions per user.
 - `CliToken`: hashed PAT records for cli CLI access, scoped by owner + agent key.
 - `CliAgentWallet`: CDP account mapping keyed by `(ownerAddress, agentKey)`.
-- `CliTxLog`: audit log for cli transfer/tx submissions, including optional idempotency keys for replay-safe exec requests.
+- `CliTxLog`: audit log for cli transfer/tx submissions, including optional idempotency keys and hosted exec state (`pending`, `submitted`, `timed_out`, `confirmed`, `failed`, `expired`) for replay-safe exec requests.
 
 ### cobuild-onchain (indexed onchain events)
 
