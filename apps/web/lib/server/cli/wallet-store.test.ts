@@ -144,7 +144,7 @@ describe("cli wallet store", () => {
     expect(updateMock).not.toHaveBeenCalled();
   });
 
-  it("normalizes an existing legacy Base alias to base", async () => {
+  it("leaves an existing unsupported stored network unchanged", async () => {
     const ownerAddress = "0x000000000000000000000000000000000000dead";
     const agentKey = "default";
     const existingWallet = {
@@ -154,32 +154,30 @@ describe("cli wallet store", () => {
       address: "0x0000000000000000000000000000000000000002",
       defaultNetwork: "base-sepolia",
     };
-    const normalizedWallet = {
-      ...existingWallet,
-      defaultNetwork: "base",
-    };
     findUniqueMock.mockResolvedValueOnce(existingWallet);
-    updateMock.mockResolvedValueOnce(normalizedWallet);
 
     await expect(
       getOrCreateCliAgentWallet({
         ownerAddress,
         agentKey,
       })
-    ).resolves.toEqual(normalizedWallet);
+    ).resolves.toEqual(existingWallet);
 
-    expect(updateMock).toHaveBeenCalledWith({
-      where: {
-        ownerAddress_agentKey: {
-          ownerAddress,
-          agentKey,
-        },
-      },
-      data: {
-        defaultNetwork: "base",
-      },
-    });
+    expect(updateMock).not.toHaveBeenCalled();
     expect(getCliCdpClientMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsupported explicit defaultNetwork", async () => {
+    await expect(
+      getOrCreateCliAgentWallet({
+        ownerAddress: "0x000000000000000000000000000000000000Beef",
+        agentKey: "default",
+        defaultNetwork: "  base-sepolia  ",
+      })
+    ).rejects.toThrow("Unsupported CLI default network:   base-sepolia  ");
+
+    expect(getCliCdpClientMock).not.toHaveBeenCalled();
+    expect(createMock).not.toHaveBeenCalled();
   });
 
   it("creates a wallet with deterministic account name and explicit defaultNetwork", async () => {
@@ -198,7 +196,7 @@ describe("cli wallet store", () => {
     const created = await getOrCreateCliAgentWallet({
       ownerAddress: "0x000000000000000000000000000000000000Beef",
       agentKey: "default",
-      defaultNetwork: "  base-sepolia  ",
+      defaultNetwork: "  base-mainnet  ",
     });
 
     const normalizedOwnerAddress = "0x000000000000000000000000000000000000beef";
@@ -270,17 +268,13 @@ describe("cli wallet store", () => {
     delete process.env.CLI_DEFAULT_NETWORK;
     process.env.BROKER_DEFAULT_NETWORK = "base-sepolia";
 
-    await getOrCreateCliAgentWallet({
-      ownerAddress: "0x0000000000000000000000000000000000000001",
-      agentKey: "default",
-    });
-    expect(createMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          defaultNetwork: "base",
-        }),
+    await expect(
+      getOrCreateCliAgentWallet({
+        ownerAddress: "0x0000000000000000000000000000000000000001",
+        agentKey: "default",
       })
-    );
+    ).rejects.toThrow("Unsupported CLI default network: base-sepolia");
+    expect(createMock).not.toHaveBeenCalled();
   });
 
   it("creates accounts with account policy when configured", async () => {
@@ -452,7 +446,7 @@ describe("cli wallet store", () => {
       })
     ).rejects.toBe(creationError);
 
-    expect(getOrCreateAccountMock).toHaveBeenCalledTimes(5);
+    expect(getOrCreateAccountMock).toHaveBeenCalledTimes(1);
     expect(findUniqueMock).toHaveBeenCalledTimes(6);
     expect(createMock).not.toHaveBeenCalled();
   });
@@ -479,10 +473,9 @@ describe("cli wallet store", () => {
       agentKey: "default",
     });
 
-    expect(getOrCreateAccountMock).toHaveBeenCalledTimes(2);
-    expect(getOrCreateAccountMock.mock.calls[0]?.[0]).toEqual(
-      getOrCreateAccountMock.mock.calls[1]?.[0]
-    );
+    expect(getOrCreateAccountMock).toHaveBeenCalledTimes(1);
+    expect(createMock).toHaveBeenCalledTimes(2);
+    expect(createMock.mock.calls[0]?.[0]).toEqual(createMock.mock.calls[1]?.[0]);
   });
 
   it("throws when an existing wallet row is not on deterministic smart-account naming", async () => {

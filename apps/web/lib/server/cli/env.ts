@@ -1,5 +1,5 @@
 import "server-only";
-import { canonicalizeBaseOnlyConfiguredNetwork } from "@cobuild/wire";
+import { parseBaseOnlyNetwork } from "@cobuild/wire";
 
 const TRUE_VALUES = new Set(["1", "true", "yes", "on"]);
 
@@ -8,13 +8,12 @@ export function getCliEnv(name: string): string | undefined {
 }
 
 export function canonicalizeCliConfiguredNetwork(value: string | null | undefined): string | null {
-  const canonicalBaseNetwork = canonicalizeBaseOnlyConfiguredNetwork(value);
-  if (canonicalBaseNetwork) {
-    return canonicalBaseNetwork;
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return null;
   }
 
-  const normalized = value?.trim().toLowerCase();
-  return normalized || null;
+  return parseBaseOnlyNetwork(normalized) ?? normalized;
 }
 
 export function parseCliBoolean(name: string, defaultValue = false): boolean {
@@ -41,9 +40,15 @@ export function getCliAccountPolicyId(): string | null {
 }
 
 export function getCliDefaultNetwork(input?: string): string {
-  return (
-    canonicalizeCliConfiguredNetwork(input) ??
-    canonicalizeCliConfiguredNetwork(getCliEnv("DEFAULT_NETWORK")) ??
-    "base"
-  );
+  const rawValue = input ?? getCliEnv("DEFAULT_NETWORK");
+  if (!rawValue?.trim()) {
+    return "base";
+  }
+
+  const normalized = parseBaseOnlyNetwork(rawValue);
+  if (!normalized) {
+    throw new Error(`Unsupported CLI default network: ${rawValue}`);
+  }
+
+  return normalized;
 }

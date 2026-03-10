@@ -2,14 +2,25 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { getSessionMock, importSpkiMock, jwtVerifyMock } = vi.hoisted(() => ({
+const { getSessionMock, importSpkiMock, jwtVerifyMock, queryRawMock } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   importSpkiMock: vi.fn(),
   jwtVerifyMock: vi.fn(),
+  queryRawMock: vi.fn(),
 }));
 
 vi.mock("@/lib/domains/auth/session", () => ({
   getSession: () => getSessionMock(),
+}));
+
+vi.mock("@/lib/server/db/cobuild-db-client", () => ({
+  default: {
+    $primary: () => ({
+      $queryRaw: (...args: Parameters<typeof queryRawMock>) => queryRawMock(...args),
+    }),
+  },
+  prismaPrimary: (client: { $primary?: () => unknown }) =>
+    typeof client.$primary === "function" ? client.$primary() : client,
 }));
 
 vi.mock("jose", () => ({
@@ -26,6 +37,7 @@ describe("cli auth write-scope audit", () => {
 
   it("allows read-only scopes when write scope is not required", async () => {
     importSpkiMock.mockResolvedValue({});
+    queryRawMock.mockResolvedValue([{ id: 1n }]);
     jwtVerifyMock.mockResolvedValue({
       payload: {
         sub: "0x0000000000000000000000000000000000000001",

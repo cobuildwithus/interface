@@ -100,6 +100,17 @@ describe("cli policy", () => {
     ).toThrow("Token contract is not allowlisted");
   });
 
+  it("disables arbitrary ERC-20 transfers when the contract allowlist is unset", () => {
+    expect(() =>
+      assertCliTransferAllowed({
+        network: "base",
+        to: "0x0000000000000000000000000000000000000001",
+        token: "0x000000000000000000000000000000000000beef",
+        amountAtomic: parseUnits("1", 18),
+      })
+    ).toThrow("ERC-20 contract transfers are disabled");
+  });
+
   it("treats allowlists as case-insensitive", () => {
     setEnv({
       CLI_ALLOWED_NETWORKS: "BASE-MAINNET",

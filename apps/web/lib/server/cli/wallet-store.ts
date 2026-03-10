@@ -28,6 +28,16 @@ type CliWalletDb = {
   };
 };
 
+type CliAgentWalletContextParams = {
+  ownerAddress: `0x${string}`;
+  agentKey: string;
+  defaultNetwork: string;
+  primaryDb: CliWalletDb;
+  ownerCdpAccountName: string;
+  smartCdpAccountName: string;
+  accountPolicyId: string | null;
+};
+
 async function findWalletByOwnerAgent(params: {
   db: CliWalletDb;
   ownerAddress: `0x${string}`;
@@ -143,6 +153,96 @@ async function getOrCreateCliSmartAccount(params: {
   });
 }
 
+function createCliAgentWalletContext(params: {
+  ownerAddress: string;
+  agentKey: string;
+  defaultNetwork?: string;
+}): CliAgentWalletContextParams {
+  const ownerAddress = normalizeAddress(params.ownerAddress, "ownerAddress");
+  const agentKey = params.agentKey;
+
+  return {
+    ownerAddress,
+    agentKey,
+    defaultNetwork: getCliDefaultNetwork(params.defaultNetwork),
+    primaryDb: prismaPrimary(prisma) as CliWalletDb,
+    ownerCdpAccountName: deterministicOwnerCdpAccountName({ ownerAddress, agentKey }),
+    smartCdpAccountName: deterministicSmartCdpAccountName({ ownerAddress, agentKey }),
+    accountPolicyId: getCliAccountPolicyId(),
+  };
+}
+
+async function ensureCliAgentWalletRecord(
+  params: CliAgentWalletContextParams & {
+    loadSmartAccount: () => Promise<EvmSmartAccount>;
+  }
+): Promise<CliAgentWalletRecord> {
+  const findCurrentWallet = () =>
+    findWalletByOwnerAgent({
+      db: params.primaryDb,
+      ownerAddress: params.ownerAddress,
+      agentKey: params.agentKey,
+    });
+
+  const existing = await findCurrentWallet();
+  if (existing) {
+    return maybeNormalizeWalletDefaultNetwork({
+      db: params.primaryDb,
+      wallet: assertSmartWalletRecord({
+        wallet: existing,
+        expectedSmartAccountName: params.smartCdpAccountName,
+      }),
+    });
+  }
+
+  for (let attempt = 0; attempt < MAX_CREATE_ATTEMPTS; attempt += 1) {
+    try {
+      const smartAccount = await params.loadSmartAccount();
+      const address = normalizeAddress(smartAccount.address, "smartAccount.address");
+
+      return await params.primaryDb.cliAgentWallet.create({
+        data: {
+          ownerAddress: params.ownerAddress,
+          agentKey: params.agentKey,
+          cdpAccountName: params.smartCdpAccountName,
+          address,
+          defaultNetwork: params.defaultNetwork,
+        },
+      });
+    } catch (error) {
+      if (isPrismaUniqueViolation(error)) {
+        const conflicted = await findCurrentWallet();
+        if (conflicted) {
+          return maybeNormalizeWalletDefaultNetwork({
+            db: params.primaryDb,
+            wallet: assertSmartWalletRecord({
+              wallet: conflicted,
+              expectedSmartAccountName: params.smartCdpAccountName,
+            }),
+          });
+        }
+      }
+
+      const raced = await findCurrentWallet();
+      if (raced) {
+        return maybeNormalizeWalletDefaultNetwork({
+          db: params.primaryDb,
+          wallet: assertSmartWalletRecord({
+            wallet: raced,
+            expectedSmartAccountName: params.smartCdpAccountName,
+          }),
+        });
+      }
+
+      if (attempt === MAX_CREATE_ATTEMPTS - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("Failed to create cli wallet");
+}
+
 export async function getCliAgentWallet(params: { ownerAddress: string; agentKey: string }) {
   const ownerAddress = normalizeAddress(params.ownerAddress, "ownerAddress");
   return findWalletByOwnerAgent({
@@ -157,81 +257,53 @@ export async function getOrCreateCliAgentWallet(params: {
   agentKey: string;
   defaultNetwork?: string;
 }) {
-  const ownerAddress = normalizeAddress(params.ownerAddress, "ownerAddress");
-  const agentKey = params.agentKey;
-  const defaultNetwork = getCliDefaultNetwork(params.defaultNetwork);
-  const primaryDb = prismaPrimary(prisma) as CliWalletDb;
-  const ownerCdpAccountName = deterministicOwnerCdpAccountName({ ownerAddress, agentKey });
-  const cdpAccountName = deterministicSmartCdpAccountName({ ownerAddress, agentKey });
-  const accountPolicyId = getCliAccountPolicyId();
-  const findCurrentWallet = () =>
-    findWalletByOwnerAgent({
-      db: primaryDb,
-      ownerAddress,
-      agentKey,
-    });
+  const context = createCliAgentWalletContext(params);
+  let smartAccountPromise: Promise<EvmSmartAccount> | undefined;
 
-  const existing = await findCurrentWallet();
-  if (existing) {
-    return maybeNormalizeWalletDefaultNetwork({
-      db: primaryDb,
-      wallet: assertSmartWalletRecord({
-        wallet: existing,
-        expectedSmartAccountName: cdpAccountName,
-      }),
-    });
-  }
-
-  for (let attempt = 0; attempt < MAX_CREATE_ATTEMPTS; attempt += 1) {
-    try {
-      const smartAccount = await getOrCreateCliSmartAccount({
-        ownerCdpAccountName,
-        smartCdpAccountName: cdpAccountName,
-        accountPolicyId,
+  return ensureCliAgentWalletRecord({
+    ...context,
+    loadSmartAccount: async () => {
+      smartAccountPromise ??= getOrCreateCliSmartAccount({
+        ownerCdpAccountName: context.ownerCdpAccountName,
+        smartCdpAccountName: context.smartCdpAccountName,
+        accountPolicyId: context.accountPolicyId,
       });
-      const address = normalizeAddress(smartAccount.address, "smartAccount.address");
+      return await smartAccountPromise;
+    },
+  });
+}
 
-      return await primaryDb.cliAgentWallet.create({
-        data: {
-          ownerAddress,
-          agentKey,
-          cdpAccountName,
-          address,
-          defaultNetwork,
-        },
-      });
-    } catch (error) {
-      if (isPrismaUniqueViolation(error)) {
-        const conflicted = await findCurrentWallet();
-        if (conflicted) {
-          return maybeNormalizeWalletDefaultNetwork({
-            db: primaryDb,
-            wallet: assertSmartWalletRecord({
-              wallet: conflicted,
-              expectedSmartAccountName: cdpAccountName,
-            }),
-          });
-        }
-      }
+export async function getOrCreateCliAgentExecutionContext(params: {
+  ownerAddress: string;
+  agentKey: string;
+  defaultNetwork?: string;
+}): Promise<{
+  wallet: CliAgentWalletRecord;
+  smartAccount: EvmSmartAccount;
+  walletAddress: `0x${string}`;
+}> {
+  const context = createCliAgentWalletContext(params);
+  let smartAccountPromise: Promise<EvmSmartAccount> | undefined;
+  const loadSmartAccount = async () => {
+    smartAccountPromise ??= getOrCreateCliSmartAccount({
+      ownerCdpAccountName: context.ownerCdpAccountName,
+      smartCdpAccountName: context.smartCdpAccountName,
+      accountPolicyId: context.accountPolicyId,
+    });
+    return await smartAccountPromise;
+  };
 
-      const raced = await findCurrentWallet();
-      if (raced) {
-        return maybeNormalizeWalletDefaultNetwork({
-          db: primaryDb,
-          wallet: assertSmartWalletRecord({
-            wallet: raced,
-            expectedSmartAccountName: cdpAccountName,
-          }),
-        });
-      }
+  const wallet = await ensureCliAgentWalletRecord({
+    ...context,
+    loadSmartAccount,
+  });
+  const smartAccount = await loadSmartAccount();
 
-      if (attempt === MAX_CREATE_ATTEMPTS - 1) {
-        throw error;
-      }
-    }
-  }
-
-  throw new Error("Failed to create cli wallet");
+  return {
+    wallet,
+    smartAccount,
+    walletAddress: normalizeAddress(smartAccount.address, "smartAccount.address"),
+  };
 }
 
 export async function getOrCreateCliAgentSmartAccount(params: {

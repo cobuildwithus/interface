@@ -14,7 +14,7 @@ describe("cli env", () => {
   it("canonicalizes configured Base aliases to the single Base-only network", () => {
     expect(canonicalizeCliConfiguredNetwork("base")).toBe("base");
     expect(canonicalizeCliConfiguredNetwork("BASE-MAINNET")).toBe("base");
-    expect(canonicalizeCliConfiguredNetwork(" base-sepolia ")).toBe("base");
+    expect(canonicalizeCliConfiguredNetwork(" base-sepolia ")).toBe("base-sepolia");
     expect(canonicalizeCliConfiguredNetwork("ethereum")).toBe("ethereum");
   });
 
@@ -28,6 +28,6 @@ describe("cli env", () => {
 
     process.env.BROKER_DEFAULT_NETWORK = "base-sepolia";
     delete process.env.CLI_DEFAULT_NETWORK;
-    expect(getCliDefaultNetwork()).toBe("base");
+    expect(() => getCliDefaultNetwork()).toThrow("Unsupported CLI default network: base-sepolia");
   });
 });

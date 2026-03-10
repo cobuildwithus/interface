@@ -1,7 +1,8 @@
 import { requireCliBearerAuth } from "@/lib/server/cli/auth";
 import { cliErrorResponse, parseJsonStrict } from "@/lib/server/cli/http";
+import { getCliDefaultNetwork } from "@/lib/server/cli/env";
 import { resolveIdempotencyKey } from "@/lib/server/cli/idempotency";
-import { getOrCreateCliAgentWallet } from "@/lib/server/cli/wallet-store";
+import { getCliAgentWallet } from "@/lib/server/cli/wallet-store";
 import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 import { cliExecPrimaryDb } from "./idempotency";
 import { execErrorResponse } from "./response";
@@ -12,23 +13,29 @@ import { assertAgentScopeMatch, ExecRequestSchema } from "./validation";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const CLI_EXEC_MAX_BODY_BYTES = 64 * 1024;
+
 export async function POST(request: Request) {
   try {
     const auth = await requireCliBearerAuth(request, {
       requiredScopes: ["wallet:execute"],
     });
-    const input = ExecRequestSchema.parse(await parseJsonStrict(request));
+    const input = ExecRequestSchema.parse(
+      await parseJsonStrict(request, {
+        maxBytes: CLI_EXEC_MAX_BODY_BYTES,
+      })
+    );
     assertAgentScopeMatch(input.agentKey, auth.agentKey);
     const idempotencyKey = resolveIdempotencyKey(request, input.idempotencyKey);
     const db = cliExecPrimaryDb();
 
-    const wallet = await getOrCreateCliAgentWallet({
+    const wallet = await getCliAgentWallet({
       ownerAddress: auth.ownerAddress,
       agentKey: auth.agentKey,
     });
-    const requestedNetwork = input.network ?? wallet.defaultNetwork;
+    const requestedNetwork = input.network ?? wallet?.defaultNetwork ?? getCliDefaultNetwork();
     const walletAddress =
-      typeof wallet.address === "string" && wallet.address.length > 0
+      typeof wallet?.address === "string" && wallet.address.length > 0
         ? normalizeAddress(wallet.address, "wallet.address")
         : undefined;
 

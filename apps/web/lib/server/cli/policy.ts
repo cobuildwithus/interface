@@ -93,7 +93,11 @@ function assertTokenContractAllowed(token: string) {
   if (!isAddress(token)) return;
 
   const contracts = parseCliCsvSet("ALLOWED_CONTRACTS");
-  if (contracts.size === 0) return;
+  if (contracts.size === 0) {
+    throw new CliPolicyError(
+      "ERC-20 contract transfers are disabled. Set CLI_ALLOWED_CONTRACTS to enable them"
+    );
+  }
 
   if (!contracts.has(token.toLowerCase())) {
     throw new CliPolicyError("Token contract is not allowlisted");

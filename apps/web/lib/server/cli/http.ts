@@ -8,6 +8,10 @@ export const NO_STORE_HEADERS = {
 
 export class RequestValidationError extends Error {}
 
+type ParseJsonOptions = {
+  maxBytes?: number;
+};
+
 type JsonErrorOptions = {
   details?: unknown;
   extraHeaders?: Record<string, string>;
@@ -77,8 +81,51 @@ export function cliErrorResponse(
   return jsonError(500, "Internal error", { noStore });
 }
 
-export async function parseJsonOrEmpty(request: Request): Promise<unknown> {
-  const rawBody = await request.text();
+function formatBodyTooLargeMessage(maxBytes: number): string {
+  return `Request body exceeds ${maxBytes} bytes`;
+}
+
+async function readRequestText(request: Request, options: ParseJsonOptions = {}): Promise<string> {
+  const maxBytes = options.maxBytes;
+  if (maxBytes !== undefined) {
+    const contentLength = request.headers.get("content-length");
+    if (contentLength) {
+      const parsedLength = Number.parseInt(contentLength, 10);
+      if (Number.isFinite(parsedLength) && parsedLength > maxBytes) {
+        throw new RequestValidationError(formatBodyTooLargeMessage(maxBytes));
+      }
+    }
+  }
+
+  if (maxBytes === undefined || !request.body) {
+    return await request.text();
+  }
+
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
+  let rawBody = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      throw new RequestValidationError(formatBodyTooLargeMessage(maxBytes));
+    }
+    rawBody += decoder.decode(value, { stream: true });
+  }
+
+  rawBody += decoder.decode();
+  return rawBody;
+}
+
+export async function parseJsonOrEmpty(
+  request: Request,
+  options: ParseJsonOptions = {}
+): Promise<unknown> {
+  const rawBody = await readRequestText(request, options);
   if (!rawBody.trim()) {
     return {};
   }
@@ -90,8 +137,11 @@ export async function parseJsonOrEmpty(request: Request): Promise<unknown> {
   }
 }
 
-export async function parseJsonStrict(request: Request): Promise<unknown> {
-  const rawBody = await request.text();
+export async function parseJsonStrict(
+  request: Request,
+  options: ParseJsonOptions = {}
+): Promise<unknown> {
+  const rawBody = await readRequestText(request, options);
   if (!rawBody.trim()) {
     throw new RequestValidationError("Invalid JSON body");
   }

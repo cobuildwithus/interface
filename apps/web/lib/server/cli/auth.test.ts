@@ -8,8 +8,22 @@ const { getSessionMock, importSpkiMock, jwtVerifyMock } = vi.hoisted(() => ({
   jwtVerifyMock: vi.fn(),
 }));
 
+const { queryRawMock } = vi.hoisted(() => ({
+  queryRawMock: vi.fn(),
+}));
+
 vi.mock("@/lib/domains/auth/session", () => ({
   getSession: () => getSessionMock(),
+}));
+
+vi.mock("@/lib/server/db/cobuild-db-client", () => ({
+  default: {
+    $primary: () => ({
+      $queryRaw: (...args: Parameters<typeof queryRawMock>) => queryRawMock(...args),
+    }),
+  },
+  prismaPrimary: (client: { $primary?: () => unknown }) =>
+    typeof client.$primary === "function" ? client.$primary() : client,
 }));
 
 vi.mock("jose", () => ({
@@ -75,6 +89,7 @@ describe("cli auth", () => {
 
   it("returns auth context when token is valid", async () => {
     importSpkiMock.mockResolvedValue({});
+    queryRawMock.mockResolvedValue([{ id: 42n }]);
     jwtVerifyMock.mockResolvedValue({
       payload: {
         sub: "0x0000000000000000000000000000000000000001",
@@ -110,10 +125,12 @@ describe("cli auth", () => {
         algorithms: ["ES256"],
       })
     );
+    expect(queryRawMock).toHaveBeenCalledTimes(1);
   });
 
   it("throws when write scope is required but token is read-only", async () => {
     importSpkiMock.mockResolvedValue({});
+    queryRawMock.mockResolvedValue([{ id: 7n }]);
     jwtVerifyMock.mockResolvedValue({
       payload: {
         sub: "0x0000000000000000000000000000000000000001",
@@ -170,5 +187,63 @@ describe("cli auth", () => {
         message: "Unauthorized",
       })
     );
+  });
+
+  it("rejects revoked or expired sessions even when the JWT verifies", async () => {
+    importSpkiMock.mockResolvedValue({});
+    queryRawMock.mockResolvedValue([]);
+    jwtVerifyMock.mockResolvedValue({
+      payload: {
+        sub: "0x0000000000000000000000000000000000000001",
+        sid: "42",
+        agent_key: "default",
+        scope: "tools:read tools:write wallet:read wallet:execute offline_access",
+        iat: 1_700_000_000,
+        exp: 1_700_000_600,
+        iss: "cobuild-chat-api",
+        aud: "cli",
+      },
+    });
+
+    const request = new Request("http://localhost", {
+      method: "POST",
+      headers: { authorization: "Bearer revoked-token" },
+    });
+
+    await expect(requireCliBearerAuth(request)).rejects.toEqual(
+      expect.objectContaining({
+        status: 401,
+        message: "Unauthorized",
+      })
+    );
+  });
+
+  it("rejects non-numeric session ids before hitting the DB", async () => {
+    importSpkiMock.mockResolvedValue({});
+    jwtVerifyMock.mockResolvedValue({
+      payload: {
+        sub: "0x0000000000000000000000000000000000000001",
+        sid: "not-a-number",
+        agent_key: "default",
+        scope: "tools:read wallet:read offline_access",
+        iat: 1_700_000_000,
+        exp: 1_700_000_600,
+        iss: "cobuild-chat-api",
+        aud: "cli",
+      },
+    });
+
+    const request = new Request("http://localhost", {
+      method: "POST",
+      headers: { authorization: "Bearer malformed-sid-token" },
+    });
+
+    await expect(requireCliBearerAuth(request)).rejects.toEqual(
+      expect.objectContaining({
+        status: 401,
+        message: "Unauthorized",
+      })
+    );
+    expect(queryRawMock).not.toHaveBeenCalled();
   });
 });

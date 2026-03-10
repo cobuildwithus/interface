@@ -16,7 +16,23 @@ const CLI_TX_LOG_REPLAY_SELECT = {
   valueEth: true,
   data: true,
   txHash: true,
+  userOpHash: true,
+  status: true,
+  expiresAt: true,
+  updatedAt: true,
 } as const;
+
+const CLI_TX_LOG_PENDING_RESERVATION_TTL_MS = 30_000;
+
+export const CLI_TX_LOG_STATUSES = {
+  PENDING: "pending",
+  SUBMITTED: "submitted",
+  CONFIRMED: "confirmed",
+  FAILED: "failed",
+  EXPIRED: "expired",
+} as const;
+
+export type CliTxLogStatus = (typeof CLI_TX_LOG_STATUSES)[keyof typeof CLI_TX_LOG_STATUSES];
 
 export type CliTxLogReplayRecord = {
   kind: string;
@@ -28,6 +44,10 @@ export type CliTxLogReplayRecord = {
   valueEth: string | null;
   data: string | null;
   txHash: string | null;
+  userOpHash: string | null;
+  status: string;
+  expiresAt: Date | null;
+  updatedAt: Date;
 };
 
 export type CliExecDb = {
@@ -35,10 +55,17 @@ export type CliExecDb = {
     findUnique: typeof prisma.cliTxLog.findUnique;
     create: typeof prisma.cliTxLog.create;
     update: typeof prisma.cliTxLog.update;
+    updateMany: typeof prisma.cliTxLog.updateMany;
   };
 };
 
 export type CliTxLogCreateData = Parameters<typeof prisma.cliTxLog.create>[0]["data"];
+type CliTxLogUpdateData = Parameters<typeof prisma.cliTxLog.update>[0]["data"];
+
+type ReserveOrReplayResult =
+  | { reserved: true }
+  | { response: NextResponse }
+  | { resumeUserOpHash: `0x${string}` };
 
 export function cliExecPrimaryDb(): CliExecDb {
   return prismaPrimary(prisma) as CliExecDb;
@@ -64,13 +91,46 @@ async function findCliTxLogByIdempotency(params: {
   });
 }
 
+function pendingReservationExpiresAt(): Date {
+  return new Date(Date.now() + CLI_TX_LOG_PENDING_RESERVATION_TTL_MS);
+}
+
+function isPendingReservationExpired(existing: CliTxLogReplayRecord): boolean {
+  return (
+    existing.status === CLI_TX_LOG_STATUSES.PENDING &&
+    existing.expiresAt instanceof Date &&
+    existing.expiresAt.getTime() <= Date.now()
+  );
+}
+
+function createPendingReservationData(data: CliTxLogCreateData): CliTxLogCreateData {
+  return {
+    ...data,
+    status: CLI_TX_LOG_STATUSES.PENDING,
+    txHash: null,
+    userOpHash: null,
+    expiresAt: pendingReservationExpiresAt(),
+  };
+}
+
+function createPendingReservationUpdateData(data: CliTxLogCreateData): CliTxLogUpdateData {
+  return {
+    ...data,
+    status: CLI_TX_LOG_STATUSES.PENDING,
+    txHash: null,
+    userOpHash: null,
+    expiresAt: pendingReservationExpiresAt(),
+    updatedAt: new Date(),
+  };
+}
+
 async function tryReserveCliTxLog(params: {
   db: CliExecDb;
   data: CliTxLogCreateData;
 }): Promise<boolean> {
   try {
     await params.db.cliTxLog.create({
-      data: params.data,
+      data: createPendingReservationData(params.data),
     });
     return true;
   } catch (error) {
@@ -81,12 +141,33 @@ async function tryReserveCliTxLog(params: {
   }
 }
 
-export async function finalizeCliTxLog(params: {
+async function resetCliTxLogReservation(params: {
   db: CliExecDb;
   ownerAddress: `0x${string}`;
   agentKey: string;
   idempotencyKey: string;
-  txHash: string | null;
+  existing: CliTxLogReplayRecord;
+  data: CliTxLogCreateData;
+}): Promise<boolean> {
+  const reset = await params.db.cliTxLog.updateMany({
+    where: {
+      ownerAddress: params.ownerAddress,
+      agentKey: params.agentKey,
+      idempotencyKey: params.idempotencyKey,
+      status: params.existing.status,
+      updatedAt: params.existing.updatedAt,
+    },
+    data: createPendingReservationUpdateData(params.data),
+  });
+  return reset.count === 1;
+}
+
+export async function markCliTxSubmitted(params: {
+  db: CliExecDb;
+  ownerAddress: `0x${string}`;
+  agentKey: string;
+  idempotencyKey: string;
+  userOpHash: `0x${string}`;
 }) {
   await params.db.cliTxLog.update({
     where: {
@@ -97,7 +178,76 @@ export async function finalizeCliTxLog(params: {
       },
     },
     data: {
+      status: CLI_TX_LOG_STATUSES.SUBMITTED,
+      userOpHash: params.userOpHash,
+      expiresAt: null,
+    },
+  });
+}
+
+export async function finalizeCliTxLog(params: {
+  db: CliExecDb;
+  ownerAddress: `0x${string}`;
+  agentKey: string;
+  idempotencyKey: string;
+  txHash: string | null;
+  userOpHash?: `0x${string}`;
+}) {
+  await params.db.cliTxLog.update({
+    where: {
+      ownerAddress_agentKey_idempotencyKey: {
+        ownerAddress: params.ownerAddress,
+        agentKey: params.agentKey,
+        idempotencyKey: params.idempotencyKey,
+      },
+    },
+    data: {
+      status: CLI_TX_LOG_STATUSES.CONFIRMED,
       txHash: params.txHash,
+      userOpHash: params.userOpHash,
+      expiresAt: null,
+    },
+  });
+}
+
+export async function failCliTxLog(params: {
+  db: CliExecDb;
+  ownerAddress: `0x${string}`;
+  agentKey: string;
+  idempotencyKey: string;
+}) {
+  await params.db.cliTxLog.update({
+    where: {
+      ownerAddress_agentKey_idempotencyKey: {
+        ownerAddress: params.ownerAddress,
+        agentKey: params.agentKey,
+        idempotencyKey: params.idempotencyKey,
+      },
+    },
+    data: {
+      status: CLI_TX_LOG_STATUSES.FAILED,
+      expiresAt: null,
+    },
+  });
+}
+
+export async function expireCliTxLog(params: {
+  db: CliExecDb;
+  ownerAddress: `0x${string}`;
+  agentKey: string;
+  idempotencyKey: string;
+}) {
+  await params.db.cliTxLog.update({
+    where: {
+      ownerAddress_agentKey_idempotencyKey: {
+        ownerAddress: params.ownerAddress,
+        agentKey: params.agentKey,
+        idempotencyKey: params.idempotencyKey,
+      },
+    },
+    data: {
+      status: CLI_TX_LOG_STATUSES.EXPIRED,
+      expiresAt: null,
     },
   });
 }
@@ -105,7 +255,11 @@ export async function finalizeCliTxLog(params: {
 export async function writeCliTxLog(params: { db: CliExecDb; data: CliTxLogCreateData }) {
   try {
     await params.db.cliTxLog.create({
-      data: params.data,
+      data: {
+        ...params.data,
+        status: CLI_TX_LOG_STATUSES.CONFIRMED,
+        expiresAt: null,
+      },
     });
   } catch (error) {
     console.error("[cli][exec] failed to persist tx log", error);
@@ -170,12 +324,120 @@ export function assertTxIdempotencyMatch(params: {
   }
 }
 
-function assertIdempotencyFinalized(existing: CliTxLogReplayRecord) {
-  if (!existing.txHash) {
+function buildReplayResponse(params: {
+  kind: "transfer" | "tx";
+  walletAddress?: string;
+  existing: CliTxLogReplayRecord;
+}) {
+  if (!params.walletAddress) {
+    throw new Error("Wallet address is required for replayed response");
+  }
+
+  return buildSuccessResponse({
+    kind: params.kind,
+    walletAddress: params.walletAddress,
+    network: params.existing.network,
+    transactionHash: params.existing.txHash,
+    userOpHash:
+      typeof params.existing.userOpHash === "string"
+        ? (params.existing.userOpHash as `0x${string}`)
+        : undefined,
+    replayed: true,
+  });
+}
+
+async function resolveExistingCliTxLog(params: {
+  db: CliExecDb;
+  ownerAddress: `0x${string}`;
+  agentKey: string;
+  idempotencyKey: string;
+  data: CliTxLogCreateData;
+  existing: CliTxLogReplayRecord;
+  walletAddress?: string;
+  kind: "transfer" | "tx";
+  assertMatch: (existing: CliTxLogReplayRecord) => void;
+}): Promise<ReserveOrReplayResult> {
+  params.assertMatch(params.existing);
+
+  if (
+    params.existing.status === CLI_TX_LOG_STATUSES.CONFIRMED &&
+    typeof params.existing.txHash === "string"
+  ) {
+    return {
+      response: buildReplayResponse({
+        kind: params.kind,
+        walletAddress: params.walletAddress,
+        existing: params.existing,
+      }),
+    };
+  }
+
+  if (params.existing.status === CLI_TX_LOG_STATUSES.SUBMITTED) {
+    if (!params.existing.userOpHash) {
+      throw new Error("Submitted idempotency record is missing userOpHash");
+    }
+    return {
+      resumeUserOpHash: params.existing.userOpHash as `0x${string}`,
+    };
+  }
+
+  if (
+    params.existing.status === CLI_TX_LOG_STATUSES.PENDING &&
+    !isPendingReservationExpired(params.existing)
+  ) {
     throw new IdempotencyConflictError(
-      "Idempotency key is already associated with a pending or failed request"
+      "Idempotency key reservation is still in progress; retry shortly"
     );
   }
+
+  if (
+    params.existing.status === CLI_TX_LOG_STATUSES.PENDING &&
+    isPendingReservationExpired(params.existing)
+  ) {
+    await expireCliTxLog({
+      db: params.db,
+      ownerAddress: params.ownerAddress,
+      agentKey: params.agentKey,
+      idempotencyKey: params.idempotencyKey,
+    });
+  }
+
+  if (
+    params.existing.status === CLI_TX_LOG_STATUSES.FAILED ||
+    params.existing.status === CLI_TX_LOG_STATUSES.EXPIRED ||
+    isPendingReservationExpired(params.existing)
+  ) {
+    const reset = await resetCliTxLogReservation({
+      db: params.db,
+      ownerAddress: params.ownerAddress,
+      agentKey: params.agentKey,
+      idempotencyKey: params.idempotencyKey,
+      existing: params.existing,
+      data: params.data,
+    });
+    if (reset) {
+      return { reserved: true };
+    }
+
+    const refreshed = await findCliTxLogByIdempotency({
+      db: params.db,
+      ownerAddress: params.ownerAddress,
+      agentKey: params.agentKey,
+      idempotencyKey: params.idempotencyKey,
+    });
+    if (!refreshed) {
+      throw new Error("Failed to reload idempotency record after reset race");
+    }
+
+    return resolveExistingCliTxLog({
+      ...params,
+      existing: refreshed,
+    });
+  }
+
+  throw new IdempotencyConflictError(
+    "Idempotency key is already associated with a non-retryable request"
+  );
 }
 
 export async function replayIfFinalized(params: {
@@ -198,17 +460,14 @@ export async function replayIfFinalized(params: {
   }
 
   params.assertMatch(existing);
-  assertIdempotencyFinalized(existing);
-  if (!params.walletAddress) {
-    throw new Error("Wallet address is required for replayed response");
+  if (existing.status !== CLI_TX_LOG_STATUSES.CONFIRMED || typeof existing.txHash !== "string") {
+    return null;
   }
 
-  return buildSuccessResponse({
+  return buildReplayResponse({
     kind: params.kind,
     walletAddress: params.walletAddress,
-    network: existing.network,
-    transactionHash: existing.txHash,
-    replayed: true,
+    existing,
   });
 }
 
@@ -221,9 +480,23 @@ export async function reserveOrReplay(params: {
   walletAddress?: string;
   kind: "transfer" | "tx";
   assertMatch: (existing: CliTxLogReplayRecord) => void;
-}): Promise<{ reserved: true } | { response: NextResponse }> {
+}): Promise<ReserveOrReplayResult> {
   if (!params.idempotencyKey) {
     return { reserved: true };
+  }
+
+  const existing = await findCliTxLogByIdempotency({
+    db: params.db,
+    ownerAddress: params.ownerAddress,
+    agentKey: params.agentKey,
+    idempotencyKey: params.idempotencyKey,
+  });
+  if (existing) {
+    return await resolveExistingCliTxLog({
+      ...params,
+      idempotencyKey: params.idempotencyKey,
+      existing,
+    });
   }
 
   const reserved = await tryReserveCliTxLog({
@@ -243,19 +516,10 @@ export async function reserveOrReplay(params: {
   if (!raced) {
     throw new Error("Failed to read idempotency reservation after unique violation");
   }
-  params.assertMatch(raced);
-  assertIdempotencyFinalized(raced);
-  if (!params.walletAddress) {
-    throw new Error("Wallet address is required for replayed response");
-  }
 
-  return {
-    response: buildSuccessResponse({
-      kind: params.kind,
-      walletAddress: params.walletAddress,
-      network: raced.network,
-      transactionHash: raced.txHash,
-      replayed: true,
-    }),
-  };
+  return await resolveExistingCliTxLog({
+    ...params,
+    idempotencyKey: params.idempotencyKey,
+    existing: raced,
+  });
 }

@@ -1727,11 +1727,18 @@ model CliTxLog {
   decimals       Int?
   valueEth       String?  @map("value_eth") @db.VarChar(120)
   data           String?  @db.VarChar(8192)
+  status         String   @default("confirmed") @db.VarChar(32)
+  userOpHash     String?  @map("user_op_hash") @db.VarChar(66)
   txHash         String?  @map("tx_hash") @db.VarChar(66)
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(6)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([ownerAddress, agentKey, idempotencyKey], map: "cli_tx_logs_owner_agent_idempotency_uidx")
   @@index([ownerAddress], map: "cli_tx_logs_owner_idx")
+  @@index([ownerAddress, agentKey, status], map: "cli_tx_logs_owner_agent_status_idx")
+  @@index([status], map: "cli_tx_logs_status_idx")
+  @@index([userOpHash], map: "cli_tx_logs_user_op_hash_idx")
   @@index([txHash], map: "cli_tx_logs_hash_idx")
   @@map("cli_tx_logs")
   @@schema("cobuild")

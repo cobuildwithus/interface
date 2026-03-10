@@ -1,6 +1,7 @@
 import "server-only";
 
 import * as jose from "jose";
+import prisma, { prismaPrimary } from "@/lib/server/db/cobuild-db-client";
 import {
   DEFAULT_CLI_JWT_AUDIENCE,
   DEFAULT_CLI_JWT_ISSUER,
@@ -23,6 +24,10 @@ type RequireCliBearerAuthOptions = {
 
 let cachedPublicKey: CryptoKey | undefined;
 let cachedPublicKeySource: string | undefined;
+
+type ActiveCliSessionRow = {
+  id: bigint | number;
+};
 
 function allowDevCliKeyFallback(): boolean {
   if (process.env.NODE_ENV === "production") {
@@ -100,7 +105,32 @@ async function verifyCliAccessToken(rawToken: string): Promise<CliBearerAuth | n
   }
 
   const { hasToolsRead: _hasToolsRead, ...auth } = principal;
+  if (!(await isCliSessionActive(auth))) {
+    return null;
+  }
   return auth;
+}
+
+async function isCliSessionActive(auth: CliBearerAuth): Promise<boolean> {
+  let sessionId: bigint;
+  try {
+    sessionId = BigInt(auth.sessionId);
+  } catch {
+    return false;
+  }
+
+  const rows = await prismaPrimary(prisma).$queryRaw<ActiveCliSessionRow[]>`
+    SELECT id
+    FROM cobuild.cli_cli_sessions
+    WHERE id = ${sessionId}
+      AND owner_address = ${auth.ownerAddress}
+      AND agent_key = ${auth.agentKey}
+      AND revoked_at IS NULL
+      AND expires_at > now()
+    LIMIT 1
+  `;
+
+  return rows.length > 0;
 }
 
 export async function requireCliBearerAuth(

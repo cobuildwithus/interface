@@ -8,19 +8,26 @@ import {
 } from "@cobuild/wire";
 import { assertCliTxAllowed } from "@/lib/server/cli/policy";
 import { RequestValidationError } from "@/lib/server/cli/http";
-import { waitForUserOperationComplete } from "@/lib/server/cli/user-operation";
-import { getOrCreateCliAgentSmartAccount } from "@/lib/server/cli/wallet-store";
+import {
+  waitForUserOperationComplete,
+  UserOperationTimeoutError,
+} from "@/lib/server/cli/user-operation";
+import { getOrCreateCliAgentExecutionContext } from "@/lib/server/cli/wallet-store";
 import {
   assertTxIdempotencyMatch,
+  failCliTxLog,
   finalizeCliTxLog,
+  markCliTxSubmitted,
   replayIfFinalized,
   reserveOrReplay,
   type CliExecDb,
   type CliTxLogCreateData,
   writeCliTxLog,
 } from "./idempotency";
-import { buildSuccessResponse, UserOperationFailedError } from "./response";
+import { buildPendingResponse, buildSuccessResponse, UserOperationFailedError } from "./response";
 import { parseEtherInput, parseTxNetwork } from "./validation";
+
+const CLI_EXEC_USER_OPERATION_WAIT_TIMEOUT_MS = 20_000;
 
 type TxInput = {
   kind: "tx";
@@ -119,23 +126,76 @@ export async function handleTxExecution(params: {
     return reservation.response;
   }
 
-  const smartAccount = await getOrCreateCliAgentSmartAccount({
+  const { smartAccount, walletAddress } = await getOrCreateCliAgentExecutionContext({
     ownerAddress: params.auth.ownerAddress,
     agentKey: params.auth.agentKey,
+    defaultNetwork: network,
   });
-  const dataSuffix = baseBuilderCodeDataSuffixForNetwork(network);
-  const txResult = await smartAccount.sendUserOperation({
-    network,
-    calls: [{ to, value: valueWei, data: canonicalTxData }],
-    ...(dataSuffix ? { dataSuffix } : {}),
-    idempotencyKey: params.idempotencyKey ?? undefined,
-  });
-  const transactionHash = await waitForUserOperationComplete({
-    smartAccount,
-    userOpHash: txResult.userOpHash,
-    label: "User operation",
-    createError: (message) => new UserOperationFailedError(message),
-  });
+  let userOpHash: `0x${string}`;
+
+  if ("resumeUserOpHash" in reservation) {
+    userOpHash = reservation.resumeUserOpHash;
+  } else {
+    try {
+      const dataSuffix = baseBuilderCodeDataSuffixForNetwork(network);
+      const txResult = await smartAccount.sendUserOperation({
+        network,
+        calls: [{ to, value: valueWei, data: canonicalTxData }],
+        ...(dataSuffix ? { dataSuffix } : {}),
+        idempotencyKey: params.idempotencyKey ?? undefined,
+      });
+      userOpHash = txResult.userOpHash;
+      if (params.idempotencyKey) {
+        await markCliTxSubmitted({
+          db: params.db,
+          ownerAddress: params.auth.ownerAddress,
+          agentKey: params.auth.agentKey,
+          idempotencyKey: params.idempotencyKey,
+          userOpHash,
+        });
+      }
+    } catch (error) {
+      if (params.idempotencyKey) {
+        await failCliTxLog({
+          db: params.db,
+          ownerAddress: params.auth.ownerAddress,
+          agentKey: params.auth.agentKey,
+          idempotencyKey: params.idempotencyKey,
+        });
+      }
+      throw error;
+    }
+  }
+
+  let transactionHash: `0x${string}` | null;
+  try {
+    transactionHash = await waitForUserOperationComplete({
+      smartAccount,
+      userOpHash,
+      label: "User operation",
+      createError: (message) => new UserOperationFailedError(message),
+      timeoutMs: CLI_EXEC_USER_OPERATION_WAIT_TIMEOUT_MS,
+    });
+  } catch (error) {
+    if (error instanceof UserOperationTimeoutError) {
+      return buildPendingResponse({
+        kind: "tx",
+        walletAddress,
+        network,
+        userOpHash,
+        replayed: "resumeUserOpHash" in reservation,
+      });
+    }
+    if (params.idempotencyKey) {
+      await failCliTxLog({
+        db: params.db,
+        ownerAddress: params.auth.ownerAddress,
+        agentKey: params.auth.agentKey,
+        idempotencyKey: params.idempotencyKey,
+      });
+    }
+    throw error;
+  }
 
   if (params.idempotencyKey) {
     await finalizeCliTxLog({
@@ -144,12 +204,14 @@ export async function handleTxExecution(params: {
       agentKey: params.auth.agentKey,
       idempotencyKey: params.idempotencyKey,
       txHash: transactionHash,
+      userOpHash,
     });
   } else {
     await writeCliTxLog({
       db: params.db,
       data: {
         ...txLogData,
+        userOpHash,
         txHash: transactionHash,
       },
     });
@@ -157,8 +219,9 @@ export async function handleTxExecution(params: {
 
   return buildSuccessResponse({
     kind: "tx",
-    walletAddress: normalizeAddress(smartAccount.address, "smartAccount.address"),
+    walletAddress,
     network,
     transactionHash,
+    userOpHash,
   });
 }

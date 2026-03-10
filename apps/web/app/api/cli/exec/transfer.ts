@@ -7,19 +7,26 @@ import {
 } from "@cobuild/wire";
 import { assertCliTransferAllowed } from "@/lib/server/cli/policy";
 import { RequestValidationError } from "@/lib/server/cli/http";
-import { waitForUserOperationComplete } from "@/lib/server/cli/user-operation";
-import { getOrCreateCliAgentSmartAccount } from "@/lib/server/cli/wallet-store";
+import {
+  waitForUserOperationComplete,
+  UserOperationTimeoutError,
+} from "@/lib/server/cli/user-operation";
+import { getOrCreateCliAgentExecutionContext } from "@/lib/server/cli/wallet-store";
 import {
   assertTransferIdempotencyMatch,
+  failCliTxLog,
   finalizeCliTxLog,
+  markCliTxSubmitted,
   replayIfFinalized,
   reserveOrReplay,
   type CliExecDb,
   type CliTxLogCreateData,
   writeCliTxLog,
 } from "./idempotency";
-import { buildSuccessResponse, UserOperationFailedError } from "./response";
+import { buildPendingResponse, buildSuccessResponse, UserOperationFailedError } from "./response";
 import { parseEtherInput, parseTransferNetwork, parseUnitsInput } from "./validation";
+
+const CLI_EXEC_USER_OPERATION_WAIT_TIMEOUT_MS = 20_000;
 
 type TransferInput = {
   kind: "transfer";
@@ -145,9 +152,10 @@ export async function handleTransferExecution(params: {
     return reservation.response;
   }
 
-  const smartAccount = await getOrCreateCliAgentSmartAccount({
+  const { smartAccount, walletAddress } = await getOrCreateCliAgentExecutionContext({
     ownerAddress: params.auth.ownerAddress,
     agentKey: params.auth.agentKey,
+    defaultNetwork: network,
   });
   const transferCall =
     token === "eth"
@@ -168,20 +176,71 @@ export async function handleTransferExecution(params: {
             data: erc20TransferData,
           };
         })();
-  const dataSuffix = baseBuilderCodeDataSuffixForNetwork(network);
+  let userOpHash: `0x${string}`;
 
-  const transferResult = await smartAccount.sendUserOperation({
-    network,
-    calls: [transferCall],
-    ...(dataSuffix ? { dataSuffix } : {}),
-    idempotencyKey: params.idempotencyKey ?? undefined,
-  });
-  const transactionHash = await waitForUserOperationComplete({
-    smartAccount,
-    userOpHash: transferResult.userOpHash,
-    label: "User operation",
-    createError: (message) => new UserOperationFailedError(message),
-  });
+  if ("resumeUserOpHash" in reservation) {
+    userOpHash = reservation.resumeUserOpHash;
+  } else {
+    try {
+      const dataSuffix = baseBuilderCodeDataSuffixForNetwork(network);
+      const transferResult = await smartAccount.sendUserOperation({
+        network,
+        calls: [transferCall],
+        ...(dataSuffix ? { dataSuffix } : {}),
+        idempotencyKey: params.idempotencyKey ?? undefined,
+      });
+      userOpHash = transferResult.userOpHash;
+      if (params.idempotencyKey) {
+        await markCliTxSubmitted({
+          db: params.db,
+          ownerAddress: params.auth.ownerAddress,
+          agentKey: params.auth.agentKey,
+          idempotencyKey: params.idempotencyKey,
+          userOpHash,
+        });
+      }
+    } catch (error) {
+      if (params.idempotencyKey) {
+        await failCliTxLog({
+          db: params.db,
+          ownerAddress: params.auth.ownerAddress,
+          agentKey: params.auth.agentKey,
+          idempotencyKey: params.idempotencyKey,
+        });
+      }
+      throw error;
+    }
+  }
+
+  let transactionHash: `0x${string}` | null;
+  try {
+    transactionHash = await waitForUserOperationComplete({
+      smartAccount,
+      userOpHash,
+      label: "User operation",
+      createError: (message) => new UserOperationFailedError(message),
+      timeoutMs: CLI_EXEC_USER_OPERATION_WAIT_TIMEOUT_MS,
+    });
+  } catch (error) {
+    if (error instanceof UserOperationTimeoutError) {
+      return buildPendingResponse({
+        kind: "transfer",
+        walletAddress,
+        network,
+        userOpHash,
+        replayed: "resumeUserOpHash" in reservation,
+      });
+    }
+    if (params.idempotencyKey) {
+      await failCliTxLog({
+        db: params.db,
+        ownerAddress: params.auth.ownerAddress,
+        agentKey: params.auth.agentKey,
+        idempotencyKey: params.idempotencyKey,
+      });
+    }
+    throw error;
+  }
 
   if (params.idempotencyKey) {
     await finalizeCliTxLog({
@@ -190,12 +249,14 @@ export async function handleTransferExecution(params: {
       agentKey: params.auth.agentKey,
       idempotencyKey: params.idempotencyKey,
       txHash: transactionHash,
+      userOpHash,
     });
   } else {
     await writeCliTxLog({
       db: params.db,
       data: {
         ...transferLogData,
+        userOpHash,
         txHash: transactionHash,
       },
     });
@@ -203,8 +264,9 @@ export async function handleTransferExecution(params: {
 
   return buildSuccessResponse({
     kind: "transfer",
-    walletAddress: normalizeAddress(smartAccount.address, "smartAccount.address"),
+    walletAddress,
     network,
     transactionHash,
+    userOpHash,
   });
 }

@@ -4,22 +4,24 @@ vi.mock("server-only", () => ({}));
 
 const {
   requireCliBearerAuthMock,
-  getOrCreateCliAgentWalletMock,
-  getOrCreateCliAgentSmartAccountMock,
+  getCliAgentWalletMock,
+  getOrCreateCliAgentExecutionContextMock,
   assertCliTransferAllowedMock,
   assertCliTxAllowedMock,
   txLogFindUniqueMock,
   txLogCreateMock,
   txLogUpdateMock,
+  txLogUpdateManyMock,
 } = vi.hoisted(() => ({
   requireCliBearerAuthMock: vi.fn(),
-  getOrCreateCliAgentWalletMock: vi.fn(),
-  getOrCreateCliAgentSmartAccountMock: vi.fn(),
+  getCliAgentWalletMock: vi.fn(),
+  getOrCreateCliAgentExecutionContextMock: vi.fn(),
   assertCliTransferAllowedMock: vi.fn(),
   assertCliTxAllowedMock: vi.fn(),
   txLogFindUniqueMock: vi.fn(),
   txLogCreateMock: vi.fn(),
   txLogUpdateMock: vi.fn(),
+  txLogUpdateManyMock: vi.fn(),
 }));
 
 vi.mock("@/lib/server/cli/auth", () => ({
@@ -27,9 +29,9 @@ vi.mock("@/lib/server/cli/auth", () => ({
 }));
 
 vi.mock("@/lib/server/cli/wallet-store", () => ({
-  getOrCreateCliAgentWallet: (...args: unknown[]) => getOrCreateCliAgentWalletMock(...args),
-  getOrCreateCliAgentSmartAccount: (...args: unknown[]) =>
-    getOrCreateCliAgentSmartAccountMock(...args),
+  getCliAgentWallet: (...args: unknown[]) => getCliAgentWalletMock(...args),
+  getOrCreateCliAgentExecutionContext: (...args: unknown[]) =>
+    getOrCreateCliAgentExecutionContextMock(...args),
 }));
 
 vi.mock("@/lib/server/cli/policy", () => ({
@@ -44,12 +46,14 @@ vi.mock("@/lib/server/db/cobuild-db-client", () => ({
         findUnique: (...args: unknown[]) => txLogFindUniqueMock(...args),
         create: (...args: unknown[]) => txLogCreateMock(...args),
         update: (...args: unknown[]) => txLogUpdateMock(...args),
+        updateMany: (...args: unknown[]) => txLogUpdateManyMock(...args),
       },
     }),
     cliTxLog: {
       findUnique: (...args: unknown[]) => txLogFindUniqueMock(...args),
       create: (...args: unknown[]) => txLogCreateMock(...args),
       update: (...args: unknown[]) => txLogUpdateMock(...args),
+      updateMany: (...args: unknown[]) => txLogUpdateManyMock(...args),
     },
   },
   prismaPrimary: (client: { $primary?: () => unknown }) =>
@@ -70,7 +74,7 @@ describe("cli exec route user-op failure handling", () => {
       agentKey: "default",
     });
 
-    getOrCreateCliAgentWalletMock.mockResolvedValue({
+    getCliAgentWalletMock.mockResolvedValue({
       address: "0x0000000000000000000000000000000000000002",
       cdpAccountName: "cli-smart",
       defaultNetwork: "base",
@@ -79,16 +83,26 @@ describe("cli exec route user-op failure handling", () => {
     txLogFindUniqueMock.mockResolvedValue(null);
     txLogCreateMock.mockResolvedValue({ id: 1n });
     txLogUpdateMock.mockResolvedValue({ id: 1n });
+    txLogUpdateManyMock.mockResolvedValue({ count: 1 });
   });
 
-  it("returns 500 and leaves transfer idempotency pending when user-op is not complete", async () => {
+  it("returns 500 and marks transfer idempotency failed when user-op settles unsuccessfully", async () => {
     const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xtransfer-user-op" });
     const waitForUserOperationMock = vi.fn().mockResolvedValue({ status: "failed" });
-    getOrCreateCliAgentSmartAccountMock.mockResolvedValue({
-      address: "0x0000000000000000000000000000000000000002",
-      transfer: vi.fn(),
-      sendUserOperation: sendUserOperationMock,
-      waitForUserOperation: waitForUserOperationMock,
+    getOrCreateCliAgentExecutionContextMock.mockResolvedValue({
+      wallet: {
+        ownerAddress: "0x0000000000000000000000000000000000000001",
+        agentKey: "default",
+        cdpAccountName: "cli-smart",
+        address: "0x0000000000000000000000000000000000000002",
+        defaultNetwork: "base",
+      },
+      smartAccount: {
+        address: "0x0000000000000000000000000000000000000002",
+        sendUserOperation: sendUserOperationMock,
+        waitForUserOperation: waitForUserOperationMock,
+      },
+      walletAddress: "0x0000000000000000000000000000000000000002",
     });
 
     const idempotencyKey = "b5aa9e58-5de9-4f75-b5fd-efef14930f72";
@@ -140,21 +154,51 @@ describe("cli exec route user-op failure handling", () => {
         data: expect.objectContaining({
           kind: "transfer",
           idempotencyKey,
+          status: "pending",
           txHash: null,
+          userOpHash: null,
+          expiresAt: expect.any(Date),
         }),
       })
     );
-    expect(txLogUpdateMock).not.toHaveBeenCalled();
+    expect(txLogUpdateMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: {
+          status: "submitted",
+          userOpHash: "0xtransfer-user-op",
+          expiresAt: null,
+        },
+      })
+    );
+    expect(txLogUpdateMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: {
+          status: "failed",
+          expiresAt: null,
+        },
+      })
+    );
   });
 
-  it("returns 500 and leaves tx idempotency pending when user-op is not complete", async () => {
+  it("returns 500 and marks tx idempotency failed when user-op settles unsuccessfully", async () => {
     const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xtx-user-op" });
     const waitForUserOperationMock = vi.fn().mockResolvedValue({ status: "failed" });
-    getOrCreateCliAgentSmartAccountMock.mockResolvedValue({
-      address: "0x0000000000000000000000000000000000000002",
-      transfer: vi.fn(),
-      sendUserOperation: sendUserOperationMock,
-      waitForUserOperation: waitForUserOperationMock,
+    getOrCreateCliAgentExecutionContextMock.mockResolvedValue({
+      wallet: {
+        ownerAddress: "0x0000000000000000000000000000000000000001",
+        agentKey: "default",
+        cdpAccountName: "cli-smart",
+        address: "0x0000000000000000000000000000000000000002",
+        defaultNetwork: "base",
+      },
+      smartAccount: {
+        address: "0x0000000000000000000000000000000000000002",
+        sendUserOperation: sendUserOperationMock,
+        waitForUserOperation: waitForUserOperationMock,
+      },
+      walletAddress: "0x0000000000000000000000000000000000000002",
     });
 
     const idempotencyKey = "b64db2c3-e6d4-44ac-98af-5f15387f383d";
@@ -201,10 +245,31 @@ describe("cli exec route user-op failure handling", () => {
         data: expect.objectContaining({
           kind: "tx",
           idempotencyKey,
+          status: "pending",
           txHash: null,
+          userOpHash: null,
+          expiresAt: expect.any(Date),
         }),
       })
     );
-    expect(txLogUpdateMock).not.toHaveBeenCalled();
+    expect(txLogUpdateMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: {
+          status: "submitted",
+          userOpHash: "0xtx-user-op",
+          expiresAt: null,
+        },
+      })
+    );
+    expect(txLogUpdateMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: {
+          status: "failed",
+          expiresAt: null,
+        },
+      })
+    );
   });
 });

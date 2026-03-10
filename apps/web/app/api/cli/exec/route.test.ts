@@ -12,6 +12,7 @@ const {
   txLogFindUniqueMock,
   txLogCreateMock,
   txLogUpdateMock,
+  txLogUpdateManyMock,
 } = vi.hoisted(() => ({
   requireCliBearerAuthMock: vi.fn(),
   getOrCreateCliAgentWalletMock: vi.fn(),
@@ -21,6 +22,7 @@ const {
   txLogFindUniqueMock: vi.fn(),
   txLogCreateMock: vi.fn(),
   txLogUpdateMock: vi.fn(),
+  txLogUpdateManyMock: vi.fn(),
 }));
 
 vi.mock("@/lib/server/cli/auth", () => ({
@@ -28,8 +30,8 @@ vi.mock("@/lib/server/cli/auth", () => ({
 }));
 
 vi.mock("@/lib/server/cli/wallet-store", () => ({
-  getOrCreateCliAgentWallet: (...args: unknown[]) => getOrCreateCliAgentWalletMock(...args),
-  getOrCreateCliAgentSmartAccount: (...args: unknown[]) =>
+  getCliAgentWallet: (...args: unknown[]) => getOrCreateCliAgentWalletMock(...args),
+  getOrCreateCliAgentExecutionContext: (...args: unknown[]) =>
     getOrCreateCliAgentSmartAccountMock(...args),
 }));
 
@@ -45,12 +47,14 @@ vi.mock("@/lib/server/db/cobuild-db-client", () => ({
         findUnique: (...args: unknown[]) => txLogFindUniqueMock(...args),
         create: (...args: unknown[]) => txLogCreateMock(...args),
         update: (...args: unknown[]) => txLogUpdateMock(...args),
+        updateMany: (...args: unknown[]) => txLogUpdateManyMock(...args),
       },
     }),
     cliTxLog: {
       findUnique: (...args: unknown[]) => txLogFindUniqueMock(...args),
       create: (...args: unknown[]) => txLogCreateMock(...args),
       update: (...args: unknown[]) => txLogUpdateMock(...args),
+      updateMany: (...args: unknown[]) => txLogUpdateManyMock(...args),
     },
   },
   prismaPrimary: (client: { $primary?: () => unknown }) =>
@@ -62,6 +66,41 @@ import { POST } from "./route";
 
 const BASE_BUILDER_SUFFIX = "0x0b62635f64647972736c69780080218021802180218021802180218021";
 const TX_DATA_WITH_BUILDER_SUFFIX = `0x12345678${BASE_BUILDER_SUFFIX.slice(2)}`;
+
+function createCliTxLogRecord(
+  overrides: Partial<{
+    kind: string;
+    network: string;
+    to: string;
+    token: string | null;
+    amount: string | null;
+    decimals: number | null;
+    valueEth: string | null;
+    data: string | null;
+    txHash: string | null;
+    userOpHash: string | null;
+    status: string;
+    expiresAt: Date | null;
+    updatedAt: Date;
+  }> = {}
+) {
+  return {
+    kind: "transfer",
+    network: "base",
+    to: "0x000000000000000000000000000000000000dead",
+    token: "usdc",
+    amount: "0.25",
+    decimals: null,
+    valueEth: null,
+    data: null,
+    txHash: "0xexisting",
+    userOpHash: null,
+    status: "confirmed",
+    expiresAt: null,
+    updatedAt: new Date("2026-03-10T00:00:00.000Z"),
+    ...overrides,
+  };
+}
 
 describe("cli exec route", () => {
   function setSmartAccountMocks(params: {
@@ -83,7 +122,17 @@ describe("cli exec route", () => {
       sendUserOperation: sendUserOperationMock,
       waitForUserOperation: waitForUserOperationMock,
     };
-    getOrCreateCliAgentSmartAccountMock.mockResolvedValue(smartAccount);
+    getOrCreateCliAgentSmartAccountMock.mockResolvedValue({
+      wallet: {
+        ownerAddress: "0x0000000000000000000000000000000000000001",
+        agentKey: "default",
+        cdpAccountName: "cli-smart",
+        address: smartAccount.address,
+        defaultNetwork: "base",
+      },
+      smartAccount,
+      walletAddress: smartAccount.address,
+    });
     return {
       transferMock,
       sendUserOperationMock,
@@ -96,6 +145,7 @@ describe("cli exec route", () => {
     txLogFindUniqueMock.mockResolvedValue(null);
     txLogCreateMock.mockResolvedValue({ id: 1n });
     txLogUpdateMock.mockResolvedValue({ id: 1n });
+    txLogUpdateManyMock.mockResolvedValue({ count: 1 });
   });
 
   afterEach(() => {
@@ -765,17 +815,7 @@ describe("cli exec route", () => {
       cdpAccountName: "cli-123",
       defaultNetwork: "base",
     });
-    txLogFindUniqueMock.mockResolvedValue({
-      kind: "transfer",
-      network: "base",
-      to: "0x000000000000000000000000000000000000dead",
-      token: "usdc",
-      amount: "0.25",
-      decimals: null,
-      valueEth: null,
-      data: null,
-      txHash: "0xexisting",
-    });
+    txLogFindUniqueMock.mockResolvedValue(createCliTxLogRecord());
 
     const request = new Request("http://localhost/api/cli/exec", {
       method: "POST",
@@ -796,6 +836,7 @@ describe("cli exec route", () => {
     expect(await response.json()).toEqual({
       ok: true,
       kind: "transfer",
+      status: "confirmed",
       replayed: true,
       wallet: {
         address: "0x0000000000000000000000000000000000000002",
@@ -820,17 +861,15 @@ describe("cli exec route", () => {
       cdpAccountName: "cli-123",
       defaultNetwork: "base",
     });
-    txLogFindUniqueMock.mockResolvedValue({
-      kind: "tx",
-      network: "base",
-      to: "0x000000000000000000000000000000000000dead",
-      token: null,
-      amount: null,
-      decimals: null,
-      valueEth: "0",
-      data: "0x12345678",
-      txHash: "0xexisting",
-    });
+    txLogFindUniqueMock.mockResolvedValue(
+      createCliTxLogRecord({
+        kind: "tx",
+        token: null,
+        amount: null,
+        valueEth: "0",
+        data: "0x12345678",
+      })
+    );
 
     const request = new Request("http://localhost/api/cli/exec", {
       method: "POST",
@@ -851,6 +890,7 @@ describe("cli exec route", () => {
     expect(await response.json()).toEqual({
       ok: true,
       kind: "tx",
+      status: "confirmed",
       replayed: true,
       wallet: {
         address: "0x0000000000000000000000000000000000000002",
@@ -1021,17 +1061,7 @@ describe("cli exec route", () => {
       cdpAccountName: "cli-123",
       defaultNetwork: "base",
     });
-    txLogFindUniqueMock.mockResolvedValueOnce(null).mockResolvedValueOnce({
-      kind: "transfer",
-      network: "base",
-      to: "0x000000000000000000000000000000000000dead",
-      token: "usdc",
-      amount: "0.25",
-      decimals: null,
-      valueEth: null,
-      data: null,
-      txHash: "0xexisting",
-    });
+    txLogFindUniqueMock.mockResolvedValueOnce(null).mockResolvedValueOnce(createCliTxLogRecord());
     txLogCreateMock.mockRejectedValueOnce({ code: "P2002" });
 
     const request = new Request("http://localhost/api/cli/exec", {
@@ -1053,6 +1083,7 @@ describe("cli exec route", () => {
     expect(await response.json()).toEqual({
       ok: true,
       kind: "transfer",
+      status: "confirmed",
       replayed: true,
       wallet: {
         address: "0x0000000000000000000000000000000000000002",
@@ -1267,17 +1298,15 @@ describe("cli exec route", () => {
       cdpAccountName: "cli-123",
       defaultNetwork: "base",
     });
-    txLogFindUniqueMock.mockResolvedValue({
-      kind: "tx",
-      network: "base",
-      to: "0x000000000000000000000000000000000000dead",
-      token: null,
-      amount: null,
-      decimals: null,
-      valueEth: null,
-      data: "0x12345678",
-      txHash: "0xexisting",
-    });
+    txLogFindUniqueMock.mockResolvedValue(
+      createCliTxLogRecord({
+        kind: "tx",
+        token: null,
+        amount: null,
+        valueEth: null,
+        data: "0x12345678",
+      })
+    );
 
     const request = new Request("http://localhost/api/cli/exec", {
       method: "POST",
@@ -1304,7 +1333,7 @@ describe("cli exec route", () => {
     expect(txLogCreateMock).not.toHaveBeenCalled();
   });
 
-  it("rejects replay when tx idempotency record is not finalized", async () => {
+  it("rejects replay while a tx idempotency reservation is still in progress", async () => {
     requireCliBearerAuthMock.mockResolvedValue({
       ownerAddress: "0x0000000000000000000000000000000000000001",
       tokenId: "1",
@@ -1317,17 +1346,18 @@ describe("cli exec route", () => {
       cdpAccountName: "cli-123",
       defaultNetwork: "base",
     });
-    txLogFindUniqueMock.mockResolvedValue({
-      kind: "tx",
-      network: "base",
-      to: "0x000000000000000000000000000000000000dead",
-      token: null,
-      amount: null,
-      decimals: null,
-      valueEth: "0.1",
-      data: "0x12345678",
-      txHash: null,
-    });
+    txLogFindUniqueMock.mockResolvedValue(
+      createCliTxLogRecord({
+        kind: "tx",
+        token: null,
+        amount: null,
+        valueEth: "0.1",
+        data: "0x12345678",
+        txHash: null,
+        status: "pending",
+        expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+      })
+    );
 
     const request = new Request("http://localhost/api/cli/exec", {
       method: "POST",
@@ -1348,10 +1378,104 @@ describe("cli exec route", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual({
       ok: false,
-      error: "Idempotency key is already associated with a pending or failed request",
+      error: "Idempotency key reservation is still in progress; retry shortly",
     });
     expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
     expect(txLogCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 202 pending when confirmation exceeds the hosted wait timeout", async () => {
+    vi.useFakeTimers();
+    const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xpending-user-op" });
+    const waitForUserOperationMock = vi.fn().mockImplementation(() => new Promise<never>(() => {}));
+    setSmartAccountMocks({ sendUserOperationMock, waitForUserOperationMock });
+
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      address: "0x0000000000000000000000000000000000000002",
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "11111111-2222-4333-8444-555555555555",
+      },
+      body: JSON.stringify({
+        kind: "tx",
+        to: "0x000000000000000000000000000000000000dEaD",
+        data: "0x12345678",
+        valueEth: "0",
+      }),
+    });
+
+    try {
+      const responsePromise = POST(request);
+      await vi.advanceTimersByTimeAsync(20_000);
+      const response = await responsePromise;
+
+      expect(response.status).toBe(202);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(await response.json()).toEqual({
+        ok: true,
+        kind: "tx",
+        status: "pending",
+        pending: true,
+        wallet: {
+          address: "0x0000000000000000000000000000000000000002",
+        },
+        transactionHash: null,
+        userOpHash: "0xpending-user-op",
+        explorerUrl: null,
+      });
+      expect(txLogUpdateMock).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          data: {
+            status: "submitted",
+            userOpHash: "0xpending-user-op",
+            expiresAt: null,
+          },
+        })
+      );
+      expect(txLogUpdateMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects oversized request bodies before execution", async () => {
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "tx",
+        to: "0x000000000000000000000000000000000000dEaD",
+        data: `0x${"12".repeat(40_000)}`,
+        valueEth: "0",
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "Request body exceeds 65536 bytes",
+    });
+    expect(getOrCreateCliAgentWalletMock).not.toHaveBeenCalled();
+    expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
   });
 
   it("returns 500 with no-store on unexpected errors", async () => {

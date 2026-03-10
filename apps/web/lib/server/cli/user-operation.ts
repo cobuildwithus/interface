@@ -2,11 +2,14 @@ import "server-only";
 
 import type { EvmSmartAccount } from "@coinbase/cdp-sdk";
 
+export class UserOperationTimeoutError extends Error {}
+
 type WaitForUserOperationBaseParams = {
   smartAccount: EvmSmartAccount;
   userOpHash: `0x${string}`;
   label: string;
   createError: (message: string) => Error;
+  timeoutMs?: number;
 };
 
 type WaitForUserOperationWithHash = WaitForUserOperationBaseParams & {
@@ -26,9 +29,36 @@ export async function waitForUserOperationComplete(
 export async function waitForUserOperationComplete(
   params: WaitForUserOperationWithHash | WaitForUserOperationMaybeHash
 ): Promise<`0x${string}` | null> {
-  const settled = await params.smartAccount.waitForUserOperation({
+  const waitForSettlement = params.smartAccount.waitForUserOperation({
     userOpHash: params.userOpHash,
   });
+  const timeoutMs = params.timeoutMs;
+
+  const settled =
+    typeof timeoutMs === "number" && Number.isFinite(timeoutMs) && timeoutMs > 0
+      ? await (async () => {
+          let timeout: ReturnType<typeof setTimeout> | undefined;
+          try {
+            return await Promise.race([
+              waitForSettlement,
+              new Promise<never>((_, reject) => {
+                timeout = setTimeout(() => {
+                  reject(
+                    new UserOperationTimeoutError(
+                      `${params.label} did not confirm before the server timeout`
+                    )
+                  );
+                }, Math.floor(timeoutMs));
+                timeout.unref?.();
+              }),
+            ]);
+          } finally {
+            if (timeout) {
+              clearTimeout(timeout);
+            }
+          }
+        })()
+      : await waitForSettlement;
 
   if (settled.status !== "complete") {
     throw params.createError(`${params.label} failed before confirmation`);
