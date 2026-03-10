@@ -9,10 +9,13 @@ AS $$
     SELECT
       outbox.id,
       lower(trim(outbox.recipient_wallet_address)) AS recipient_wallet_address,
+      coalesce(outbox.action, 'upsert') AS action,
       outbox.reason,
       outbox.source_type,
       outbox.source_id,
       lower(trim(outbox.actor_wallet_address)) AS actor_wallet_address,
+      outbox.block_number,
+      outbox.log_index,
       TIMESTAMPTZ 'epoch' + outbox.timestamp * interval '1 second' AS event_at,
       outbox.payload
     FROM "cobuild-onchain".protocol_notification_outbox outbox
@@ -21,8 +24,59 @@ AS $$
       AND btrim(outbox.recipient_wallet_address) <> ''
       AND outbox.recipient_wallet_address ~* '^0x[0-9a-f]{40}$'
   ),
+  target_keys AS (
+    SELECT DISTINCT
+      selected.recipient_wallet_address,
+      selected.source_type,
+      selected.source_id
+    FROM selected
+  ),
+  history AS (
+    SELECT
+      outbox.id,
+      lower(trim(outbox.recipient_wallet_address)) AS recipient_wallet_address,
+      coalesce(outbox.action, 'upsert') AS action,
+      outbox.reason,
+      outbox.source_type,
+      outbox.source_id,
+      lower(trim(outbox.actor_wallet_address)) AS actor_wallet_address,
+      outbox.block_number,
+      outbox.log_index,
+      TIMESTAMPTZ 'epoch' + outbox.timestamp * interval '1 second' AS event_at,
+      outbox.payload
+    FROM "cobuild-onchain".protocol_notification_outbox outbox
+    JOIN target_keys target
+      ON target.recipient_wallet_address = lower(trim(outbox.recipient_wallet_address))
+      AND target.source_type = outbox.source_type
+      AND target.source_id = outbox.source_id
+    WHERE outbox.recipient_wallet_address IS NOT NULL
+      AND btrim(outbox.recipient_wallet_address) <> ''
+      AND outbox.recipient_wallet_address ~* '^0x[0-9a-f]{40}$'
+  ),
+  latest_history AS (
+    SELECT DISTINCT ON (history.recipient_wallet_address, history.source_type, history.source_id)
+      history.id,
+      history.recipient_wallet_address,
+      history.action,
+      history.reason,
+      history.source_type,
+      history.source_id,
+      history.actor_wallet_address,
+      history.block_number,
+      history.log_index,
+      history.event_at,
+      history.payload
+    FROM history
+    ORDER BY
+      history.recipient_wallet_address,
+      history.source_type,
+      history.source_id,
+      history.block_number DESC,
+      history.log_index DESC,
+      history.id DESC
+  ),
   upserted AS (
-    INSERT INTO cobuild.notifications (
+    INSERT INTO cobuild.notifications AS notification (
       recipient_wallet_address,
       recipient_fid,
       kind,
@@ -51,7 +105,8 @@ AS $$
       NULL,
       clock_timestamp(),
       clock_timestamp()
-    FROM selected
+    FROM latest_history selected
+    WHERE selected.action = 'upsert'
     ON CONFLICT (recipient_wallet_address, source_type, source_id) DO UPDATE
     SET
       kind = EXCLUDED.kind,
@@ -61,10 +116,29 @@ AS $$
       event_at = EXCLUDED.event_at,
       payload = EXCLUDED.payload,
       invalidated_at = NULL,
+      created_at = CASE
+        WHEN notification.invalidated_at IS NOT NULL THEN clock_timestamp()
+        ELSE notification.created_at
+      END,
       updated_at = clock_timestamp()
     RETURNING 1
+  ),
+  invalidated AS (
+    UPDATE cobuild.notifications AS notification
+    SET
+      reason = selected.reason,
+      actor_wallet_address = selected.actor_wallet_address,
+      payload = selected.payload,
+      invalidated_at = selected.event_at,
+      updated_at = clock_timestamp()
+    FROM latest_history selected
+    WHERE selected.action = 'invalidate'
+      AND notification.recipient_wallet_address = selected.recipient_wallet_address
+      AND notification.source_type = selected.source_type
+      AND notification.source_id = selected.source_id
+    RETURNING 1
   )
-  SELECT COUNT(*)::integer FROM upserted
+  SELECT (SELECT COUNT(*) FROM upserted) + (SELECT COUNT(*) FROM invalidated)
 $$;
 
 CREATE OR REPLACE FUNCTION cobuild.materialize_protocol_notification_schedules(schedule_ids TEXT[])
@@ -90,8 +164,41 @@ AS $$
       AND btrim(schedule.recipient_wallet_address) <> ''
       AND schedule.recipient_wallet_address ~* '^0x[0-9a-f]{40}$'
   ),
+  target_keys AS (
+    SELECT DISTINCT
+      selected.recipient_wallet_address,
+      selected.source_type,
+      selected.source_id
+    FROM selected
+  ),
+  latest_outbox AS (
+    SELECT DISTINCT ON (
+      lower(trim(outbox.recipient_wallet_address)),
+      outbox.source_type,
+      outbox.source_id
+    )
+      lower(trim(outbox.recipient_wallet_address)) AS recipient_wallet_address,
+      coalesce(outbox.action, 'upsert') AS action,
+      outbox.source_type,
+      outbox.source_id
+    FROM "cobuild-onchain".protocol_notification_outbox outbox
+    JOIN target_keys target
+      ON target.recipient_wallet_address = lower(trim(outbox.recipient_wallet_address))
+      AND target.source_type = outbox.source_type
+      AND target.source_id = outbox.source_id
+    WHERE outbox.recipient_wallet_address IS NOT NULL
+      AND btrim(outbox.recipient_wallet_address) <> ''
+      AND outbox.recipient_wallet_address ~* '^0x[0-9a-f]{40}$'
+    ORDER BY
+      lower(trim(outbox.recipient_wallet_address)),
+      outbox.source_type,
+      outbox.source_id,
+      outbox.block_number DESC,
+      outbox.log_index DESC,
+      outbox.id DESC
+  ),
   upserted AS (
-    INSERT INTO cobuild.notifications (
+    INSERT INTO cobuild.notifications AS notification (
       recipient_wallet_address,
       recipient_fid,
       kind,
@@ -121,6 +228,11 @@ AS $$
       clock_timestamp(),
       clock_timestamp()
     FROM selected
+    LEFT JOIN latest_outbox
+      ON latest_outbox.recipient_wallet_address = selected.recipient_wallet_address
+      AND latest_outbox.source_type = selected.source_type
+      AND latest_outbox.source_id = selected.source_id
+    WHERE coalesce(latest_outbox.action, 'upsert') <> 'invalidate'
     ON CONFLICT (recipient_wallet_address, source_type, source_id) DO UPDATE
     SET
       kind = EXCLUDED.kind,
@@ -130,6 +242,10 @@ AS $$
       event_at = EXCLUDED.event_at,
       payload = EXCLUDED.payload,
       invalidated_at = NULL,
+      created_at = CASE
+        WHEN notification.invalidated_at IS NOT NULL THEN clock_timestamp()
+        ELSE notification.created_at
+      END,
       updated_at = clock_timestamp()
     RETURNING 1
   )
