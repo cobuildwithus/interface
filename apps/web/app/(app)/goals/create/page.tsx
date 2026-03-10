@@ -13,7 +13,8 @@ export default function CreateGoalPage() {
         <div>
           <h1 className="text-2xl font-bold">Create Goal</h1>
           <p className="text-muted-foreground mt-1">
-            Deploy a new goal stack onchain from your wallet. Anyone can create a goal.
+            Operator flow for deploying a new goal stack on Base. Bring production resolver,
+            spend-policy, and BudgetTCR configuration values before you submit.
           </p>
         </div>
         <CreateGoalForm />

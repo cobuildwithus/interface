@@ -16,16 +16,15 @@ export async function submitUsdcPermitAction(body: {
 }): Promise<SubmitPermitResponse> {
   const session = await getSession();
   let normalizedOwner: Address;
+  let normalizedSessionAddress: Address;
   try {
     normalizedOwner = normalizeAddress(body.owner, "owner");
+    normalizedSessionAddress = normalizeAddress(session.address ?? "", "session.address");
   } catch {
     return { error: "Unauthorized" };
   }
 
-  if (
-    !session.address ||
-    normalizeAddress(session.address, "session.address") !== normalizedOwner
-  ) {
+  if (!session.address || normalizedSessionAddress !== normalizedOwner) {
     return { error: "Unauthorized" };
   }
 

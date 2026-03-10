@@ -8,6 +8,70 @@ import * as wire from "@cobuild/wire";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CreateGoalForm } from "./create-goal-form";
 
+const VALID_BUDGET_TCR_CONFIG = JSON.stringify({
+  submissionBaseDeposit: "0",
+  removalBaseDeposit: "0",
+  submissionChallengeBaseDeposit: "0",
+  removalChallengeBaseDeposit: "0",
+  registrationMetaEvidence: "ipfs://registration",
+  clearingMetaEvidence: "ipfs://clearing",
+  challengePeriodDuration: "86400",
+  arbitratorExtraData: "0x",
+  budgetBounds: {
+    minFundingLeadTime: "0",
+    maxFundingHorizon: "2592000",
+    minExecutionDuration: "0",
+    maxExecutionDuration: "2592000",
+    minActivationThreshold: "0",
+    maxActivationThreshold: "1000000000000000000",
+    maxRunwayCap: "1000000000000000000",
+  },
+  oracleBounds: {
+    liveness: "86400",
+    bondAmount: "1000000000000000000",
+  },
+  arbitratorParams: {
+    votingPeriod: "86400",
+    votingDelay: "3600",
+    revealPeriod: "86400",
+    arbitrationCost: "1000000000000000",
+    wrongOrMissedSlashBps: "50",
+    slashCallerBountyBps: "100",
+  },
+});
+
+const UNSAFE_NUMERIC_BUDGET_TCR_CONFIG = JSON.stringify({
+  submissionBaseDeposit: "0",
+  removalBaseDeposit: "0",
+  submissionChallengeBaseDeposit: "0",
+  removalChallengeBaseDeposit: "0",
+  registrationMetaEvidence: "ipfs://registration",
+  clearingMetaEvidence: "ipfs://clearing",
+  challengePeriodDuration: "86400",
+  arbitratorExtraData: "0x",
+  budgetBounds: {
+    minFundingLeadTime: "0",
+    maxFundingHorizon: "2592000",
+    minExecutionDuration: "0",
+    maxExecutionDuration: "2592000",
+    minActivationThreshold: "0",
+    maxActivationThreshold: "1000000000000000000",
+    maxRunwayCap: 9007199254740992,
+  },
+  oracleBounds: {
+    liveness: "86400",
+    bondAmount: "1000000000000000000",
+  },
+  arbitratorParams: {
+    votingPeriod: "86400",
+    votingDelay: "3600",
+    revealPeriod: "86400",
+    arbitrationCost: "1000000000000000",
+    wrongOrMissedSlashBps: "50",
+    slashCallerBountyBps: "100",
+  },
+});
+
 const {
   pushMock,
   usePublicClientMock,
@@ -85,11 +149,20 @@ function fillValidGoalCreateForm(): void {
   fireEvent.change(screen.getByLabelText("Success policy (plain text hashed to bytes32)"), {
     target: { value: "Policy" },
   });
+  fireEvent.change(screen.getByLabelText("Success resolver"), {
+    target: { value: "0x00000000000000000000000000000000000000aa" },
+  });
+  fireEvent.change(screen.getByLabelText("Budget success resolver"), {
+    target: { value: "0x00000000000000000000000000000000000000bb" },
+  });
   fireEvent.change(screen.getByLabelText("Goal spend policy"), {
     target: { value: "0x00000000000000000000000000000000000000cc" },
   });
   fireEvent.change(screen.getByLabelText("Budget spend policy"), {
     target: { value: "0x00000000000000000000000000000000000000dd" },
+  });
+  fireEvent.change(screen.getByLabelText("Budget TCR config (JSON)"), {
+    target: { value: VALID_BUDGET_TCR_CONFIG },
   });
 }
 
@@ -116,6 +189,14 @@ describe("CreateGoalForm", () => {
       account: null,
       isLoading: false,
     });
+  });
+
+  it("does not seed fake success resolver defaults", () => {
+    render(<CreateGoalForm />);
+
+    expect(screen.getByLabelText("Success resolver")).toHaveValue("");
+    expect(screen.getByLabelText("Budget success resolver")).toHaveValue("");
+    expect(screen.getByLabelText("Budget TCR config (JSON)")).toHaveValue("");
   });
 
   it("does not prepare wallet when the required spend-policy inputs are missing", async () => {
@@ -170,6 +251,40 @@ describe("CreateGoalForm", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
+  it("requires explicit Budget TCR config before preparing the wallet", async () => {
+    render(<CreateGoalForm />);
+    fillValidGoalCreateForm();
+    fireEvent.change(screen.getByLabelText("Budget TCR config (JSON)"), {
+      target: { value: "" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create goal" }));
+
+    expect(await screen.findByText("Budget TCR config is required.")).toBeInTheDocument();
+    expect(prepareWalletMock).not.toHaveBeenCalled();
+    expect(writeContractAsyncMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsafe numeric Budget TCR config values before preparing the wallet", async () => {
+    render(<CreateGoalForm />);
+    fillValidGoalCreateForm();
+    fireEvent.change(screen.getByLabelText("Budget TCR config (JSON)"), {
+      target: { value: UNSAFE_NUMERIC_BUDGET_TCR_CONFIG },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create goal" }));
+
+    expect(
+      await screen.findByText(
+        "Budget TCR config.budgetBounds.maxRunwayCap must be provided as a decimal string when it exceeds Number.MAX_SAFE_INTEGER."
+      )
+    ).toBeInTheDocument();
+    expect(prepareWalletMock).not.toHaveBeenCalled();
+    expect(writeContractAsyncMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
   it("builds the current GoalFactory deploy shape through the shared wire planner and ABI", async () => {
     useContractTransactionMock.mockReturnValue({
       prepareWallet: prepareWalletMock,
@@ -207,6 +322,20 @@ describe("CreateGoalForm", () => {
             budgetTCR: expect.objectContaining({
               allocationMechanismAdmin: "0x00000000000000000000000000000000000000aa",
               budgetSpendPolicy: "0x00000000000000000000000000000000000000dd",
+              challengePeriodDuration: 86400n,
+              registrationMetaEvidence: "ipfs://registration",
+              oracleBounds: {
+                liveness: 86400n,
+                bondAmount: 1000000000000000000n,
+              },
+              arbitratorParams: {
+                votingPeriod: 86400n,
+                votingDelay: 3600n,
+                revealPeriod: 86400n,
+                arbitrationCost: 1000000000000000n,
+                wrongOrMissedSlashBps: 50n,
+                slashCallerBountyBps: 100n,
+              },
             }),
             goalSpendPolicy: "0x00000000000000000000000000000000000000cc",
           }),

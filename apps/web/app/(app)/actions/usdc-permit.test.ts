@@ -45,6 +45,22 @@ describe("submitUsdcPermitAction", () => {
     expect(submitUsdcPermitServerMock).not.toHaveBeenCalled();
   });
 
+  it("returns Unauthorized when session address is malformed", async () => {
+    getSessionMock.mockResolvedValue({ address: "not-an-address" });
+
+    const { submitUsdcPermitAction } = await loadModule();
+    const result = await submitUsdcPermitAction({
+      owner: OWNER,
+      spender: SPENDER,
+      value: "1",
+      deadline: "2",
+      signature: SIGNATURE,
+    });
+
+    expect(result).toEqual({ error: "Unauthorized" });
+    expect(submitUsdcPermitServerMock).not.toHaveBeenCalled();
+  });
+
   it("returns Unauthorized when owner does not match session address", async () => {
     getSessionMock.mockResolvedValue({ address: OWNER });
 

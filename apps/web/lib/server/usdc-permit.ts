@@ -1,5 +1,7 @@
 import "server-only";
 
+import { randomUUID } from "crypto";
+import { kv } from "@vercel/kv";
 import {
   Address,
   BaseError,
@@ -35,6 +37,11 @@ const accountSingleton = permitPkSingleton ? privateKeyToAccount(permitPkSinglet
 
 let publicClientSingleton: ReturnType<typeof getClient> | null = null;
 let serverWalletSingleton: ReturnType<typeof createWalletClient> | null = null;
+const PERMIT_SUBMISSION_LOCK_TTL_SECONDS = 30;
+
+class PermitSubmissionBusyError extends Error {}
+
+class PermitSubmissionLockUnavailableError extends Error {}
 
 function getPublicClient() {
   if (!publicClientSingleton) {
@@ -54,6 +61,49 @@ function getServerWallet() {
     });
   }
   return serverWalletSingleton;
+}
+
+function permitSubmissionLockKey(walletAddress: Address): string {
+  return `usdc-permit:submit:${walletAddress.toLowerCase()}`;
+}
+
+async function acquirePermitSubmissionLock(walletAddress: Address): Promise<{
+  key: string;
+  token: string;
+}> {
+  const key = permitSubmissionLockKey(walletAddress);
+  const token = randomUUID();
+
+  let didAcquire: unknown;
+  try {
+    didAcquire = await kv.set(key, token, {
+      nx: true,
+      ex: PERMIT_SUBMISSION_LOCK_TTL_SECONDS,
+    });
+  } catch {
+    throw new PermitSubmissionLockUnavailableError(
+      "Permit sponsor lock unavailable. Retry shortly."
+    );
+  }
+
+  if (didAcquire !== "OK") {
+    throw new PermitSubmissionBusyError("Permit sponsor is busy. Retry shortly.");
+  }
+
+  return { key, token };
+}
+
+async function releasePermitSubmissionLock(lock: { key: string; token: string } | null) {
+  if (!lock) return;
+
+  try {
+    const current = await kv.get<string>(lock.key);
+    if (current === lock.token) {
+      await kv.del(lock.key);
+    }
+  } catch {
+    // Ignore lock-release failures.
+  }
 }
 
 const extractErrorMessage = (error: ErrorLike): string => {
@@ -108,6 +158,8 @@ export type SubmitPermitResponse = SubmitPermitSuccess | SubmitPermitError;
 export async function submitUsdcPermitServer(
   body: JsonValue | null | undefined
 ): Promise<SubmitPermitResponse> {
+  let submissionLock: { key: string; token: string } | null = null;
+
   if (!isRecord(body)) {
     return { error: "Invalid JSON body" };
   }
@@ -131,8 +183,14 @@ export async function submitUsdcPermitServer(
       return { error: "Unsupported spender" };
     }
 
+    if (!accountSingleton) {
+      return { error: "Server not configured. Missing USDC_PERMIT_PK." };
+    }
+
+    const walletAddress = accountSingleton.address;
+    submissionLock = await acquirePermitSubmissionLock(walletAddress);
     const serverWallet = getServerWallet();
-    if (!accountSingleton || !serverWallet) {
+    if (!serverWallet) {
       return { error: "Server not configured. Missing USDC_PERMIT_PK." };
     }
 
@@ -150,8 +208,6 @@ export async function submitUsdcPermitServer(
       args: [owner, spender, value, deadline, signature],
       account: accountSingleton,
     });
-
-    const walletAddress = accountSingleton.address;
     let attemptNonce = await publicClient.getTransactionCount({
       address: walletAddress,
       blockTag: "pending",
@@ -199,8 +255,17 @@ export async function submitUsdcPermitServer(
       explorerUrl: explorerUrl(chainId, hash, "tx"),
     };
   } catch (error) {
+    if (
+      error instanceof PermitSubmissionBusyError ||
+      error instanceof PermitSubmissionLockUnavailableError
+    ) {
+      return { error: error.message };
+    }
+
     const message = extractErrorMessage(error as ErrorLike) || "Unexpected error";
     console.error(message);
     return { error: message };
+  } finally {
+    await releasePermitSubmissionLock(submissionLock);
   }
 }

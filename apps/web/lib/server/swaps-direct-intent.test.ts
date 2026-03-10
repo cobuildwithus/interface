@@ -2,167 +2,217 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { parseEntityId } = vi.hoisted(() => ({
-  parseEntityId: vi.fn(),
+const { findSwapExecutedMock, getTransactionMock, postRulesApiJsonMock } = vi.hoisted(() => ({
+  findSwapExecutedMock: vi.fn(),
+  getTransactionMock: vi.fn(),
+  postRulesApiJsonMock: vi.fn(),
 }));
 
-const { postRulesApiJson, RulesApiNotConfiguredError } = vi.hoisted(() => {
-  class RulesApiNotConfiguredError extends Error {}
-  return {
-    postRulesApiJson: vi.fn(),
-    RulesApiNotConfiguredError,
-  };
-});
-
-const { formatRulesCheckError } = vi.hoisted(() => ({
-  formatRulesCheckError: vi.fn(() => "formatted"),
+vi.mock("@/lib/server/db/cobuild-db-client", () => ({
+  default: {
+    swapExecuted: {
+      findUnique: (...args: Parameters<typeof findSwapExecutedMock>) =>
+        findSwapExecutedMock(...args),
+    },
+  },
 }));
 
-vi.mock("@/lib/shared/entity-id", () => ({ parseEntityId }));
+vi.mock("@/lib/domains/token/onchain/clients", () => ({
+  getClient: () => ({
+    getTransaction: (...args: Parameters<typeof getTransactionMock>) => getTransactionMock(...args),
+  }),
+}));
+
 vi.mock("@/lib/domains/rules/rules-api/post-json", () => ({
-  postRulesApiJson,
-  RulesApiNotConfiguredError,
-}));
-vi.mock("@/lib/domains/rules/rules-api/http-error-json", () => ({
-  formatRulesCheckError,
-}));
-vi.mock("@/lib/domains/token/onchain/addresses", () => ({
-  BASE_CHAIN_ID: 8453,
-  contracts: { CobuildToken: "0x" + "a".repeat(40) },
+  RulesApiNotConfiguredError: class RulesApiNotConfiguredError extends Error {},
+  postRulesApiJson: (...args: Parameters<typeof postRulesApiJsonMock>) =>
+    postRulesApiJsonMock(...args),
 }));
 
 import { registerDirectIntent } from "./swaps-direct-intent";
 
-const validTxHash = `0x${"b".repeat(64)}`;
-const validAddress = `0x${"c".repeat(40)}`;
-
-function mockEntity(platform: "farcaster" | "x" = "farcaster") {
-  parseEntityId.mockReturnValueOnce({
-    platform,
-    entityId: "0x" + "d".repeat(40),
-    queryAliases: [],
-  });
-}
+const OWNER = "0x00000000000000000000000000000000000000aa" as const;
+const TX_HASH = `0x${"1".repeat(64)}` as const;
+const TOKEN = "0x00000000000000000000000000000000000000bb" as const;
+const RECIPIENT = "0x00000000000000000000000000000000000000cc" as const;
+const ENTITY_ID = `0x${"2".repeat(40)}` as const;
 
 describe("registerDirectIntent", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    formatRulesCheckError.mockReturnValue("formatted");
+    postRulesApiJsonMock.mockResolvedValue({ ok: true });
   });
 
-  it("rejects invalid JSON bodies", async () => {
-    const result = await registerDirectIntent("nope");
-    expect(result).toEqual({ ok: false, status: 400, error: "Invalid JSON body." });
-  });
+  it("rejects unsupported chain ids before posting downstream", async () => {
+    const result = await registerDirectIntent(
+      {
+        txHash: TX_HASH,
+        tokenAddress: TOKEN,
+        entityId: ENTITY_ID,
+        chainId: 10,
+      },
+      { ownerAddress: OWNER }
+    );
 
-  it("rejects invalid transaction hash", async () => {
-    const result = await registerDirectIntent({ txHash: "0x123" });
-    expect(result).toEqual({ ok: false, status: 400, error: "Invalid transaction hash." });
-  });
-
-  it("rejects invalid token address", async () => {
-    mockEntity();
-    const result = await registerDirectIntent({
-      txHash: validTxHash,
-      tokenAddress: "0x123",
-      entityId: "0x" + "d".repeat(40),
-    });
-    expect(result).toEqual({ ok: false, status: 400, error: "Invalid token address." });
-  });
-
-  it("rejects invalid entityId", async () => {
-    parseEntityId.mockReturnValueOnce(null);
-    const result = await registerDirectIntent({
-      txHash: validTxHash,
-      tokenAddress: validAddress,
-      entityId: "bad",
-    });
-    expect(result).toEqual({ ok: false, status: 400, error: "Invalid entityId." });
-  });
-
-  it("rejects invalid chainId", async () => {
-    mockEntity();
-    const result = await registerDirectIntent({
-      txHash: validTxHash,
-      tokenAddress: validAddress,
-      entityId: "0x" + "d".repeat(40),
-      chainId: -1,
-    });
-    expect(result).toEqual({ ok: false, status: 400, error: "Invalid chainId." });
-  });
-
-  it("rejects invalid recipient address", async () => {
-    mockEntity();
-    const result = await registerDirectIntent({
-      txHash: validTxHash,
-      tokenAddress: validAddress,
-      entityId: "0x" + "d".repeat(40),
-      recipient: "0x" + "1".repeat(8),
-    });
     expect(result).toEqual({
       ok: false,
       status: 400,
-      error: "Invalid recipient address.",
+      error: "Unsupported chainId: 10",
     });
+    expect(postRulesApiJsonMock).not.toHaveBeenCalled();
   });
 
-  it("adds platform for x entities", async () => {
-    mockEntity("x");
-    postRulesApiJson.mockResolvedValueOnce({ ok: true });
-
-    const result = await registerDirectIntent({
-      txHash: validTxHash,
-      tokenAddress: validAddress,
-      entityId: "123456789",
+  it("rejects indexed swaps owned by another wallet", async () => {
+    findSwapExecutedMock.mockResolvedValue({
+      chainId: 8453,
+      from: "0x00000000000000000000000000000000000000dd",
+      recipient: RECIPIENT,
+      tokenOut: TOKEN,
     });
 
-    expect(result.ok).toBe(true);
-    expect(postRulesApiJson).toHaveBeenCalledWith(
-      "/v1/swaps/direct-intent",
-      expect.objectContaining({ platform: "x" })
+    const result = await registerDirectIntent(
+      {
+        txHash: TX_HASH,
+        tokenAddress: TOKEN,
+        entityId: ENTITY_ID,
+        chainId: 8453,
+        recipient: RECIPIENT,
+      },
+      { ownerAddress: OWNER }
     );
+
+    expect(result).toEqual({
+      ok: false,
+      status: 403,
+      error: "Transaction does not belong to the authenticated wallet.",
+    });
+    expect(postRulesApiJsonMock).not.toHaveBeenCalled();
   });
 
-  it("returns success with rules API response", async () => {
-    mockEntity();
-    postRulesApiJson.mockResolvedValueOnce({ ok: true, value: 123 });
-
-    const result = await registerDirectIntent({
-      txHash: validTxHash,
-      tokenAddress: validAddress,
-      entityId: "0x" + "d".repeat(40),
-      recipient: validAddress,
+  it("rejects indexed swaps with a mismatched recipient", async () => {
+    findSwapExecutedMock.mockResolvedValue({
+      chainId: 8453,
+      from: OWNER,
+      recipient: "0x00000000000000000000000000000000000000dd",
+      tokenOut: TOKEN,
     });
 
-    expect(result).toEqual({ ok: true, data: { ok: true, value: 123 } });
+    const result = await registerDirectIntent(
+      {
+        txHash: TX_HASH,
+        tokenAddress: TOKEN,
+        entityId: ENTITY_ID,
+        chainId: 8453,
+        recipient: RECIPIENT,
+      },
+      { ownerAddress: OWNER }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      status: 403,
+      error: "Transaction recipient does not match the requested boost recipient.",
+    });
+    expect(postRulesApiJsonMock).not.toHaveBeenCalled();
   });
 
-  it("handles RulesApiNotConfiguredError", async () => {
-    mockEntity();
-    postRulesApiJson.mockRejectedValueOnce(new RulesApiNotConfiguredError("no rules"));
-
-    const result = await registerDirectIntent({
-      txHash: validTxHash,
-      tokenAddress: validAddress,
-      entityId: "0x" + "d".repeat(40),
+  it("rejects indexed swaps with a mismatched token", async () => {
+    findSwapExecutedMock.mockResolvedValue({
+      chainId: 8453,
+      from: OWNER,
+      recipient: RECIPIENT,
+      tokenOut: "0x00000000000000000000000000000000000000dd",
     });
 
-    expect(result).toEqual({ ok: false, status: 500, error: "no rules" });
+    const result = await registerDirectIntent(
+      {
+        txHash: TX_HASH,
+        tokenAddress: TOKEN,
+        entityId: ENTITY_ID,
+        chainId: 8453,
+        recipient: RECIPIENT,
+      },
+      { ownerAddress: OWNER }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      status: 403,
+      error: "Transaction token does not match the requested boost token.",
+    });
+    expect(postRulesApiJsonMock).not.toHaveBeenCalled();
   });
 
-  it("formats errors for other failures", async () => {
-    mockEntity();
-    const error = new Error("boom") as Error & { status?: number };
-    error.status = 418;
-    postRulesApiJson.mockRejectedValueOnce(error);
-
-    const result = await registerDirectIntent({
-      txHash: validTxHash,
-      tokenAddress: validAddress,
-      entityId: "0x" + "d".repeat(40),
+  it("falls back to the onchain transaction sender when the index is cold", async () => {
+    findSwapExecutedMock.mockResolvedValue(null);
+    getTransactionMock.mockResolvedValue({
+      from: OWNER,
     });
 
-    expect(formatRulesCheckError).toHaveBeenCalled();
-    expect(result).toEqual({ ok: false, status: 418, error: "formatted" });
+    const result = await registerDirectIntent(
+      {
+        txHash: TX_HASH,
+        tokenAddress: TOKEN,
+        entityId: ENTITY_ID,
+        chainId: 8453,
+      },
+      { ownerAddress: OWNER }
+    );
+
+    expect(result).toEqual({ ok: true, data: { ok: true } });
+    expect(getTransactionMock).toHaveBeenCalledWith({ hash: TX_HASH });
+    expect(postRulesApiJsonMock).toHaveBeenCalledWith("/v1/swaps/direct-intent", {
+      txHash: TX_HASH,
+      chainId: 8453,
+      tokenAddress: TOKEN,
+      entityId: ENTITY_ID,
+      recipient: null,
+    });
+  });
+
+  it("rejects onchain sender mismatches when the index is cold", async () => {
+    findSwapExecutedMock.mockResolvedValue(null);
+    getTransactionMock.mockResolvedValue({
+      from: "0x00000000000000000000000000000000000000dd",
+    });
+
+    const result = await registerDirectIntent(
+      {
+        txHash: TX_HASH,
+        tokenAddress: TOKEN,
+        entityId: ENTITY_ID,
+        chainId: 8453,
+      },
+      { ownerAddress: OWNER }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      status: 403,
+      error: "Transaction does not belong to the authenticated wallet.",
+    });
+    expect(postRulesApiJsonMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a client error when the transaction cannot be verified onchain", async () => {
+    findSwapExecutedMock.mockResolvedValue(null);
+    getTransactionMock.mockRejectedValue(new Error("not found"));
+
+    const result = await registerDirectIntent(
+      {
+        txHash: TX_HASH,
+        tokenAddress: TOKEN,
+        entityId: ENTITY_ID,
+        chainId: 8453,
+      },
+      { ownerAddress: OWNER }
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      error: "Transaction could not be verified on Base.",
+    });
+    expect(postRulesApiJsonMock).not.toHaveBeenCalled();
   });
 });

@@ -53,7 +53,9 @@ describe("registerDirectIntentAction", () => {
 
     expect(result).toEqual({ ok: true });
     expect(registerDirectIntentMock).toHaveBeenCalledTimes(1);
-    expect(registerDirectIntentMock).toHaveBeenCalledWith(validBody);
+    expect(registerDirectIntentMock).toHaveBeenCalledWith(validBody, {
+      ownerAddress: `0x${"d".repeat(40)}`,
+    });
   });
 
   it("propagates downstream error messages", async () => {

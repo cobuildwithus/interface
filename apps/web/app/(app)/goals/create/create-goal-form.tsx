@@ -22,21 +22,40 @@ import { useContractTransaction } from "@/lib/domains/token/onchain/use-contract
 
 const DEFAULT_RESERVED_PERCENT_BPS = 9900;
 const DEFAULT_CASH_OUT_TAX_BPS = 0;
-const DEFAULT_TCR_CHALLENGE_SECONDS = 2n * 60n * 60n;
-const DEFAULT_TCR_VOTING_PERIOD_SECONDS = 2n * 60n * 60n;
-const DEFAULT_TCR_VOTING_DELAY_SECONDS = 1n;
-const DEFAULT_TCR_REVEAL_SECONDS = 1n;
-const DEFAULT_TCR_ARBITRATION_COST = 1_000_000_000_000_000n;
-const DEFAULT_TCR_WRONG_OR_MISSED_SLASH_BPS = 50n;
-const DEFAULT_TCR_SLASH_CALLER_BOUNTY_BPS = 100n;
-const DEFAULT_TCR_MAX_ACTIVATION_THRESHOLD = parseUnits("1", 18);
-const DEFAULT_TCR_MAX_RUNWAY_CAP = parseUnits("1", 18);
-const DEFAULT_TCR_ORACLE_LIVENESS = 1n;
-const DEFAULT_TCR_ORACLE_BOND = 1n;
-const DEFAULT_REGISTRATION_META_EVIDENCE = "ipfs://REG";
-const DEFAULT_CLEARING_META_EVIDENCE = "ipfs://CLEAR";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const MAX_UINT32 = 4_294_967_295;
+const HEX_BYTES_REGEX = /^0x([0-9a-f]{2})*$/i;
+const BUDGET_TCR_CONFIG_PLACEHOLDER = `{
+  "submissionBaseDeposit": "0",
+  "removalBaseDeposit": "0",
+  "submissionChallengeBaseDeposit": "0",
+  "removalChallengeBaseDeposit": "0",
+  "registrationMetaEvidence": "ipfs://registration-meta-evidence",
+  "clearingMetaEvidence": "ipfs://clearing-meta-evidence",
+  "challengePeriodDuration": "86400",
+  "arbitratorExtraData": "0x",
+  "budgetBounds": {
+    "minFundingLeadTime": "0",
+    "maxFundingHorizon": "2592000",
+    "minExecutionDuration": "0",
+    "maxExecutionDuration": "2592000",
+    "minActivationThreshold": "0",
+    "maxActivationThreshold": "1000000000000000000",
+    "maxRunwayCap": "1000000000000000000"
+  },
+  "oracleBounds": {
+    "liveness": "86400",
+    "bondAmount": "1000000000000000000"
+  },
+  "arbitratorParams": {
+    "votingPeriod": "86400",
+    "votingDelay": "3600",
+    "revealPeriod": "86400",
+    "arbitrationCost": "1000000000000000",
+    "wrongOrMissedSlashBps": "50",
+    "slashCallerBountyBps": "100"
+  }
+}`;
 
 type FormState = {
   goalName: string;
@@ -58,6 +77,7 @@ type FormState = {
   budgetSuccessResolver: string;
   goalSpendPolicy: string;
   budgetSpendPolicy: string;
+  budgetTcrConfig: string;
 };
 
 type DeploymentState = {
@@ -67,8 +87,6 @@ type DeploymentState = {
   goalRevnetId?: string;
 };
 
-const defaultSuccessResolver = baseAddresses.config.fakeUmaTreasurySuccessResolver.toLowerCase();
-const defaultBudgetSuccessResolver = defaultSuccessResolver;
 const defaultInvalidRoundRewardsSink =
   baseAddresses.defaults.defaultInvalidRoundRewardsSink.toLowerCase();
 const defaultSubmissionDepositStrategy =
@@ -90,10 +108,43 @@ const initialFormState: FormState = {
   successPolicy: "",
   successLivenessHours: "24",
   successBond: "0",
-  successResolver: defaultSuccessResolver,
-  budgetSuccessResolver: defaultBudgetSuccessResolver,
+  successResolver: "",
+  budgetSuccessResolver: "",
   goalSpendPolicy: "",
   budgetSpendPolicy: "",
+  budgetTcrConfig: "",
+};
+
+type BudgetTcrConfig = {
+  submissionBaseDeposit: bigint;
+  removalBaseDeposit: bigint;
+  submissionChallengeBaseDeposit: bigint;
+  removalChallengeBaseDeposit: bigint;
+  registrationMetaEvidence: string;
+  clearingMetaEvidence: string;
+  challengePeriodDuration: bigint;
+  arbitratorExtraData: Hex;
+  budgetBounds: {
+    minFundingLeadTime: bigint;
+    maxFundingHorizon: bigint;
+    minExecutionDuration: bigint;
+    maxExecutionDuration: bigint;
+    minActivationThreshold: bigint;
+    maxActivationThreshold: bigint;
+    maxRunwayCap: bigint;
+  };
+  oracleBounds: {
+    liveness: bigint;
+    bondAmount: bigint;
+  };
+  arbitratorParams: {
+    votingPeriod: bigint;
+    votingDelay: bigint;
+    revealPeriod: bigint;
+    arbitrationCost: bigint;
+    wrongOrMissedSlashBps: bigint;
+    slashCallerBountyBps: bigint;
+  };
 };
 
 function parseWholeNumber(value: string, label: string, min: number): number {
@@ -126,6 +177,200 @@ function parseUint256(value: string, label: string): bigint {
     throw new Error(`${label} must be a whole number.`);
   }
   return BigInt(trimmed);
+}
+
+function parseJsonObject(value: string, label: string): Record<string, unknown> {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error(`${label} is required.`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error(`${label} must be valid JSON.`);
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${label} must be a JSON object.`);
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
+function parseJsonUint256(value: unknown, label: string): bigint {
+  if (typeof value === "number") {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error(`${label} must be a whole number.`);
+    }
+    if (!Number.isSafeInteger(value)) {
+      throw new Error(
+        `${label} must be provided as a decimal string when it exceeds Number.MAX_SAFE_INTEGER.`
+      );
+    }
+    return BigInt(value);
+  }
+
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be a whole number.`);
+  }
+
+  const normalized = value.trim();
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`${label} must be a whole number.`);
+  }
+
+  return BigInt(normalized);
+}
+
+function parseJsonNonEmptyString(value: unknown, label: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`${label} must be a non-empty string.`);
+  }
+  return value.trim();
+}
+
+function parseJsonHexBytes(value: unknown, label: string): Hex {
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be 0x-prefixed hex bytes.`);
+  }
+
+  const normalized = value.trim();
+  if (!HEX_BYTES_REGEX.test(normalized)) {
+    throw new Error(`${label} must be 0x-prefixed hex bytes.`);
+  }
+
+  return normalized.toLowerCase() as Hex;
+}
+
+function parseJsonRecord(
+  parent: Record<string, unknown>,
+  key: string,
+  label: string
+): Record<string, unknown> {
+  const value = parent[key];
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} must be a JSON object.`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function parseJsonBps(value: unknown, label: string): bigint {
+  const parsed = parseJsonUint256(value, label);
+  if (parsed > 10_000n) {
+    throw new Error(`${label} must be 10000 or less.`);
+  }
+  return parsed;
+}
+
+function parseBudgetTcrConfig(value: string): BudgetTcrConfig {
+  const config = parseJsonObject(value, "Budget TCR config");
+  const budgetBounds = parseJsonRecord(config, "budgetBounds", "Budget TCR config.budgetBounds");
+  const oracleBounds = parseJsonRecord(config, "oracleBounds", "Budget TCR config.oracleBounds");
+  const arbitratorParams = parseJsonRecord(
+    config,
+    "arbitratorParams",
+    "Budget TCR config.arbitratorParams"
+  );
+
+  return {
+    submissionBaseDeposit: parseJsonUint256(
+      config.submissionBaseDeposit,
+      "Budget TCR config.submissionBaseDeposit"
+    ),
+    removalBaseDeposit: parseJsonUint256(
+      config.removalBaseDeposit,
+      "Budget TCR config.removalBaseDeposit"
+    ),
+    submissionChallengeBaseDeposit: parseJsonUint256(
+      config.submissionChallengeBaseDeposit,
+      "Budget TCR config.submissionChallengeBaseDeposit"
+    ),
+    removalChallengeBaseDeposit: parseJsonUint256(
+      config.removalChallengeBaseDeposit,
+      "Budget TCR config.removalChallengeBaseDeposit"
+    ),
+    registrationMetaEvidence: parseJsonNonEmptyString(
+      config.registrationMetaEvidence,
+      "Budget TCR config.registrationMetaEvidence"
+    ),
+    clearingMetaEvidence: parseJsonNonEmptyString(
+      config.clearingMetaEvidence,
+      "Budget TCR config.clearingMetaEvidence"
+    ),
+    challengePeriodDuration: parseJsonUint256(
+      config.challengePeriodDuration,
+      "Budget TCR config.challengePeriodDuration"
+    ),
+    arbitratorExtraData: parseJsonHexBytes(
+      config.arbitratorExtraData ?? "0x",
+      "Budget TCR config.arbitratorExtraData"
+    ),
+    budgetBounds: {
+      minFundingLeadTime: parseJsonUint256(
+        budgetBounds.minFundingLeadTime,
+        "Budget TCR config.budgetBounds.minFundingLeadTime"
+      ),
+      maxFundingHorizon: parseJsonUint256(
+        budgetBounds.maxFundingHorizon,
+        "Budget TCR config.budgetBounds.maxFundingHorizon"
+      ),
+      minExecutionDuration: parseJsonUint256(
+        budgetBounds.minExecutionDuration,
+        "Budget TCR config.budgetBounds.minExecutionDuration"
+      ),
+      maxExecutionDuration: parseJsonUint256(
+        budgetBounds.maxExecutionDuration,
+        "Budget TCR config.budgetBounds.maxExecutionDuration"
+      ),
+      minActivationThreshold: parseJsonUint256(
+        budgetBounds.minActivationThreshold,
+        "Budget TCR config.budgetBounds.minActivationThreshold"
+      ),
+      maxActivationThreshold: parseJsonUint256(
+        budgetBounds.maxActivationThreshold,
+        "Budget TCR config.budgetBounds.maxActivationThreshold"
+      ),
+      maxRunwayCap: parseJsonUint256(
+        budgetBounds.maxRunwayCap,
+        "Budget TCR config.budgetBounds.maxRunwayCap"
+      ),
+    },
+    oracleBounds: {
+      liveness: parseJsonUint256(oracleBounds.liveness, "Budget TCR config.oracleBounds.liveness"),
+      bondAmount: parseJsonUint256(
+        oracleBounds.bondAmount,
+        "Budget TCR config.oracleBounds.bondAmount"
+      ),
+    },
+    arbitratorParams: {
+      votingPeriod: parseJsonUint256(
+        arbitratorParams.votingPeriod,
+        "Budget TCR config.arbitratorParams.votingPeriod"
+      ),
+      votingDelay: parseJsonUint256(
+        arbitratorParams.votingDelay,
+        "Budget TCR config.arbitratorParams.votingDelay"
+      ),
+      revealPeriod: parseJsonUint256(
+        arbitratorParams.revealPeriod,
+        "Budget TCR config.arbitratorParams.revealPeriod"
+      ),
+      arbitrationCost: parseJsonUint256(
+        arbitratorParams.arbitrationCost,
+        "Budget TCR config.arbitratorParams.arbitrationCost"
+      ),
+      wrongOrMissedSlashBps: parseJsonBps(
+        arbitratorParams.wrongOrMissedSlashBps,
+        "Budget TCR config.arbitratorParams.wrongOrMissedSlashBps"
+      ),
+      slashCallerBountyBps: parseJsonBps(
+        arbitratorParams.slashCallerBountyBps,
+        "Budget TCR config.arbitratorParams.slashCallerBountyBps"
+      ),
+    },
+  };
 }
 
 function buildDeployParams(allocationMechanismAdmin: Address, form: FormState) {
@@ -179,6 +424,7 @@ function buildDeployParams(allocationMechanismAdmin: Address, form: FormState) {
   const successAssertionLiveness = BigInt(successLivenessHours * 60 * 60);
 
   const successAssertionBond = parseUint256(form.successBond, "Assertion bond");
+  const budgetTcrConfig = parseBudgetTcrConfig(form.budgetTcrConfig);
 
   const successResolver = normalizeEvmAddress(form.successResolver, "Success resolver") as Address;
   const budgetSuccessResolver = normalizeEvmAddress(
@@ -218,7 +464,7 @@ function buildDeployParams(allocationMechanismAdmin: Address, form: FormState) {
     flowMetadata: {
       title: goalName,
       description,
-      image: form.imageUrl.trim() || "ipfs://IMAGE",
+      image: form.imageUrl.trim(),
       tagline: form.tagline.trim(),
       url: form.websiteUrl.trim(),
     },
@@ -229,38 +475,20 @@ function buildDeployParams(allocationMechanismAdmin: Address, form: FormState) {
     budgetTCR: {
       allocationMechanismAdmin,
       invalidRoundRewardsSink: defaultInvalidRoundRewardsSink as Address,
-      submissionDepositStrategy: ZERO_ADDRESS as Address,
-      submissionBaseDeposit: 0n,
-      removalBaseDeposit: 0n,
-      submissionChallengeBaseDeposit: 0n,
-      removalChallengeBaseDeposit: 0n,
-      registrationMetaEvidence: DEFAULT_REGISTRATION_META_EVIDENCE,
-      clearingMetaEvidence: DEFAULT_CLEARING_META_EVIDENCE,
-      challengePeriodDuration: DEFAULT_TCR_CHALLENGE_SECONDS,
-      arbitratorExtraData: "0x" as Hex,
-      budgetBounds: {
-        minFundingLeadTime: 0n,
-        maxFundingHorizon: BigInt(durationSeconds),
-        minExecutionDuration: 0n,
-        maxExecutionDuration: BigInt(durationSeconds),
-        minActivationThreshold: 0n,
-        maxActivationThreshold: DEFAULT_TCR_MAX_ACTIVATION_THRESHOLD,
-        maxRunwayCap: DEFAULT_TCR_MAX_RUNWAY_CAP,
-      },
-      oracleBounds: {
-        liveness: DEFAULT_TCR_ORACLE_LIVENESS,
-        bondAmount: DEFAULT_TCR_ORACLE_BOND,
-      },
+      submissionDepositStrategy: defaultSubmissionDepositStrategy as Address,
+      submissionBaseDeposit: budgetTcrConfig.submissionBaseDeposit,
+      removalBaseDeposit: budgetTcrConfig.removalBaseDeposit,
+      submissionChallengeBaseDeposit: budgetTcrConfig.submissionChallengeBaseDeposit,
+      removalChallengeBaseDeposit: budgetTcrConfig.removalChallengeBaseDeposit,
+      registrationMetaEvidence: budgetTcrConfig.registrationMetaEvidence,
+      clearingMetaEvidence: budgetTcrConfig.clearingMetaEvidence,
+      challengePeriodDuration: budgetTcrConfig.challengePeriodDuration,
+      arbitratorExtraData: budgetTcrConfig.arbitratorExtraData,
+      budgetBounds: budgetTcrConfig.budgetBounds,
+      oracleBounds: budgetTcrConfig.oracleBounds,
       budgetSuccessResolver,
       budgetSpendPolicy,
-      arbitratorParams: {
-        votingPeriod: DEFAULT_TCR_VOTING_PERIOD_SECONDS,
-        votingDelay: DEFAULT_TCR_VOTING_DELAY_SECONDS,
-        revealPeriod: DEFAULT_TCR_REVEAL_SECONDS,
-        arbitrationCost: DEFAULT_TCR_ARBITRATION_COST,
-        wrongOrMissedSlashBps: DEFAULT_TCR_WRONG_OR_MISSED_SLASH_BPS,
-        slashCallerBountyBps: DEFAULT_TCR_SLASH_CALLER_BOUNTY_BPS,
-      },
+      arbitratorParams: budgetTcrConfig.arbitratorParams,
     },
     goalSpendPolicy,
   } as const;
@@ -367,8 +595,8 @@ export function CreateGoalForm() {
         <CardHeader>
           <CardTitle>Goal Details</CardTitle>
           <CardDescription>
-            Curated inputs plus required treasury spend-policy addresses. Advanced TCR parameters
-            stay pinned to protocol defaults.
+            Curated goal metadata plus required production resolver, spend-policy, and BudgetTCR
+            inputs.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -433,7 +661,7 @@ export function CreateGoalForm() {
                 id="goal-image-url"
                 value={form.imageUrl}
                 onChange={(event) => updateField("imageUrl", event.target.value)}
-                placeholder="https://..."
+                placeholder="ipfs://... or https://..."
               />
             </div>
             <div className="space-y-2">
@@ -498,6 +726,9 @@ export function CreateGoalForm() {
       <Card>
         <CardHeader>
           <CardTitle>Success Assertion</CardTitle>
+          <CardDescription>
+            These resolver addresses are required. The form no longer ships a test resolver.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
@@ -529,7 +760,7 @@ export function CreateGoalForm() {
               id="success-resolver"
               value={form.successResolver}
               onChange={(event) => updateField("successResolver", event.target.value)}
-              placeholder="0x..."
+              placeholder="Production resolver contract address"
             />
           </div>
 
@@ -539,7 +770,7 @@ export function CreateGoalForm() {
               id="budget-success-resolver"
               value={form.budgetSuccessResolver}
               onChange={(event) => updateField("budgetSuccessResolver", event.target.value)}
-              placeholder="0x..."
+              placeholder="Production budget resolver contract address"
             />
           </div>
 
@@ -569,7 +800,7 @@ export function CreateGoalForm() {
         <CardHeader>
           <CardTitle>Treasury Policies</CardTitle>
           <CardDescription>
-            These spend-policy contracts are now required by the deployed GoalFactory.
+            These spend-policy contracts are required by the deployed GoalFactory.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
@@ -596,9 +827,31 @@ export function CreateGoalForm() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Budget TCR Configuration</CardTitle>
+          <CardDescription>
+            Paste explicit production BudgetTCR and arbitrator settings. The public form no longer
+            ships hidden oracle or dispute defaults. Use quoted decimal strings for large integer
+            values.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Label htmlFor="budget-tcr-config">Budget TCR config (JSON)</Label>
+          <Textarea
+            id="budget-tcr-config"
+            value={form.budgetTcrConfig}
+            onChange={(event) => updateField("budgetTcrConfig", event.target.value)}
+            placeholder={BUDGET_TCR_CONFIG_PLACEHOLDER}
+            className="min-h-72 font-mono text-xs"
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Protocol Defaults</CardTitle>
           <CardDescription>
-            These fields are sourced from local <code>@cobuild/wire</code> exports.
+            These fields are sourced from local <code>@cobuild/wire</code> exports and are used in
+            the deploy payload.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
@@ -606,16 +859,12 @@ export function CreateGoalForm() {
             GoalFactory: <span className="text-foreground font-mono">{goalFactoryAddress}</span>
           </div>
           <div className="text-muted-foreground">
-            Default submission deposit strategy:{" "}
-            <span className="text-foreground font-mono">{defaultSubmissionDepositStrategy}</span>
-          </div>
-          <div className="text-muted-foreground">
             Invalid-round rewards sink:{" "}
             <span className="text-foreground font-mono">{defaultInvalidRoundRewardsSink}</span>
           </div>
           <div className="text-muted-foreground">
-            Submission deposit strategy override in deploy params:{" "}
-            <span className="text-foreground font-mono">{ZERO_ADDRESS}</span>
+            Submission deposit strategy:{" "}
+            <span className="text-foreground font-mono">{defaultSubmissionDepositStrategy}</span>
           </div>
         </CardContent>
       </Card>

@@ -41,6 +41,12 @@ const { baseBuilderCodeDataSuffixForChainId } = vi.hoisted(() => ({
   ),
 }));
 
+const { kvSetMock, kvGetMock, kvDelMock } = vi.hoisted(() => ({
+  kvSetMock: vi.fn(),
+  kvGetMock: vi.fn(),
+  kvDelMock: vi.fn(),
+}));
+
 vi.mock("viem", () => ({
   BaseError,
   createWalletClient,
@@ -59,6 +65,13 @@ vi.mock("@/lib/domains/token/onchain/chains", () => ({
 }));
 vi.mock("@/lib/domains/token/onchain/addresses", () => ({ contracts }));
 vi.mock("@cobuild/wire", () => ({ baseBuilderCodeDataSuffixForChainId }));
+vi.mock("@vercel/kv", () => ({
+  kv: {
+    set: (...args: Parameters<typeof kvSetMock>) => kvSetMock(...args),
+    get: (...args: Parameters<typeof kvGetMock>) => kvGetMock(...args),
+    del: (...args: Parameters<typeof kvDelMock>) => kvDelMock(...args),
+  },
+}));
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -78,6 +91,9 @@ describe("submitUsdcPermitServer", () => {
       USDC_PERMIT_PK: "0x" + "a".repeat(64),
       USDC_SPENDER: undefined,
     });
+    kvSetMock.mockResolvedValue("OK");
+    kvGetMock.mockResolvedValue(undefined);
+    kvDelMock.mockResolvedValue(1);
   });
 
   afterEach(() => {
@@ -169,6 +185,7 @@ describe("submitUsdcPermitServer", () => {
 
     expect(parseErc6492Signature).toHaveBeenCalled();
     expect(publicClient.simulateContract).toHaveBeenCalled();
+    expect(kvSetMock).toHaveBeenCalledTimes(1);
     expect(writeContract).toHaveBeenCalled();
     expect(writeContract).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -180,6 +197,46 @@ describe("submitUsdcPermitServer", () => {
       txHash: "0xtxhash",
       explorerUrl: "https://explorer/0xtxhash",
     });
+  });
+
+  it("rejects concurrent sponsor submissions while the shared lock is held", async () => {
+    kvSetMock.mockResolvedValueOnce(null);
+
+    const { submitUsdcPermitServer } = await loadModule();
+    const result = await submitUsdcPermitServer({
+      chainId: base.id,
+      token: contracts.USDCBase,
+      owner: "0x" + "3".repeat(40),
+      spender: contracts.CobuildSwap,
+      value: "1",
+      deadline: "1",
+      signature: "0xsig",
+    });
+
+    expect(result).toEqual({ error: "Permit sponsor is busy. Retry shortly." });
+    expect(getClient).not.toHaveBeenCalled();
+    expect(createWalletClient).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the sponsor lock backend is unavailable", async () => {
+    kvSetMock.mockRejectedValueOnce(new Error("kv down"));
+
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { submitUsdcPermitServer } = await loadModule();
+    const result = await submitUsdcPermitServer({
+      chainId: base.id,
+      token: contracts.USDCBase,
+      owner: "0x" + "3".repeat(40),
+      spender: contracts.CobuildSwap,
+      value: "1",
+      deadline: "1",
+      signature: "0xsig",
+    });
+
+    expect(result).toEqual({ error: "Permit sponsor lock unavailable. Retry shortly." });
+    expect(getClient).not.toHaveBeenCalled();
+    expect(createWalletClient).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
   });
 
   it("retries on nonce too low", async () => {
