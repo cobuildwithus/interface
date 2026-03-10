@@ -11,7 +11,7 @@ import { buildPageMetadata } from "@/lib/shared/page-metadata";
 export const metadata = buildPageMetadata({
   title: "Cobuild | Crowdfund Software You Wish Existed",
   description:
-    "Cobuild helps communities raise money for new software, maintenance, and features, then pay contributors to build and maintain it.",
+    "Cobuild helps communities crowdfund software together, then pay contributors to build it and keep it alive.",
 });
 
 const whatIsCobuildDocsUrl = `${docsUrl}/quickstart/what-is-cobuild`;
@@ -45,8 +45,8 @@ export default async function Home() {
                 </h1>
 
                 <p className="max-w-2xl text-sm leading-relaxed text-neutral-300 md:text-base">
-                  Cobuild helps communities raise money for new software, maintenance, and features,
-                  then pay contributors to build and maintain it.
+                  Cobuild helps communities crowdfund software together, then pay contributors to
+                  build it and keep it alive.
                 </p>
 
                 <div className="flex flex-wrap items-center gap-4 pt-1">
