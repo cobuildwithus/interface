@@ -4,53 +4,23 @@ import {
   FARCASTER_CONTRACTS,
   FARCASTER_ID_GATEWAY_ABI,
   FARCASTER_ID_REGISTRY_ABI,
-  FARCASTER_SIGNUP_NETWORK,
   baseBuilderCodeDataSuffixForNetwork,
+  buildFarcasterSignupCompletedResult,
+  buildFarcasterSignupNeedsFundingResult,
   buildFarcasterSignedKeyRequestMetadata,
   buildFarcasterSignedKeyRequestTypedData,
   buildFarcasterSignupCallPlan,
   buildFarcasterSignupExecutableCalls,
   computeFarcasterSignedKeyRequestDeadline,
   evaluateFarcasterSignupPreflight,
+  normalizeEvmAddress as normalizeAddress,
+  type FarcasterSignupResult,
 } from "@cobuild/wire";
-import { formatEther } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { optimism } from "viem/chains";
 import { getClient } from "@/lib/domains/token/onchain/clients";
-import { normalizeAddress } from "@/lib/shared/address";
 import { waitForUserOperationComplete } from "./user-operation";
 import { getOrCreateCliAgentSmartAccount } from "./wallet-store";
-
-type CliFarcasterNetwork = typeof FARCASTER_SIGNUP_NETWORK;
-
-export type CliFarcasterSignupNeedsFundingResult = {
-  status: "needs_funding";
-  network: CliFarcasterNetwork;
-  ownerAddress: `0x${string}`;
-  custodyAddress: `0x${string}`;
-  recoveryAddress: `0x${string}`;
-  idGatewayPriceWei: string;
-  idGatewayPriceEth: string;
-  balanceWei: string;
-  balanceEth: string;
-  requiredWei: string;
-  requiredEth: string;
-};
-
-export type CliFarcasterSignupCompletedResult = {
-  status: "complete";
-  network: CliFarcasterNetwork;
-  ownerAddress: `0x${string}`;
-  custodyAddress: `0x${string}`;
-  recoveryAddress: `0x${string}`;
-  fid: string;
-  idGatewayPriceWei: string;
-  txHash: `0x${string}`;
-};
-
-export type CliFarcasterSignupResult =
-  | CliFarcasterSignupNeedsFundingResult
-  | CliFarcasterSignupCompletedResult;
 
 export class CliFarcasterAlreadyRegisteredError extends Error {
   readonly fid: string;
@@ -83,17 +53,20 @@ export async function signupCliFarcaster(params: {
   signerPublicKey: `0x${string}`;
   recoveryAddress?: `0x${string}`;
   extraStorage?: bigint;
-}): Promise<CliFarcasterSignupResult> {
+}): Promise<FarcasterSignupResult> {
   const extraStorage = params.extraStorage ?? 0n;
-  const ownerAddress = normalizeAddress(params.ownerAddress);
-  const recoveryAddress = normalizeAddress(params.recoveryAddress ?? params.ownerAddress);
+  const ownerAddress = normalizeAddress(params.ownerAddress, "ownerAddress");
+  const recoveryAddress = normalizeAddress(
+    params.recoveryAddress ?? params.ownerAddress,
+    "recoveryAddress"
+  );
   const signerPublicKey = params.signerPublicKey.toLowerCase() as `0x${string}`;
 
   const smartAccount = await getOrCreateCliAgentSmartAccount({
     ownerAddress,
     agentKey: params.agentKey,
   });
-  const custodyAddress = normalizeAddress(smartAccount.address);
+  const custodyAddress = normalizeAddress(smartAccount.address, "smartAccount.address");
   const client = getClient(optimism.id);
 
   const existingFid = await readFidByCustodyAddress({ custodyAddress });
@@ -116,20 +89,14 @@ export async function signupCliFarcaster(params: {
   });
 
   if (preflight.status === "needs_funding") {
-    const requiredWei = BigInt(preflight.requiredWei);
-    return {
-      status: "needs_funding",
-      network: FARCASTER_SIGNUP_NETWORK,
+    return buildFarcasterSignupNeedsFundingResult({
       ownerAddress,
       custodyAddress,
       recoveryAddress,
-      idGatewayPriceWei: preflight.idGatewayPriceWei,
-      idGatewayPriceEth: formatEther(priceWei),
-      balanceWei: preflight.balanceWei,
-      balanceEth: formatEther(balanceWei),
+      idGatewayPriceWei: priceWei,
+      balanceWei,
       requiredWei: preflight.requiredWei,
-      requiredEth: formatEther(requiredWei),
-    };
+    });
   }
 
   const deadline = computeFarcasterSignedKeyRequestDeadline();
@@ -181,14 +148,12 @@ export async function signupCliFarcaster(params: {
     );
   }
 
-  return {
-    status: "complete",
-    network: FARCASTER_SIGNUP_NETWORK,
+  return buildFarcasterSignupCompletedResult({
     ownerAddress,
     custodyAddress,
     recoveryAddress,
-    fid: fid.toString(),
-    idGatewayPriceWei: priceWei.toString(),
+    fid,
+    idGatewayPriceWei: priceWei,
     txHash,
-  };
+  });
 }

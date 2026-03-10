@@ -16,7 +16,3 @@ export function formatRepayWindow(years: number) {
   }
   return `${years} year${years === 1 ? "" : "s"}`;
 }
-
-export function normalizeAddress(value?: string) {
-  return value?.toLowerCase();
-}

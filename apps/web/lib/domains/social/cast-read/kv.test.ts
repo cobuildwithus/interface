@@ -18,6 +18,9 @@ vi.mock("@vercel/kv", () => ({
 
 import { getReadStatusMap, getTopicsViewedCount, markCastRead } from "./kv";
 
+const mixedCaseAddress = "0xAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAa";
+const normalizedAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
 describe("cast-read kv", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -26,14 +29,16 @@ describe("cast-read kv", () => {
   it("marks reads with normalized keys", async () => {
     const hash = `0x${"a".repeat(40)}`;
     setMock.mockResolvedValueOnce("OK");
-    await markCastRead("0xAbC", hash);
+    await markCastRead(mixedCaseAddress, hash);
 
-    expect(setMock).toHaveBeenCalledWith(`cast:read:0xabc:${"a".repeat(40)}`, "1", { nx: true });
-    expect(incrMock).toHaveBeenCalledWith("cast:read:count:0xabc");
+    expect(setMock).toHaveBeenCalledWith(`cast:read:${normalizedAddress}:${"a".repeat(40)}`, "1", {
+      nx: true,
+    });
+    expect(incrMock).toHaveBeenCalledWith(`cast:read:count:${normalizedAddress}`);
   });
 
   it("skips invalid hashes when marking read", async () => {
-    await markCastRead("0xabc", "not-a-hash");
+    await markCastRead(normalizedAddress, "not-a-hash");
     expect(setMock).not.toHaveBeenCalled();
     expect(incrMock).not.toHaveBeenCalled();
   });
@@ -50,7 +55,7 @@ describe("cast-read kv", () => {
     const hash = `0x${"1".repeat(40)}`;
     setMock.mockRejectedValueOnce(new Error("boom"));
 
-    await expect(markCastRead("0xabc", hash)).resolves.toBeUndefined();
+    await expect(markCastRead(normalizedAddress, hash)).resolves.toBeUndefined();
     expect(incrMock).not.toHaveBeenCalled();
   });
 
@@ -59,7 +64,7 @@ describe("cast-read kv", () => {
     const hashB = `0x${"b".repeat(40)}`;
     mgetMock.mockResolvedValueOnce(["1", null]);
 
-    const result = await getReadStatusMap("0xAbC", [hashA, hashB]);
+    const result = await getReadStatusMap(mixedCaseAddress, [hashA, hashB]);
 
     expect(mgetMock).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ [hashA]: true, [hashB]: false });
@@ -69,7 +74,7 @@ describe("cast-read kv", () => {
     const hash = `0x${"c".repeat(40)}`;
     mgetMock.mockResolvedValueOnce(["1"]);
 
-    const result = await getReadStatusMap("0xAbC", [hash, "bad"]);
+    const result = await getReadStatusMap(mixedCaseAddress, [hash, "bad"]);
 
     expect(result).toEqual({ [hash]: true });
   });
@@ -78,7 +83,7 @@ describe("cast-read kv", () => {
     const hash = `0x${"d".repeat(40)}`;
     mgetMock.mockRejectedValueOnce(new Error("boom"));
 
-    const result = await getReadStatusMap("0xAbC", [hash]);
+    const result = await getReadStatusMap(mixedCaseAddress, [hash]);
 
     expect(result).toEqual({});
   });
@@ -95,7 +100,7 @@ describe("cast-read kv", () => {
     const hash = `0x${"e".repeat(40)}`;
     setMock.mockResolvedValueOnce(null);
 
-    await markCastRead("0xabc", hash);
+    await markCastRead(normalizedAddress, hash);
 
     expect(incrMock).not.toHaveBeenCalled();
   });
@@ -103,16 +108,16 @@ describe("cast-read kv", () => {
   it("returns topics viewed count from kv", async () => {
     getMock.mockResolvedValueOnce("12");
 
-    const result = await getTopicsViewedCount("0xAbC");
+    const result = await getTopicsViewedCount(mixedCaseAddress);
 
     expect(result).toBe(12);
-    expect(getMock).toHaveBeenCalledWith("cast:read:count:0xabc");
+    expect(getMock).toHaveBeenCalledWith(`cast:read:count:${normalizedAddress}`);
   });
 
   it("returns numeric topics viewed count from kv", async () => {
     getMock.mockResolvedValueOnce(7);
 
-    const result = await getTopicsViewedCount("0xAbC");
+    const result = await getTopicsViewedCount(mixedCaseAddress);
 
     expect(result).toBe(7);
   });
@@ -120,25 +125,25 @@ describe("cast-read kv", () => {
   it("returns bigint topics viewed count from kv", async () => {
     getMock.mockResolvedValueOnce(9n);
 
-    const result = await getTopicsViewedCount("0xAbC");
+    const result = await getTopicsViewedCount(mixedCaseAddress);
 
     expect(result).toBe(9);
   });
 
   it("returns zero when topics viewed count is missing or invalid", async () => {
     getMock.mockResolvedValueOnce(null);
-    const missing = await getTopicsViewedCount("0xAbC");
+    const missing = await getTopicsViewedCount(mixedCaseAddress);
     expect(missing).toBe(0);
 
     getMock.mockResolvedValueOnce("nope");
-    const invalid = await getTopicsViewedCount("0xAbC");
+    const invalid = await getTopicsViewedCount(mixedCaseAddress);
     expect(invalid).toBe(0);
   });
 
   it("returns zero when topics viewed count lookup fails", async () => {
     getMock.mockRejectedValueOnce(new Error("boom"));
 
-    const result = await getTopicsViewedCount("0xAbC");
+    const result = await getTopicsViewedCount(mixedCaseAddress);
 
     expect(result).toBe(0);
   });

@@ -9,7 +9,6 @@ export type ChatClientProps = {
   data?: JsonRecord;
   context?: string;
   initialMessages?: UIMessage[];
-  initialGrant?: string | null;
   showConnectOnUnauthed?: boolean;
 };
 

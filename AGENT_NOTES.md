@@ -35,7 +35,7 @@ Optional, living memory for helpful repo learnings.
 
 ## Helper: Address & Session Invariants
 
-- Normalize user wallet addresses with `normalizeAddress(...)` from `apps/web/lib/shared/address.ts` before DB/cache reads-writes.
+- Normalize user wallet addresses with `normalizeEvmAddress(...)` from `@cobuild/wire` before DB/cache reads-writes.
 - `apps/web/app/(app)/layout.tsx` mounts `WalletIdentityGuard`, which logs users out if connected wallet and session wallet diverge; do not design flows that assume multi-wallet continuity.
 - Session identity is sourced from the `privy-id-token` cookie and verified against `PRIVY_VERIFICATION_KEY`; keep auth/server code aligned to that contract.
 

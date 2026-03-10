@@ -1,7 +1,7 @@
 import "server-only";
 
+import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 import prisma from "@/lib/server/db/cobuild-db-client";
-import { normalizeAddress } from "@/lib/shared/address";
 import { truncateAddress } from "@/lib/shared/utils";
 import { getProfileFromWhisk, getProfilesFromWhisk } from "@/lib/integrations/whisk/profile";
 import { unstable_cache } from "next/cache";
@@ -41,7 +41,7 @@ export async function getProfile(rawAddress: string): Promise<Profile> {
   return unstable_cache(
     async () => {
       try {
-        const address = normalizeAddress(rawAddress);
+        const address = normalizeAddress(rawAddress, "address");
 
         // Check for known contract addresses first
         const knownProfile = getKnownContractProfile(address);
@@ -78,12 +78,20 @@ export async function getProfile(rawAddress: string): Promise<Profile> {
 export async function getProfiles(rawAddresses: string[]): Promise<Profile[]> {
   if (rawAddresses.length === 0) return [];
 
-  const normalizedCacheKey = [...new Set(rawAddresses.map(normalizeAddress))].sort().join("_");
+  const normalizedCacheKey = [
+    ...new Set(
+      rawAddresses.map((address, index) => normalizeAddress(address, `addresses[${index}]`))
+    ),
+  ]
+    .sort()
+    .join("_");
 
   return unstable_cache(
     async () => {
       try {
-        const addresses = rawAddresses.map(normalizeAddress);
+        const addresses = rawAddresses.map((address, index) =>
+          normalizeAddress(address, `addresses[${index}]`)
+        );
         const uniqueAddresses = Array.from(new Set(addresses));
 
         const dbProfiles = await fetchLatestProfilesByAddress(uniqueAddresses);

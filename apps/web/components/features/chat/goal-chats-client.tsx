@@ -19,7 +19,6 @@ import {
 } from "@/lib/domains/chat/goal-intents";
 import { hasChatInputContent } from "@/lib/domains/chat/input-message";
 import { storePendingChatMessage } from "@/lib/domains/chat/pending";
-import { writeChatGrant } from "@/lib/domains/chat/grant";
 import { PageHeader } from "@/components/layout/page-header";
 import { cn } from "@/lib/shared/utils";
 import type { ChatListItem } from "@/lib/domains/chat/types";
@@ -75,10 +74,6 @@ export function GoalChatsClient({ goalAddress, identityToken, chats }: GoalChats
           return "auth_expired";
         }
         return fail(result.error);
-      }
-
-      if (result.data.chatGrant) {
-        writeChatGrant(result.data.chatId, result.data.chatGrant);
       }
 
       return result.data.chatId;

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildProtocolRouteHint, resolveProtocolRouteState } from "./protocol-route-state";
+import {
+  buildProtocolRouteHint,
+  resolveProtocolRouteState,
+} from "@cobuild/wire/protocol-notifications";
 
 describe("protocol route state", () => {
   it("normalizes structured notification route refs", () => {

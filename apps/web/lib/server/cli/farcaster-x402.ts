@@ -5,7 +5,6 @@ import {
   USDC_EIP712_DOMAIN_NAME,
   USDC_EIP712_DOMAIN_VERSION,
   X402_AUTH_TTL_SECONDS,
-  X402_NETWORK,
   X402_PAY_TO_ADDRESS,
   X402_TRANSFER_PRIMARY_TYPE,
   X402_USDC_CONTRACT,
@@ -14,6 +13,7 @@ import {
   buildX402PaymentPayload,
   buildX402TypedDataDomain,
   buildX402TypedDataTypes,
+  buildFarcasterHostedX402PaymentResult,
   encodeX402PaymentPayload,
 } from "@cobuild/wire";
 import type { Address } from "viem";
@@ -47,6 +47,7 @@ export type CliFarcasterX402PaymentResult = {
   network: "base";
   validAfter: number;
   validBefore: number;
+  agentKey: string;
 };
 
 export class CliFarcasterX402SigningError extends Error {}
@@ -145,14 +146,11 @@ export async function createCliFarcasterX402Payment(params: {
   const paymentPayload = buildX402PaymentPayload({ signature, authorization });
   const xPayment = encodeX402PaymentPayload(paymentPayload);
 
-  return {
+  return buildFarcasterHostedX402PaymentResult({
     xPayment,
     payerAddress: ownerAccount.address,
-    payTo: NEYNAR_PAY_TO,
-    token: USDC_BASE,
-    amount: X402_AMOUNT_MICRO_USDC,
-    network: X402_NETWORK,
+    agentKey: params.agentKey,
     validAfter,
     validBefore,
-  };
+  });
 }

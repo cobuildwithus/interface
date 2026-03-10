@@ -7,12 +7,10 @@ import { resolveFetchError, resolveResponseError } from "./request-errors";
 
 type CreateGoalChatResult = {
   chatId: string;
-  chatGrant?: string;
 };
 
 type CreateGoalChatResponse = {
   chatId?: string;
-  chatGrant?: string;
 };
 
 export type CreateGoalChatOutcome =
@@ -73,7 +71,7 @@ export const createGoalChat = async ({
     return {
       ok: true,
       status: response.status,
-      data: { chatId: payload.chatId, chatGrant: payload.chatGrant },
+      data: { chatId: payload.chatId },
     };
   } catch (error) {
     return { ok: false, error: resolveFetchError(error as ErrorLike) };

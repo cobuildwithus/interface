@@ -1,19 +1,15 @@
+import { parseEvmAddress } from "@cobuild/wire";
 import { kv } from "@vercel/kv";
 import { normalizeCastHashRaw } from "@/lib/domains/rules/cast-rules/normalize";
 
 const READ_KEY_PREFIX = "cast:read";
 const READ_COUNT_KEY_PREFIX = "cast:read:count";
 
-function normalizeAddress(address: string): string | null {
-  const normalized = address.trim().toLowerCase();
-  return normalized ? normalized : null;
-}
-
 export async function markCastRead(address: string, hash: string): Promise<void> {
   const normalized = normalizeCastHashRaw(hash);
   if (!normalized) return;
 
-  const normalizedAddress = normalizeAddress(address);
+  const normalizedAddress = parseEvmAddress(address);
   if (!normalizedAddress) return;
 
   const key = `${READ_KEY_PREFIX}:${normalizedAddress}:${normalized}`;
@@ -37,7 +33,7 @@ export async function getReadStatusMap(
 
   if (normalizedEntries.length === 0) return {};
 
-  const normalizedAddress = normalizeAddress(address);
+  const normalizedAddress = parseEvmAddress(address);
   if (!normalizedAddress) return {};
   const keys = normalizedEntries.map(
     (entry) => `${READ_KEY_PREFIX}:${normalizedAddress}:${entry.normalized}`
@@ -59,7 +55,7 @@ export async function getReadStatusMap(
 }
 
 export async function getTopicsViewedCount(address: string): Promise<number> {
-  const normalizedAddress = normalizeAddress(address);
+  const normalizedAddress = parseEvmAddress(address);
   if (!normalizedAddress) return 0;
 
   const key = `${READ_COUNT_KEY_PREFIX}:${normalizedAddress}`;

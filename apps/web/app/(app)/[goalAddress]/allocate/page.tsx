@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
+import {
+  buildProtocolRouteHint,
+  resolveProtocolRouteState,
+} from "@cobuild/wire/protocol-notifications";
 import { notFound } from "next/navigation";
 import { getUser } from "@/lib/domains/auth/session";
 import { getAllocateIntroDismissed } from "@/lib/domains/goals/allocate-intro";
 import { getGoalAllocateData } from "@/lib/domains/goals/goal-data";
-import {
-  buildProtocolRouteHint,
-  resolveProtocolRouteState,
-} from "@/lib/domains/notifications/protocol-route-state";
 import { AllocatePageClient } from "./allocate-page-client";
 import { generateGoalMetadata } from "../metadata";
 

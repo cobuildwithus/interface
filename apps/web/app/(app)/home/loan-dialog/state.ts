@@ -1,5 +1,6 @@
 "use client";
 
+import { isSameEvmAddress } from "@cobuild/wire";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { erc20Abi, formatUnits, parseUnits } from "viem";
@@ -21,7 +22,7 @@ import {
 import { createBorrowHandler } from "./borrow-handler";
 import { useLoanFeeParams } from "./loan-fee-queries";
 import { calculateLoanMetrics } from "./loan-metrics";
-import { formatDisplay, normalizeAddress } from "./utils";
+import { formatDisplay } from "./utils";
 import type { RevnetPosition } from "./types";
 
 export function useLoanDialogState(position: RevnetPosition) {
@@ -65,8 +66,8 @@ export function useLoanDialogState(position: RevnetPosition) {
     if (!loanSources?.length) return undefined;
     const baseToken = position.baseTokenContext?.token;
     if (baseToken) {
-      const matchingSource = loanSources.find(
-        (source) => normalizeAddress(source.token) === normalizeAddress(baseToken)
+      const matchingSource = loanSources.find((source) =>
+        isSameEvmAddress(source.token, baseToken)
       );
       if (matchingSource) return matchingSource;
     }
@@ -75,8 +76,7 @@ export function useLoanDialogState(position: RevnetPosition) {
 
   const loanSourceToken = selectedLoanSource?.token ?? position.baseTokenContext?.token;
   const loanSourceTerminal = selectedLoanSource?.terminal ?? position.terminalAddress;
-  const isNativeLoanToken =
-    !!loanSourceToken && normalizeAddress(loanSourceToken) === normalizeAddress(NATIVE_TOKEN);
+  const isNativeLoanToken = !!loanSourceToken && isSameEvmAddress(loanSourceToken, NATIVE_TOKEN);
 
   const { data: loanSourceTokenSymbol } = useReadContract({
     address: !isNativeLoanToken ? (loanSourceToken as `0x${string}`) : undefined,

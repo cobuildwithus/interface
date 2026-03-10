@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  buildFarcasterSignupAlreadyRegisteredErrorResponse,
+  buildFarcasterSignupResponse,
+  normalizeEvmAddress as normalizeAddress,
+} from "@cobuild/wire";
 import { isAddress } from "viem";
 import { z } from "zod";
 import { requireCliBearerAuth } from "@/lib/server/cli/auth";
@@ -14,7 +19,6 @@ import {
   jsonError,
   parseJsonOrEmpty,
 } from "@/lib/server/cli/http";
-import { normalizeAddress } from "@/lib/shared/address";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,11 +67,14 @@ function parseExtraStorage(value: string | number | undefined): bigint {
 
 function signupErrorResponse(error: unknown) {
   if (error instanceof CliFarcasterAlreadyRegisteredError) {
-    return jsonError(409, error.message, {
-      details: {
-        fid: error.fid,
-        custodyAddress: error.custodyAddress,
-      },
+    const response = buildFarcasterSignupAlreadyRegisteredErrorResponse({
+      error: error.message,
+      fid: error.fid,
+      custodyAddress: error.custodyAddress,
+    });
+    return NextResponse.json(response, {
+      status: 409,
+      headers: NO_STORE_HEADERS,
     });
   }
 
@@ -95,12 +102,12 @@ export async function POST(request: Request) {
       agentKey: auth.agentKey,
       signerPublicKey: input.signerPublicKey.toLowerCase() as `0x${string}`,
       recoveryAddress: recoveryAddress
-        ? (normalizeAddress(recoveryAddress) as `0x${string}`)
+        ? (normalizeAddress(recoveryAddress, "recoveryAddress") as `0x${string}`)
         : undefined,
       extraStorage: parseExtraStorage(input.extraStorage),
     });
 
-    return NextResponse.json({ ok: true, result }, { headers: NO_STORE_HEADERS });
+    return NextResponse.json(buildFarcasterSignupResponse(result), { headers: NO_STORE_HEADERS });
   } catch (error) {
     return cliErrorResponse(error, {
       tag: "farcaster][signup",

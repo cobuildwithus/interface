@@ -318,4 +318,63 @@ describe("notifications queries", () => {
       })
     );
   });
+
+  it("uses dispute-focused links for scheduled juror notifications", async () => {
+    const createdAt = new Date("2026-03-08T12:00:00.000Z");
+
+    primaryQueryRawMock
+      .mockResolvedValueOnce([{ count: 1n, watermark: "1741435200000001:11" }])
+      .mockResolvedValueOnce([{ count: 1n }])
+      .mockResolvedValueOnce([{ watermark: "1741435200000001:11" }])
+      .mockResolvedValueOnce([
+        {
+          id: 11n,
+          kind: "protocol",
+          reason: "juror_voting_open",
+          eventAt: createdAt,
+          createdAt,
+          lastReadAt: null,
+          isUnread: true,
+          sourceHash: null,
+          rootHash: null,
+          targetHash: null,
+          actorFid: null,
+          actorWalletAddress: null,
+          actorUsername: null,
+          actorDisplayName: null,
+          actorAvatarUrl: null,
+          sourceText: null,
+          sourceMentionsPositions: null,
+          sourceMentionProfiles: null,
+          rootText: null,
+          rootMentionsPositions: null,
+          rootMentionProfiles: null,
+          payload: {
+            labels: { goalName: "Alpha" },
+            resource: {
+              goalTreasury: "0x00000000000000000000000000000000000000bb",
+              budgetTreasury: "0x00000000000000000000000000000000000000cc",
+              arbitrator: "0x00000000000000000000000000000000000000dd",
+              disputeId: "7",
+            },
+            schedule: {
+              deliverAt: "2026-03-08T12:00:00.000Z",
+              votingStartAt: "2026-03-08T12:00:00.000Z",
+              votingEndAt: "2026-03-09T12:00:00.000Z",
+              revealEndAt: "2026-03-10T12:00:00.000Z",
+            },
+          },
+        },
+      ]);
+
+    const page = await getNotificationsPage("0x0000000000000000000000000000000000000001", 1);
+
+    expect(page.items[0]).toEqual(
+      expect.objectContaining({
+        rootTitle: "Juror voting opened in Alpha.",
+        sourceExcerpt: "Voting is now open on this dispute.",
+        href: "/0x00000000000000000000000000000000000000bb/events?budgetTreasury=0x00000000000000000000000000000000000000cc&disputeId=7&arbitrator=0x00000000000000000000000000000000000000dd&focus=dispute",
+      })
+    );
+  });
 });

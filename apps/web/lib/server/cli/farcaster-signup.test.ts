@@ -3,6 +3,8 @@ import {
   FARCASTER_CONTRACTS,
   FARCASTER_ID_GATEWAY_ABI,
   FARCASTER_KEY_GATEWAY_ABI,
+  buildFarcasterSignupCompletedResult,
+  buildFarcasterSignupNeedsFundingResult,
 } from "@cobuild/wire";
 import { decodeAbiParameters, decodeFunctionData } from "viem";
 
@@ -27,6 +29,8 @@ import {
   CliFarcasterUserOperationError,
   signupCliFarcaster,
 } from "./farcaster-signup";
+
+const TX_HASH = `0x${"aa".repeat(32)}`;
 
 describe("cli farcaster signup service", () => {
   const readContractMock = vi.fn();
@@ -78,12 +82,16 @@ describe("cli farcaster signup service", () => {
     });
 
     expect(result.status).toBe("needs_funding");
-    if (result.status === "needs_funding") {
-      expect(result.network).toBe("optimism");
-      expect(result.requiredWei).toBe("7200000000000000");
-      expect(result.custodyAddress).toBe("0x00000000000000000000000000000000000000aa");
-      expect(result.recoveryAddress).toBe("0x0000000000000000000000000000000000000001");
-    }
+    expect(result).toEqual(
+      buildFarcasterSignupNeedsFundingResult({
+        ownerAddress: "0x0000000000000000000000000000000000000001",
+        custodyAddress: "0x00000000000000000000000000000000000000aa",
+        recoveryAddress: "0x0000000000000000000000000000000000000001",
+        idGatewayPriceWei: 7_000_000_000_000_000n,
+        balanceWei: 0n,
+        requiredWei: 7_200_000_000_000_000n,
+      })
+    );
 
     expect(sendUserOperationMock).not.toHaveBeenCalled();
   });
@@ -97,7 +105,7 @@ describe("cli farcaster signup service", () => {
     sendUserOperationMock.mockResolvedValueOnce({ userOpHash: "0xsignup" });
     waitForUserOperationMock.mockResolvedValueOnce({
       status: "complete",
-      transactionHash: "0xaaa",
+      transactionHash: TX_HASH,
     });
 
     const result = await signupCliFarcaster({
@@ -107,16 +115,16 @@ describe("cli farcaster signup service", () => {
       recoveryAddress: "0x0000000000000000000000000000000000000009",
     });
 
-    expect(result).toEqual({
-      status: "complete",
-      network: "optimism",
-      ownerAddress: "0x0000000000000000000000000000000000000001",
-      custodyAddress: "0x00000000000000000000000000000000000000aa",
-      recoveryAddress: "0x0000000000000000000000000000000000000009",
-      fid: "555",
-      idGatewayPriceWei: "7000000000000000",
-      txHash: "0xaaa",
-    });
+    expect(result).toEqual(
+      buildFarcasterSignupCompletedResult({
+        ownerAddress: "0x0000000000000000000000000000000000000001",
+        custodyAddress: "0x00000000000000000000000000000000000000aa",
+        recoveryAddress: "0x0000000000000000000000000000000000000009",
+        fid: 555n,
+        idGatewayPriceWei: 7_000_000_000_000_000n,
+        txHash: TX_HASH,
+      })
+    );
 
     expect(sendUserOperationMock).toHaveBeenCalledTimes(1);
     expect(waitForUserOperationMock).toHaveBeenCalledTimes(1);
@@ -131,7 +139,7 @@ describe("cli farcaster signup service", () => {
     sendUserOperationMock.mockResolvedValueOnce({ userOpHash: "0xsignup" });
     waitForUserOperationMock.mockResolvedValueOnce({
       status: "complete",
-      transactionHash: "0xaaa",
+      transactionHash: TX_HASH,
     });
 
     await signupCliFarcaster({
@@ -221,7 +229,7 @@ describe("cli farcaster signup service", () => {
     sendUserOperationMock.mockResolvedValueOnce({ userOpHash: "0xsignup" });
     waitForUserOperationMock.mockResolvedValueOnce({
       status: "complete",
-      transactionHash: "0xaaa",
+      transactionHash: TX_HASH,
     });
 
     await expect(

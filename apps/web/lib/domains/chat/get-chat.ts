@@ -17,7 +17,6 @@ export type GoalChatFetchResult =
       ok: true;
       status: number;
       payload: GoalChatPayload;
-      grant: string | null;
     }
   | {
       ok: false;
@@ -71,7 +70,6 @@ export const fetchGoalChat = async ({
       ok: true,
       status: response.status,
       payload,
-      grant: response.headers.get("x-chat-grant"),
     };
   } catch (error) {
     return { ok: false, error: resolveFetchError(error as ErrorLike) };

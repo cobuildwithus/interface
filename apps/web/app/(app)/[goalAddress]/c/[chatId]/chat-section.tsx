@@ -29,7 +29,6 @@ export async function GoalChatSection({ chatId, goalAddress, context }: GoalChat
   }
   const key = `goal-chat-${chatId}-${userAddress ?? "unauth"}-${identityToken ? "auth" : "anon"}`;
   let initialMessages: UIMessage[] | undefined;
-  let initialGrant: string | null | undefined;
   let chatData: JsonRecord = { goalAddress };
   let chatType = DEFAULT_CHAT_TYPE;
 
@@ -56,8 +55,6 @@ export async function GoalChatSection({ chatId, goalAddress, context }: GoalChat
       if (Array.isArray(result.payload.messages)) {
         initialMessages = result.payload.messages;
       }
-
-      initialGrant = result.grant;
     }
   }
 
@@ -71,7 +68,6 @@ export async function GoalChatSection({ chatId, goalAddress, context }: GoalChat
       type={chatType}
       data={chatData}
       initialMessages={initialMessages}
-      initialGrant={initialGrant}
       clientDevice={clientDevice}
       context={resolvedContext}
       showConnectOnUnauthed

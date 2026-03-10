@@ -45,6 +45,7 @@ describe("cli farcaster x402 payment route", () => {
     createCliFarcasterX402PaymentMock.mockResolvedValue({
       xPayment: "base64-payload",
       payerAddress: "0x0000000000000000000000000000000000000002",
+      agentKey: "default",
       payTo: "0xa6a8736f18f383f1cc2d938576933e5ea7df01a1",
       token: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
       amount: "1000",
@@ -126,6 +127,7 @@ describe("cli farcaster x402 payment route", () => {
     createCliFarcasterX402PaymentMock.mockResolvedValue({
       xPayment: "base64-payload",
       payerAddress: "0x0000000000000000000000000000000000000002",
+      agentKey: "default",
       payTo: "0xa6a8736f18f383f1cc2d938576933e5ea7df01a1",
       token: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
       amount: "1000",

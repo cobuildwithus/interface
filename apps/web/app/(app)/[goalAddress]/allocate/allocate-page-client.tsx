@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import type { ProtocolRouteHint as ProtocolRouteHintData } from "@cobuild/wire/protocol-notifications";
 import { useRouter } from "next/navigation";
 import { ProtocolRouteHint } from "@/components/features/notifications/protocol-route-hint";
-import type { ProtocolRouteHint as ProtocolRouteHintData } from "@/lib/domains/notifications/protocol-route-state";
 import { dismissAllocateHowItWorks } from "./actions";
 import { ActivityFeed } from "./components/activity-feed";
 import { AllocateHeader } from "./components/allocate-header";

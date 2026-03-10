@@ -1,3 +1,4 @@
+import { validateFarcasterHostedX402PaymentResponse } from "@cobuild/wire";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -99,6 +100,16 @@ describe("createCliFarcasterX402Payment", () => {
     expect(result.token).toBe(USDC_BASE);
     expect(result.payTo).toBe(NEYNAR_PAY_TO);
     expect(result.validBefore).toBe(1_700_000_300);
+    expect(result.agentKey).toBe("default");
+    expect(
+      validateFarcasterHostedX402PaymentResponse({
+        ok: true,
+        result,
+      })
+    ).toEqual({
+      ok: true,
+      result,
+    });
 
     const decoded = JSON.parse(Buffer.from(result.xPayment, "base64").toString("utf8")) as {
       payload: { authorization: { to: string; value: string; validBefore: string } };

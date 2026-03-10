@@ -14,7 +14,7 @@ type UseChatSyncOptions = {
   chatMessagesLength: number;
   hasPendingAssistant: boolean;
   isLoading: boolean;
-  fetchWithGrant: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  fetchWithAuth: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   resolveHeaders: () => Record<string, string>;
   setChatMessages: (messages: UIMessage[]) => void;
 };
@@ -28,14 +28,14 @@ export function useChatSync({
   chatMessagesLength,
   hasPendingAssistant,
   isLoading,
-  fetchWithGrant,
+  fetchWithAuth,
   resolveHeaders,
   setChatMessages,
 }: UseChatSyncOptions) {
   const didInitialFetchRef = useRef(false);
 
   const refreshChatMessages = useCallback(async () => {
-    const response = await fetchWithGrant(`${chatApiBase}/api/chat/${chatId}`, {
+    const response = await fetchWithAuth(`${chatApiBase}/api/chat/${chatId}`, {
       headers: resolveHeaders(),
     });
     if (!response.ok) return;
@@ -46,7 +46,7 @@ export function useChatSync({
     if (!messages) return;
     if (messages.length === 0 && chatMessagesLength > 0) return;
     setChatMessages(messages);
-  }, [chatId, chatMessagesLength, fetchWithGrant, resolveHeaders, setChatMessages]);
+  }, [chatId, chatMessagesLength, fetchWithAuth, resolveHeaders, setChatMessages]);
 
   useEffect(() => {
     if (didInitialFetchRef.current || hasInitialMessages) return;

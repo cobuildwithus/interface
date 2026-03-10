@@ -3,13 +3,13 @@ import { isAddress } from "viem";
 import {
   baseBuilderCodeDataSuffixForNetwork,
   canonicalizeBaseBuilderCodeAttributedData,
+  normalizeEvmAddress as normalizeAddress,
   normalizeHex,
 } from "@cobuild/wire";
 import { assertCliTxAllowed } from "@/lib/server/cli/policy";
 import { RequestValidationError } from "@/lib/server/cli/http";
 import { waitForUserOperationComplete } from "@/lib/server/cli/user-operation";
 import { getOrCreateCliAgentSmartAccount } from "@/lib/server/cli/wallet-store";
-import { normalizeAddress } from "@/lib/shared/address";
 import {
   assertTxIdempotencyMatch,
   finalizeCliTxLog,
@@ -46,7 +46,7 @@ export async function handleTxExecution(params: {
     throw new RequestValidationError("Invalid transaction target address");
   }
 
-  const to = normalizeAddress(params.input.to);
+  const to = normalizeAddress(params.input.to, "to");
   const valueEth = params.input.valueEth;
   const valueWei = parseEtherInput(valueEth, "valueEth");
   if (valueWei < 0n) {
@@ -157,7 +157,7 @@ export async function handleTxExecution(params: {
 
   return buildSuccessResponse({
     kind: "tx",
-    walletAddress: normalizeAddress(smartAccount.address),
+    walletAddress: normalizeAddress(smartAccount.address, "smartAccount.address"),
     network,
     transactionHash,
   });

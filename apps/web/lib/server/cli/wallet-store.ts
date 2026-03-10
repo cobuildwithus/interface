@@ -1,9 +1,9 @@
 import "server-only";
 
 import { createHash, randomUUID } from "crypto";
+import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 import type { EvmSmartAccount } from "@coinbase/cdp-sdk";
 import prisma, { prismaPrimary } from "@/lib/server/db/cobuild-db-client";
-import { normalizeAddress } from "@/lib/shared/address";
 import { getCliCdpClient } from "./cdp-client";
 import {
   canonicalizeCliConfiguredNetwork,
@@ -144,7 +144,7 @@ async function getOrCreateCliSmartAccount(params: {
 }
 
 export async function getCliAgentWallet(params: { ownerAddress: string; agentKey: string }) {
-  const ownerAddress = normalizeAddress(params.ownerAddress);
+  const ownerAddress = normalizeAddress(params.ownerAddress, "ownerAddress");
   return findWalletByOwnerAgent({
     db: prisma as CliWalletDb,
     ownerAddress,
@@ -157,7 +157,7 @@ export async function getOrCreateCliAgentWallet(params: {
   agentKey: string;
   defaultNetwork?: string;
 }) {
-  const ownerAddress = normalizeAddress(params.ownerAddress);
+  const ownerAddress = normalizeAddress(params.ownerAddress, "ownerAddress");
   const agentKey = params.agentKey;
   const defaultNetwork = getCliDefaultNetwork(params.defaultNetwork);
   const primaryDb = prismaPrimary(prisma) as CliWalletDb;
@@ -189,7 +189,7 @@ export async function getOrCreateCliAgentWallet(params: {
         smartCdpAccountName: cdpAccountName,
         accountPolicyId,
       });
-      const address = normalizeAddress(smartAccount.address);
+      const address = normalizeAddress(smartAccount.address, "smartAccount.address");
 
       return await primaryDb.cliAgentWallet.create({
         data: {
@@ -238,7 +238,7 @@ export async function getOrCreateCliAgentSmartAccount(params: {
   ownerAddress: string;
   agentKey: string;
 }): Promise<EvmSmartAccount> {
-  const ownerAddress = normalizeAddress(params.ownerAddress);
+  const ownerAddress = normalizeAddress(params.ownerAddress, "ownerAddress");
   const agentKey = params.agentKey;
   const ownerCdpAccountName = deterministicOwnerCdpAccountName({ ownerAddress, agentKey });
   const smartCdpAccountName = deterministicSmartCdpAccountName({ ownerAddress, agentKey });
@@ -258,7 +258,7 @@ export async function getOrCreateCliAgentOwnerAccount(params: {
   address: `0x${string}`;
   cdpAccountName: string;
 }> {
-  const ownerAddress = normalizeAddress(params.ownerAddress);
+  const ownerAddress = normalizeAddress(params.ownerAddress, "ownerAddress");
   const agentKey = params.agentKey;
   const ownerCdpAccountName = deterministicOwnerCdpAccountName({ ownerAddress, agentKey });
   const accountPolicyId = getCliAccountPolicyId();
@@ -269,7 +269,7 @@ export async function getOrCreateCliAgentOwnerAccount(params: {
   });
 
   return {
-    address: normalizeAddress(ownerAccount.address),
+    address: normalizeAddress(ownerAccount.address, "ownerAccount.address"),
     cdpAccountName: ownerCdpAccountName,
   };
 }

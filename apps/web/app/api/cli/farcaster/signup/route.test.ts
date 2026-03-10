@@ -1,3 +1,8 @@
+import {
+  buildFarcasterSignupAlreadyRegisteredErrorResponse,
+  buildFarcasterSignupCompletedResult,
+  buildFarcasterSignupResponse,
+} from "@cobuild/wire";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -35,6 +40,8 @@ import {
 } from "@/lib/server/cli/farcaster-signup";
 import { POST } from "./route";
 
+const TX_HASH = `0x${"aa".repeat(32)}`;
+
 describe("cli farcaster signup route", () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -54,7 +61,7 @@ describe("cli farcaster signup route", () => {
       recoveryAddress: "0x0000000000000000000000000000000000000001",
       fid: "123",
       idGatewayPriceWei: "7000000000000000",
-      txHash: "0xsignup",
+      txHash: TX_HASH,
     });
 
     const request = new Request("http://localhost/api/cli/farcaster/signup", {
@@ -68,19 +75,18 @@ describe("cli farcaster signup route", () => {
     const response = await POST(request);
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(await response.json()).toEqual({
-      ok: true,
-      result: {
-        status: "complete",
-        network: "optimism",
-        ownerAddress: "0x0000000000000000000000000000000000000001",
-        custodyAddress: "0x0000000000000000000000000000000000000002",
-        recoveryAddress: "0x0000000000000000000000000000000000000001",
-        fid: "123",
-        idGatewayPriceWei: "7000000000000000",
-        txHash: "0xsignup",
-      },
-    });
+    expect(await response.json()).toEqual(
+      buildFarcasterSignupResponse(
+        buildFarcasterSignupCompletedResult({
+          ownerAddress: "0x0000000000000000000000000000000000000001",
+          custodyAddress: "0x0000000000000000000000000000000000000002",
+          recoveryAddress: "0x0000000000000000000000000000000000000001",
+          fid: 123n,
+          idGatewayPriceWei: 7_000_000_000_000_000n,
+          txHash: TX_HASH,
+        })
+      )
+    );
     expect(requireCliBearerAuthMock).toHaveBeenCalledWith(request, {
       requiredScopes: ["wallet:execute"],
     });
@@ -194,14 +200,13 @@ describe("cli farcaster signup route", () => {
 
     const response = await POST(request);
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({
-      ok: false,
-      error: "Farcaster account already exists for this agent wallet (fid: 77).",
-      details: {
-        fid: "77",
+    expect(await response.json()).toEqual(
+      buildFarcasterSignupAlreadyRegisteredErrorResponse({
+        error: "Farcaster account already exists for this agent wallet (fid: 77).",
+        fid: 77n,
         custodyAddress: "0x0000000000000000000000000000000000000002",
-      },
-    });
+      })
+    );
   });
 
   it("returns 500 on user operation failure", async () => {

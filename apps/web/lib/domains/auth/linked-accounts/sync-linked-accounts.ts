@@ -1,8 +1,8 @@
 "use server";
 
+import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 import { getPrivyLinkedIdentity } from "@/lib/domains/auth/session";
 import { upsertLinkedAccount } from "@/lib/domains/auth/linked-accounts/store";
-import { normalizeAddress } from "@/lib/shared/address";
 
 export type LinkedAccountsSyncResult =
   | { ok: true; updated: number }
@@ -19,7 +19,7 @@ export async function syncLinkedAccountsFromSession(): Promise<LinkedAccountsSyn
     return { ok: false, reason: "missing_address" };
   }
 
-  const ownerAddress = normalizeAddress(wallet.address);
+  const ownerAddress = normalizeAddress(wallet.address, "wallet.address");
   const updates: Array<ReturnType<typeof upsertLinkedAccount>> = [];
 
   if (farcaster?.fid) {

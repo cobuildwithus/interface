@@ -1,5 +1,6 @@
 "use client";
 
+import { isSameEvmAddress, parseEvmAddress } from "@cobuild/wire";
 import { useMemo } from "react";
 import { erc20Abi, formatUnits, zeroAddress } from "viem";
 import { useAccount, useReadContract } from "wagmi";
@@ -25,12 +26,8 @@ const TOKEN_SYMBOL_BY_ADDRESS: Record<string, string> = {
   ["0x000000000000000000000000000000000000eeee"]: "ETH",
 };
 
-function normalizeAddress(value?: string) {
-  return value?.toLowerCase();
-}
-
 function getBaseTokenSymbol(address?: string) {
-  const normalized = normalizeAddress(address);
+  const normalized = parseEvmAddress(address);
   if (!normalized) return "Token";
   return TOKEN_SYMBOL_BY_ADDRESS[normalized] || "Token";
 }
@@ -95,8 +92,8 @@ export function useRevnetPosition() {
   const baseTokenContext = useMemo(() => {
     if (!accountingContexts?.length) return undefined;
 
-    const usdcContext = accountingContexts.find(
-      (context) => normalizeAddress(context.token) === normalizeAddress(contracts.USDCBase)
+    const usdcContext = accountingContexts.find((context) =>
+      isSameEvmAddress(context.token, contracts.USDCBase)
     );
 
     return usdcContext || accountingContexts[0];

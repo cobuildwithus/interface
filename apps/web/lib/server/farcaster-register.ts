@@ -4,6 +4,7 @@ import { revalidateTag } from "next/cache";
 import { bytesToHex, hexToBytes, isAddress } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { optimism } from "viem/chains";
+import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 import { ViemLocalEip712Signer } from "@farcaster/core";
 import { getClient } from "@/lib/domains/token/onchain/clients";
 import { ID_REGISTRY_ABI, ID_REGISTRY_ADDRESS } from "@/lib/integrations/farcaster/id-registry";
@@ -30,7 +31,6 @@ import type {
   RegisterInitResponse,
 } from "@/lib/integrations/farcaster/register-types";
 import { type Result } from "@/lib/server/result";
-import { normalizeAddress } from "@/lib/shared/address";
 import { isRecord } from "@/lib/server/validation";
 import type { Session } from "@/lib/server/session-types";
 import type { JsonRecord, JsonValue } from "@/lib/shared/json";
@@ -77,8 +77,8 @@ export async function initFarcasterRegistration(
     return { ok: false, status: 400, error: "Invalid custody address." };
   }
 
-  const normalized = normalizeAddress(custodyAddress);
-  if (normalizeAddress(session.address) !== normalized) {
+  const normalized = normalizeAddress(custodyAddress, "custodyAddress");
+  if (normalizeAddress(session.address, "session.address") !== normalized) {
     return { ok: false, status: 403, error: "Custody address does not match session wallet." };
   }
 
@@ -169,8 +169,8 @@ export async function completeFarcasterRegistration(
     return { ok: false, status: 400, error: "Invalid custody address." };
   }
 
-  const normalizedAddress = normalizeAddress(custodyAddress);
-  if (normalizeAddress(session.address) !== normalizedAddress) {
+  const normalizedAddress = normalizeAddress(custodyAddress, "custodyAddress");
+  if (normalizeAddress(session.address, "session.address") !== normalizedAddress) {
     return { ok: false, status: 403, error: "Custody address does not match session wallet." };
   }
 

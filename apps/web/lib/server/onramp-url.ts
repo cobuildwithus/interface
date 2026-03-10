@@ -1,9 +1,9 @@
 import "server-only";
 
+import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 import { generateJwt } from "@coinbase/cdp-sdk/auth";
 import { isAddress } from "viem";
 import { type Result } from "@/lib/server/result";
-import { normalizeAddress } from "@/lib/shared/address";
 import { isRecord } from "@/lib/server/validation";
 import type { JsonValue } from "@/lib/shared/json";
 
@@ -96,7 +96,7 @@ export async function getCoinbaseOnrampUrl(
     return { ok: false, status: 400, error: "Invalid address" };
   }
 
-  const normalizedAddress = normalizeAddress(address);
+  const normalizedAddress = normalizeAddress(address, "address");
   if (sessionAddress !== normalizedAddress) {
     return { ok: false, status: 403, error: "Address mismatch" };
   }

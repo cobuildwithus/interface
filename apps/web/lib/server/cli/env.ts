@@ -1,21 +1,20 @@
 import "server-only";
+import { canonicalizeBaseOnlyConfiguredNetwork } from "@cobuild/wire";
 
 const TRUE_VALUES = new Set(["1", "true", "yes", "on"]);
-const CLI_BASE_NETWORK = "base";
 
 export function getCliEnv(name: string): string | undefined {
   return process.env[`CLI_${name}`] ?? process.env[`BROKER_${name}`];
 }
 
 export function canonicalizeCliConfiguredNetwork(value: string | null | undefined): string | null {
-  const normalized = value?.trim().toLowerCase();
-  if (!normalized) return null;
-
-  if (normalized === "base-mainnet" || normalized === "base-sepolia") {
-    return CLI_BASE_NETWORK;
+  const canonicalBaseNetwork = canonicalizeBaseOnlyConfiguredNetwork(value);
+  if (canonicalBaseNetwork) {
+    return canonicalBaseNetwork;
   }
 
-  return normalized;
+  const normalized = value?.trim().toLowerCase();
+  return normalized || null;
 }
 
 export function parseCliBoolean(name: string, defaultValue = false): boolean {
@@ -45,6 +44,6 @@ export function getCliDefaultNetwork(input?: string): string {
   return (
     canonicalizeCliConfiguredNetwork(input) ??
     canonicalizeCliConfiguredNetwork(getCliEnv("DEFAULT_NETWORK")) ??
-    CLI_BASE_NETWORK
+    "base"
   );
 }

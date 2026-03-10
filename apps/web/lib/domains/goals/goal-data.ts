@@ -1,11 +1,11 @@
 import "server-only";
 
+import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 import { unstable_cache } from "next/cache";
 import { isAddress } from "viem";
 import { base } from "viem/chains";
 import prisma from "@/lib/server/db/cobuild-db-client";
 import { COBUILD_JUICEBOX_PROJECT_ID } from "@/lib/domains/token/juicebox/constants";
-import { normalizeAddress } from "@/lib/shared/address";
 import {
   fromBaseUnits,
   toDecimalString,
@@ -418,7 +418,9 @@ async function fetchResolvedGoal(goalAddress: string): Promise<ResolvedGoal | nu
   if (!normalizedGoal) return null;
 
   const isGoalAddress = isAddress(normalizedGoal);
-  const canonicalGoalAddress = isGoalAddress ? normalizeAddress(normalizedGoal) : null;
+  const canonicalGoalAddress = isGoalAddress
+    ? normalizeAddress(normalizedGoal, "goalAddress")
+    : null;
 
   let source: GoalSource = "default_project";
   let goalTreasury: GoalTreasuryRow | null = null;
@@ -1020,7 +1022,7 @@ async function fetchUserGoalHoldings(
   if (!isAddress(userAddress)) return [];
   if (limit <= 0) return [];
 
-  const normalizedUser = normalizeAddress(userAddress);
+  const normalizedUser = normalizeAddress(userAddress, "userAddress");
   const goals = await getGoalCards();
   if (goals.length === 0) return [];
 
@@ -1093,7 +1095,7 @@ async function fetchGoalAllocateData(
   if (!overview || !goal) return null;
 
   const normalizedUser =
-    userAddress && isAddress(userAddress) ? normalizeAddress(userAddress) : null;
+    userAddress && isAddress(userAddress) ? normalizeAddress(userAddress, "userAddress") : null;
 
   const flowRecipientsPromise = goal.flowAddress
     ? prisma.flowRecipient.findMany({

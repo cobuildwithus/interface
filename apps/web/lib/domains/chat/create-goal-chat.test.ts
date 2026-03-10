@@ -90,7 +90,7 @@ describe("createGoalChat", () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ chatGrant: "grant" }),
+      json: () => Promise.resolve({}),
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -140,7 +140,7 @@ describe("createGoalChat", () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ chatId: "chat-1", chatGrant: "grant" }),
+      json: () => Promise.resolve({ chatId: "chat-1" }),
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -154,7 +154,7 @@ describe("createGoalChat", () => {
     expect(result).toEqual({
       ok: true,
       status: 200,
-      data: { chatId: "chat-1", chatGrant: "grant" },
+      data: { chatId: "chat-1" },
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];

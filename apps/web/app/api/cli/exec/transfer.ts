@@ -1,11 +1,14 @@
 import { type NextResponse } from "next/server";
 import { encodeFunctionData, erc20Abi, isAddress } from "viem";
-import { baseBuilderCodeDataSuffixForNetwork, usdcContractForNetwork } from "@cobuild/wire";
+import {
+  baseBuilderCodeDataSuffixForNetwork,
+  normalizeEvmAddress as normalizeAddress,
+  usdcContractForNetwork,
+} from "@cobuild/wire";
 import { assertCliTransferAllowed } from "@/lib/server/cli/policy";
 import { RequestValidationError } from "@/lib/server/cli/http";
 import { waitForUserOperationComplete } from "@/lib/server/cli/user-operation";
 import { getOrCreateCliAgentSmartAccount } from "@/lib/server/cli/wallet-store";
-import { normalizeAddress } from "@/lib/shared/address";
 import {
   assertTransferIdempotencyMatch,
   finalizeCliTxLog,
@@ -43,7 +46,7 @@ export async function handleTransferExecution(params: {
     throw new RequestValidationError("Invalid recipient address");
   }
 
-  const to = normalizeAddress(params.input.to);
+  const to = normalizeAddress(params.input.to, "to");
   const tokenLower = params.input.token.toLowerCase();
 
   let amountAtomic: bigint;
@@ -67,7 +70,7 @@ export async function handleTransferExecution(params: {
       );
     }
 
-    token = normalizeAddress(params.input.token);
+    token = normalizeAddress(params.input.token, "token");
     amountAtomic = parseUnitsInput(params.input.amount, params.input.decimals, "amount");
   }
 
@@ -200,7 +203,7 @@ export async function handleTransferExecution(params: {
 
   return buildSuccessResponse({
     kind: "transfer",
-    walletAddress: normalizeAddress(smartAccount.address),
+    walletAddress: normalizeAddress(smartAccount.address, "smartAccount.address"),
     network,
     transactionHash,
   });

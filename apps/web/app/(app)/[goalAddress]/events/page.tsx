@@ -1,4 +1,8 @@
 import type { Metadata } from "next";
+import {
+  buildProtocolRouteHint,
+  resolveProtocolRouteState,
+} from "@cobuild/wire/protocol-notifications";
 import { notFound } from "next/navigation";
 import { ProtocolRouteHint } from "@/components/features/notifications/protocol-route-hint";
 import { GridBackground } from "@/components/ui/grid-background";
@@ -6,10 +10,6 @@ import { PageHeader } from "@/components/layout/page-header";
 import { DiscordBanner } from "@/components/features/social/events/discord-banner";
 import { EventsList } from "@/components/features/social/events/events-list";
 import { getGoalEvents, getGoalOverviewData } from "@/lib/domains/goals/goal-data";
-import {
-  buildProtocolRouteHint,
-  resolveProtocolRouteState,
-} from "@/lib/domains/notifications/protocol-route-state";
 import { generateGoalMetadata } from "../metadata";
 
 type MetadataProps = {

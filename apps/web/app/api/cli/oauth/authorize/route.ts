@@ -1,32 +1,18 @@
 import { NextResponse } from "next/server";
-import { validateCliOAuthAuthorizeRequest } from "@cobuild/wire";
+import {
+  parseCliOAuthAuthorizeCodeResponse,
+  serializeCliOAuthAuthorizeCodeRequestBody,
+  validateCliOAuthAuthorizeRequest,
+} from "@cobuild/wire";
 import { getPrivyIdToken } from "@/lib/domains/auth/session";
 import { fetchChatApi } from "@/lib/domains/chat/server-api";
 import { requireCliSessionAddress } from "@/lib/server/cli/auth";
 import { CliAuthError } from "@/lib/server/cli/errors";
-import { cliErrorResponse, parseJsonStrict } from "@/lib/server/cli/http";
+import { RequestValidationError, cliErrorResponse, parseJsonStrict } from "@/lib/server/cli/http";
 import { forbiddenCrossOriginResponse } from "@/lib/server/http/same-origin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type OauthAuthorizeBody = {
-  responseType: string;
-  clientId: string;
-  redirectUri: string;
-  scope: string;
-  codeChallenge: string;
-  codeChallengeMethod: string;
-  state: string;
-  agentKey: string;
-  label?: string;
-};
-
-type OauthAuthorizeCodePayload = {
-  code?: unknown;
-  state?: unknown;
-  redirect_uri?: unknown;
-};
 
 class UpstreamRequestError extends Error {
   readonly status: number;
@@ -58,42 +44,30 @@ function oauthAuthorizeErrorResponse(error: unknown) {
 
 function parseOauthAuthorizeBody(input: unknown) {
   const record = (input ?? {}) as Record<string, unknown>;
-  return validateCliOAuthAuthorizeRequest({
-    responseType: typeof record.responseType === "string" ? record.responseType : "",
-    clientId: typeof record.clientId === "string" ? record.clientId : "",
-    redirectUri: typeof record.redirectUri === "string" ? record.redirectUri : "",
-    scope: typeof record.scope === "string" ? record.scope : "",
-    codeChallenge: typeof record.codeChallenge === "string" ? record.codeChallenge : "",
-    codeChallengeMethod:
-      typeof record.codeChallengeMethod === "string" ? record.codeChallengeMethod : "",
-    state: typeof record.state === "string" ? record.state : "",
-    agentKey: typeof record.agentKey === "string" ? record.agentKey : "",
-    ...(typeof record.label === "string" ? { label: record.label } : {}),
-  });
-}
 
-function parseOauthAuthorizeCodePayload(payload: unknown): {
-  code: string;
-  state: string | null;
-  redirectUri: string | null;
-} {
-  const data = (payload ?? {}) as OauthAuthorizeCodePayload;
-  if (typeof data.code !== "string" || !data.code.trim()) {
-    throw new UpstreamRequestError(
-      502,
-      "Upstream response did not include a valid authorization code."
+  try {
+    return validateCliOAuthAuthorizeRequest({
+      responseType: typeof record.responseType === "string" ? record.responseType : "",
+      clientId: typeof record.clientId === "string" ? record.clientId : "",
+      redirectUri: typeof record.redirectUri === "string" ? record.redirectUri : "",
+      scope: typeof record.scope === "string" ? record.scope : "",
+      codeChallenge: typeof record.codeChallenge === "string" ? record.codeChallenge : "",
+      codeChallengeMethod:
+        typeof record.codeChallengeMethod === "string" ? record.codeChallengeMethod : "",
+      state: typeof record.state === "string" ? record.state : "",
+      agentKey: typeof record.agentKey === "string" ? record.agentKey : "",
+      ...(typeof record.label === "string" ? { label: record.label } : {}),
+    });
+  } catch (error) {
+    throw new RequestValidationError(
+      error instanceof Error ? error.message : "Invalid OAuth authorization request."
     );
   }
-
-  return {
-    code: data.code,
-    state: typeof data.state === "string" && data.state.trim() ? data.state : null,
-    redirectUri:
-      typeof data.redirect_uri === "string" && data.redirect_uri.trim() ? data.redirect_uri : null,
-  };
 }
 
-async function requestAuthorizationCode(body: OauthAuthorizeBody): Promise<string> {
+async function requestAuthorizationCode(
+  body: ReturnType<typeof validateCliOAuthAuthorizeRequest>
+): Promise<string> {
   const identityToken = await getPrivyIdToken();
   if (!identityToken) {
     throw new CliAuthError(401, "Unauthorized");
@@ -108,16 +82,7 @@ async function requestAuthorizationCode(body: OauthAuthorizeBody): Promise<strin
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({
-          client_id: body.clientId,
-          redirect_uri: body.redirectUri,
-          scope: body.scope,
-          code_challenge: body.codeChallenge,
-          code_challenge_method: body.codeChallengeMethod,
-          state: body.state,
-          agent_key: body.agentKey,
-          ...(body.label ? { label: body.label } : {}),
-        }),
+        body: JSON.stringify(serializeCliOAuthAuthorizeCodeRequestBody(body)),
         cache: "no-store",
       },
     });
@@ -137,11 +102,22 @@ async function requestAuthorizationCode(body: OauthAuthorizeBody): Promise<strin
     throw new UpstreamRequestError(upstreamResponse.status, message);
   }
 
-  const upstream = parseOauthAuthorizeCodePayload(payload);
-  if (upstream.state && upstream.state !== body.state) {
+  let upstream;
+  try {
+    upstream = parseCliOAuthAuthorizeCodeResponse(payload);
+  } catch (error) {
+    throw new UpstreamRequestError(
+      502,
+      error instanceof Error
+        ? error.message
+        : "Upstream response did not include a valid authorization code."
+    );
+  }
+
+  if (upstream.state !== body.state) {
     throw new UpstreamRequestError(502, "Upstream state did not match authorization request.");
   }
-  if (upstream.redirectUri && upstream.redirectUri !== body.redirectUri) {
+  if (upstream.redirectUri !== body.redirectUri) {
     throw new UpstreamRequestError(
       502,
       "Upstream redirect URI did not match authorization request."
@@ -165,17 +141,7 @@ export async function POST(request: Request) {
 
     await requireCliSessionAddress();
     const parsedBody = parseOauthAuthorizeBody(await parseJsonStrict(request));
-    const redirectTo = await requestAuthorizationCode({
-      responseType: parsedBody.responseType,
-      clientId: parsedBody.clientId,
-      redirectUri: parsedBody.redirectUri,
-      scope: parsedBody.scope,
-      codeChallenge: parsedBody.codeChallenge,
-      codeChallengeMethod: parsedBody.codeChallengeMethod,
-      state: parsedBody.state,
-      agentKey: parsedBody.agentKey,
-      ...(parsedBody.label ? { label: parsedBody.label } : {}),
-    });
+    const redirectTo = await requestAuthorizationCode(parsedBody);
 
     return NextResponse.json(
       {

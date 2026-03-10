@@ -129,7 +129,7 @@ describe("CreateGoalForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create goal" }));
 
     expect(
-      await screen.findByText("Goal spend policy must be a valid EVM address.")
+      await screen.findByText(/Goal spend policy must be a valid 20-byte hex address/)
     ).toBeInTheDocument();
     expect(prepareWalletMock).not.toHaveBeenCalled();
     expect(writeContractAsyncMock).not.toHaveBeenCalled();
@@ -147,7 +147,7 @@ describe("CreateGoalForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create goal" }));
 
     expect(
-      await screen.findByText("Budget spend policy must be a valid EVM address.")
+      await screen.findByText(/Budget spend policy must be a valid 20-byte hex address/)
     ).toBeInTheDocument();
     expect(prepareWalletMock).not.toHaveBeenCalled();
     expect(writeContractAsyncMock).not.toHaveBeenCalled();

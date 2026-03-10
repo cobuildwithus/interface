@@ -15,7 +15,6 @@ import { useLogin } from "@/lib/domains/auth/use-login";
 import { safeSessionStorageGet } from "@/lib/domains/chat/chat-client-utils";
 import { DEFAULT_CHAT_TYPE } from "@/lib/domains/chat/constants";
 import { primeChatGeo } from "@/lib/domains/chat/geo";
-import { writeChatGrant } from "@/lib/domains/chat/grant";
 import { getGoalChatPendingKey, parsePendingChatMessage } from "@/lib/domains/chat/pending";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import type { JsonRecord } from "@/lib/shared/json";
@@ -27,7 +26,6 @@ type ChatClientProps = {
   data?: JsonRecord;
   context?: string;
   initialMessages?: UIMessage[];
-  initialGrant?: string | null;
   clientDevice?: "mobile" | "desktop";
   showConnectOnUnauthed?: boolean;
 };
@@ -38,7 +36,6 @@ export function ChatClient({
   data,
   context,
   initialMessages,
-  initialGrant,
   clientDevice,
   showConnectOnUnauthed = false,
 }: ChatClientProps) {
@@ -51,11 +48,6 @@ export function ChatClient({
   const [hasPendingOnMount] = useState(() =>
     Boolean(parsePendingChatMessage(safeSessionStorageGet(getGoalChatPendingKey(chatId))))
   );
-  useEffect(() => {
-    if (initialGrant) {
-      writeChatGrant(chatId, initialGrant);
-    }
-  }, [chatId, initialGrant]);
 
   useEffect(() => {
     void primeChatGeo();
@@ -66,7 +58,7 @@ export function ChatClient({
     authExpiredHandlerRef.current();
   }, []);
 
-  const { transport, fetchWithGrant, resolveHeaders } = useChatTransport({
+  const { transport, fetchWithAuth, resolveHeaders } = useChatTransport({
     chatId,
     type,
     data,
@@ -130,7 +122,7 @@ export function ChatClient({
     chatMessagesLength: chatMessages.length,
     hasPendingAssistant,
     isLoading,
-    fetchWithGrant,
+    fetchWithAuth,
     resolveHeaders,
     setChatMessages,
   });

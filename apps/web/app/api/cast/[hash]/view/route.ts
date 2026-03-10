@@ -7,7 +7,7 @@ import { markCastRead } from "@/lib/domains/social/cast-read/kv";
 import prisma from "@/lib/server/db/cobuild-db-client";
 import { COBUILD_CHANNEL_URL } from "@/lib/integrations/farcaster/casts/shared";
 import { readClientIpFromHeaders, verifyViewToken } from "@/lib/domains/social/cast-view/token";
-import { normalizeAddress } from "@/lib/shared/address";
+import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 
 const BOT_PATTERN =
   /(bot|spider|crawler|slurp|bingpreview|facebookexternalhit|discordbot|telegrambot|whatsapp|gptbot|claudebot)/i;
@@ -32,7 +32,7 @@ function hashViewerKey(value: string): string {
 async function getUserAddress(): Promise<string | null> {
   try {
     const address = await getUser();
-    return address ? normalizeAddress(address) : null;
+    return address ? normalizeAddress(address, "user address") : null;
   } catch {
     return null;
   }

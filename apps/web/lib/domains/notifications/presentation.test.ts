@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildProtocolNotificationPresentation } from "./presentation";
+import { buildProtocolNotificationPresentation } from "@cobuild/wire/protocol-notifications";
 
-describe("protocol notification presentation wrapper", () => {
-  it("maps the shared app path onto href", () => {
+describe("protocol notification presentation contract", () => {
+  it("builds the shared app path directly", () => {
     expect(
       buildProtocolNotificationPresentation({
         reason: "budget_proposed",
@@ -18,7 +18,7 @@ describe("protocol notification presentation wrapper", () => {
     ).toEqual({
       title: "You proposed a new budget in Alpha.",
       excerpt: "Your budget request entered governance.",
-      href: "/0x00000000000000000000000000000000000000bb/events?focus=request",
+      appPath: "/0x00000000000000000000000000000000000000bb/events?focus=request",
       actorName: "0x0000...00aa",
     });
   });
@@ -33,7 +33,7 @@ describe("protocol notification presentation wrapper", () => {
     ).toEqual({
       title: "Goal expired.",
       excerpt: "The goal reached an expired terminal state.",
-      href: "/notifications",
+      appPath: "/notifications",
       actorName: null,
     });
   });
@@ -55,7 +55,8 @@ describe("protocol notification presentation wrapper", () => {
     ).toEqual({
       title: "Budget success assertion registered in Alpha.",
       excerpt: "A budget success assertion was registered and is awaiting resolution.",
-      href: "/0x00000000000000000000000000000000000000bb/allocate?budgetTreasury=0x00000000000000000000000000000000000000cc&focus=success_assertion",
+      appPath:
+        "/0x00000000000000000000000000000000000000bb/allocate?budgetTreasury=0x00000000000000000000000000000000000000cc&focus=success_assertion",
       actorName: null,
     });
   });

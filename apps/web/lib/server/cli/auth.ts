@@ -5,25 +5,16 @@ import {
   DEFAULT_CLI_JWT_AUDIENCE,
   DEFAULT_CLI_JWT_ISSUER,
   DEFAULT_DEV_CLI_JWT_PUBLIC_KEY,
-  deriveCliScopeCapabilities,
+  deriveCliVerifiedPrincipal,
+  normalizeEvmAddress as normalizeAddress,
   parseBearerToken,
   parseCliJwtVerifiedClaims,
-  splitScope,
+  type CliVerifiedPrincipal,
 } from "@cobuild/wire";
 import { getSession } from "@/lib/domains/auth/session";
-import { normalizeAddress } from "@/lib/shared/address";
 import { CliAuthError } from "./errors";
 
-type CliBearerAuth = {
-  ownerAddress: `0x${string}`;
-  sessionId: string;
-  agentKey: string;
-  scope: string;
-  scopes: string[];
-  hasToolsWrite: boolean;
-  hasWalletExecute: boolean;
-  hasAnyWriteScope: boolean;
-};
+type CliBearerAuth = Omit<CliVerifiedPrincipal, "hasToolsRead">;
 
 type RequireCliBearerAuthOptions = {
   requireWalletExecute?: boolean;
@@ -78,7 +69,7 @@ export async function requireCliSessionAddress(): Promise<`0x${string}`> {
     throw new CliAuthError(401, "Unauthorized");
   }
 
-  return normalizeAddress(session.address);
+  return normalizeAddress(session.address, "session.address");
 }
 
 async function verifyCliAccessToken(rawToken: string): Promise<CliBearerAuth | null> {
@@ -103,31 +94,13 @@ async function verifyCliAccessToken(rawToken: string): Promise<CliBearerAuth | n
     return null;
   }
 
-  const ownerAddress = normalizeAddress(claims.sub);
-  const scope = claims.scope.trim();
-  if (!ownerAddress || !scope) {
+  const principal = deriveCliVerifiedPrincipal(claims);
+  if (!principal) {
     return null;
   }
 
-  const agentKey = claims.agentKey.trim();
-  const sessionId = claims.sid.trim();
-  if (!agentKey || !sessionId) {
-    return null;
-  }
-
-  const scopes = splitScope(scope);
-  if (scopes.length === 0) {
-    return null;
-  }
-
-  return {
-    ownerAddress,
-    sessionId,
-    agentKey,
-    scope,
-    scopes,
-    ...deriveCliScopeCapabilities(scope),
-  };
+  const { hasToolsRead: _hasToolsRead, ...auth } = principal;
+  return auth;
 }
 
 export async function requireCliBearerAuth(

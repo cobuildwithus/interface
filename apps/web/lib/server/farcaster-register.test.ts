@@ -90,7 +90,8 @@ const ORIGINAL_ENV = { ...process.env };
 let nowSpy: ReturnType<typeof vi.spyOn> | null = null;
 const validSignature = `0x${"a".repeat(12)}`;
 const validDeadline = 1_700_000_100;
-const baseAddress = "0xabc";
+const baseAddress = "0x1111111111111111111111111111111111111111";
+const otherAddress = "0x2222222222222222222222222222222222222222";
 
 function setEnv(overrides: Record<string, string | undefined>) {
   process.env = { ...ORIGINAL_ENV, ...overrides };
@@ -171,7 +172,7 @@ describe("farcaster-register", () => {
 
   it("init rejects custody mismatch", async () => {
     const session = makeSession({ address: baseAddress });
-    const result = await initFarcasterRegistration(session, { custodyAddress: "0xdef" });
+    const result = await initFarcasterRegistration(session, { custodyAddress: otherAddress });
     expect(result).toEqual({
       ok: false,
       status: 403,
@@ -207,7 +208,7 @@ describe("farcaster-register", () => {
       expect(result.data.deadline).toBe(1_700_000_000 + 600);
       expect(result.data.typedData.message).toEqual({
         fid: "123",
-        to: "0xabc",
+        to: baseAddress,
         nonce: "1",
         deadline: String(1_700_000_000 + 600),
       });
@@ -247,7 +248,9 @@ describe("farcaster-register", () => {
 
   it("complete rejects custody mismatch", async () => {
     const session = makeSession({ address: baseAddress });
-    const result = await completeFarcasterRegistration(session, { custodyAddress: "0xdef" });
+    const result = await completeFarcasterRegistration(session, {
+      custodyAddress: otherAddress,
+    });
     expect(result).toEqual({
       ok: false,
       status: 403,
@@ -412,13 +415,13 @@ describe("farcaster-register", () => {
     });
     expect(upsertLinkedAccount).toHaveBeenCalledWith(
       expect.objectContaining({
-        ownerAddress: "0xabc",
+        ownerAddress: baseAddress,
         platform: "farcaster",
         platformId: "1",
         username: "username",
       })
     );
-    expect(saveVerifiedAddressForFid).toHaveBeenCalledWith(1, "0xabc");
+    expect(saveVerifiedAddressForFid).toHaveBeenCalledWith(1, baseAddress);
     expect(revalidateTag).toHaveBeenCalledWith("farcaster-profile", "default");
     expect(revalidateTag).toHaveBeenCalledWith("profile-v4", "default");
     expect(revalidateTag).toHaveBeenCalledWith("signer:1", "default");

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { normalizeEvmAddress } from "@cobuild/wire";
+import { buildProtocolNotificationPresentation } from "@cobuild/wire/protocol-notifications";
 import { Prisma } from "@/generated/prisma/client";
 import type { MentionProfileInput } from "@/lib/integrations/farcaster/mentions";
 import { insertMentionsFromProfiles } from "@/lib/integrations/farcaster/mentions";
@@ -9,8 +11,6 @@ import {
   buildRenderableCastSql,
 } from "@/lib/integrations/farcaster/casts/thread/sql";
 import prisma from "@/lib/server/db/cobuild-db-client";
-import { normalizeAddress } from "@/lib/shared/address";
-import { buildProtocolNotificationPresentation } from "./presentation";
 import type {
   NotificationsPageData,
   NotificationListItem,
@@ -128,6 +128,14 @@ function summarizeText(text: string | null | undefined, maxLength: number): stri
   return `${compact.slice(0, maxLength - 3)}...`;
 }
 
+function buildDiscussionAppPath(sourceHash: string | null, rootHash: string | null): string | null {
+  if (!sourceHash) return null;
+  if (!rootHash || sourceHash === rootHash) {
+    return `/cast/${sourceHash}`;
+  }
+  return `/cast/${rootHash}?post=${sourceHash}`;
+}
+
 function toRootTitle(text: string | null | undefined): string | null {
   if (!text) return null;
   const firstLine = text
@@ -147,16 +155,10 @@ function buildHref(row: NotificationRow): string | null {
       reason: row.reason,
       payload,
       actorWalletAddress: row.actorWalletAddress,
-    }).href;
+    }).appPath;
   }
   if (row.kind !== "discussion") return null;
-  const sourceHash = bufferToHash(row.sourceHash);
-  const rootHash = bufferToHash(row.rootHash);
-  if (!sourceHash) return null;
-  if (!rootHash || sourceHash === rootHash) {
-    return `/cast/${sourceHash}`;
-  }
-  return `/cast/${rootHash}?post=${sourceHash}`;
+  return buildDiscussionAppPath(bufferToHash(row.sourceHash), bufferToHash(row.rootHash));
 }
 
 function toMentionProfiles(
@@ -331,7 +333,7 @@ export async function getUnreadNotificationsState(
 ): Promise<NotificationsUnreadState> {
   let normalizedAddress: string;
   try {
-    normalizedAddress = normalizeAddress(address);
+    normalizedAddress = normalizeEvmAddress(address, "notification owner address");
   } catch {
     return { count: 0, watermark: "0:0" };
   }
@@ -349,7 +351,7 @@ export async function getNotificationsPage(
 ): Promise<NotificationsPageData> {
   let normalizedAddress: string;
   try {
-    normalizedAddress = normalizeAddress(address);
+    normalizedAddress = normalizeEvmAddress(address, "notification owner address");
   } catch {
     return {
       items: [],
@@ -444,7 +446,7 @@ export async function getNotificationsPage(
 export async function markNotificationsRead(address: string, watermark: string): Promise<void> {
   let normalizedAddress: string;
   try {
-    normalizedAddress = normalizeAddress(address);
+    normalizedAddress = normalizeEvmAddress(address, "notification owner address");
   } catch {
     return;
   }

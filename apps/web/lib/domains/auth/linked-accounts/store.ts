@@ -1,9 +1,9 @@
 import "server-only";
 
+import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 import prisma from "@/lib/server/db/cobuild-db-client";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { CACHE_TTL } from "@/lib/config/cache";
-import { normalizeAddress } from "@/lib/shared/address";
 import type { LinkedAccountPlatform, LinkedAccountRecord, LinkedAccountSource } from "./types";
 
 const LINKED_ACCOUNTS_TAG = "linked-accounts";
@@ -20,7 +20,7 @@ type UpsertLinkedAccountParams = {
 };
 
 export function getLinkedAccountsCacheTag(address: string): string {
-  return `${LINKED_ACCOUNTS_TAG}:${normalizeAddress(address)}`;
+  return `${LINKED_ACCOUNTS_TAG}:${normalizeAddress(address, "linked account address")}`;
 }
 
 function resolveNextState(
@@ -58,7 +58,7 @@ function toRecord(row: {
 }
 
 export async function upsertLinkedAccount(params: UpsertLinkedAccountParams) {
-  const ownerAddress = normalizeAddress(params.ownerAddress);
+  const ownerAddress = normalizeAddress(params.ownerAddress, "ownerAddress");
   const platformId = params.platformId.trim();
 
   const existing = await prisma.linkedSocialAccount.findUnique({
@@ -104,7 +104,7 @@ export async function getLinkedAccountsByAddress(
   address: string,
   options?: { usePrimary?: boolean }
 ): Promise<LinkedAccountRecord[]> {
-  const normalized = normalizeAddress(address);
+  const normalized = normalizeAddress(address, "address");
   const usePrimary = options?.usePrimary === true;
   const client = usePrimary ? prisma.$primary() : prisma;
   const cacheKey = usePrimary ? "primary" : "replica";

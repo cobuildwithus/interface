@@ -21,7 +21,6 @@ import {
 } from "@/lib/domains/chat/input-message";
 import { storePendingChatMessage } from "@/lib/domains/chat/pending";
 import { primeChatGeo } from "@/lib/domains/chat/geo";
-import { writeChatGrant } from "@/lib/domains/chat/grant";
 import type { JsonRecord } from "@/lib/shared/json";
 
 type AuthButtonProps = ComponentProps<typeof AuthButton>;
@@ -101,10 +100,6 @@ export function GoalChatStartButton({
           return "auth_expired";
         }
         return fail(result.error);
-      }
-
-      if (result.data.chatGrant) {
-        writeChatGrant(result.data.chatId, result.data.chatGrant);
       }
 
       return result.data.chatId;

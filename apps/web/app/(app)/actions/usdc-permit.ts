@@ -1,9 +1,9 @@
 "use server";
 
+import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 import type { Address, Hex } from "viem";
 import { getSession } from "@/lib/domains/auth/session";
 import { submitUsdcPermitServer, type SubmitPermitResponse } from "@/lib/server/usdc-permit";
-import { normalizeAddress } from "@/lib/shared/address";
 
 export async function submitUsdcPermitAction(body: {
   chainId?: number;
@@ -17,12 +17,15 @@ export async function submitUsdcPermitAction(body: {
   const session = await getSession();
   let normalizedOwner: Address;
   try {
-    normalizedOwner = normalizeAddress(body.owner);
+    normalizedOwner = normalizeAddress(body.owner, "owner");
   } catch {
     return { error: "Unauthorized" };
   }
 
-  if (!session.address || normalizeAddress(session.address) !== normalizedOwner) {
+  if (
+    !session.address ||
+    normalizeAddress(session.address, "session.address") !== normalizedOwner
+  ) {
     return { error: "Unauthorized" };
   }
 

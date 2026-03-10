@@ -53,9 +53,13 @@ vi.mock("next/cache", () => ({
     fn,
 }));
 
-vi.mock("@/lib/shared/address", () => ({
-  normalizeAddress: (value: string) => value.toLowerCase(),
-}));
+vi.mock("@cobuild/wire", async () => {
+  const actual = await vi.importActual<typeof import("@cobuild/wire")>("@cobuild/wire");
+  return {
+    ...actual,
+    normalizeEvmAddress: (value: string) => value.toLowerCase(),
+  };
+});
 
 vi.mock("@/lib/server/db/cobuild-db-client", () => ({
   default: {

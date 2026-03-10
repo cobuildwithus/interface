@@ -1,12 +1,12 @@
 import "server-only";
 
+import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 import * as jose from "jose";
 import { cookies } from "next/headers";
 import {
   getFarcasterByVerifiedAddress,
   getProfileMetaByFid,
 } from "@/lib/integrations/farcaster/profile";
-import { normalizeAddress } from "@/lib/shared/address";
 import type { ErrorLike } from "@/lib/shared/errors";
 import {
   type FarcasterAccount,
@@ -93,7 +93,7 @@ async function parseIdentityToken(): Promise<{
   }
   for (const walletAccount of validWalletAccounts) {
     try {
-      normalizeAddress(walletAccount.address);
+      normalizeAddress(walletAccount.address, "walletAccount.address");
     } catch {
       console.warn("[auth] rejecting session with invalid linked wallet accounts");
       return null;
@@ -161,7 +161,7 @@ export async function getSession(): Promise<Session> {
 
   const { wallet, farcaster: privyFarcaster, twitter } = extractAccounts(parsed.linkedAccounts);
 
-  const address = wallet?.address ? normalizeAddress(wallet.address) : undefined;
+  const address = wallet?.address ? normalizeAddress(wallet.address, "wallet.address") : undefined;
 
   let farcaster: FarcasterAccount | undefined;
   if (privyFarcaster) {
@@ -197,5 +197,5 @@ export async function getUser(): Promise<`0x${string}` | undefined> {
   const { wallet } = extractAccounts(parsed.linkedAccounts);
   if (!wallet?.address) return undefined;
 
-  return normalizeAddress(wallet.address);
+  return normalizeAddress(wallet.address, "wallet.address");
 }

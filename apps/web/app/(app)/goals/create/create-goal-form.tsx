@@ -6,6 +6,7 @@ import {
   decodeGoalDeployedEvent,
   goalFactoryAbi,
   goalFactoryAddress,
+  normalizeEvmAddress,
 } from "@cobuild/wire";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
@@ -95,14 +96,6 @@ const initialFormState: FormState = {
   budgetSpendPolicy: "",
 };
 
-function normalizeAddress(value: string, label: string): Address {
-  const trimmed = value.trim();
-  if (!isAddress(trimmed)) {
-    throw new Error(`${label} must be a valid EVM address.`);
-  }
-  return trimmed.toLowerCase() as Address;
-}
-
 function parseWholeNumber(value: string, label: string, min: number): number {
   const trimmed = value.trim();
   if (!/^\d+$/.test(trimmed)) {
@@ -187,13 +180,16 @@ function buildDeployParams(allocationMechanismAdmin: Address, form: FormState) {
 
   const successAssertionBond = parseUint256(form.successBond, "Assertion bond");
 
-  const successResolver = normalizeAddress(form.successResolver, "Success resolver");
-  const budgetSuccessResolver = normalizeAddress(
+  const successResolver = normalizeEvmAddress(form.successResolver, "Success resolver") as Address;
+  const budgetSuccessResolver = normalizeEvmAddress(
     form.budgetSuccessResolver,
     "Budget success resolver"
-  );
-  const goalSpendPolicy = normalizeAddress(form.goalSpendPolicy, "Goal spend policy");
-  const budgetSpendPolicy = normalizeAddress(form.budgetSpendPolicy, "Budget spend policy");
+  ) as Address;
+  const goalSpendPolicy = normalizeEvmAddress(form.goalSpendPolicy, "Goal spend policy") as Address;
+  const budgetSpendPolicy = normalizeEvmAddress(
+    form.budgetSpendPolicy,
+    "Budget spend policy"
+  ) as Address;
 
   const successOracleSpecHash = keccak256(stringToHex(successSpec));
   const successAssertionPolicyHash = keccak256(stringToHex(successPolicy));
@@ -346,7 +342,7 @@ export function CreateGoalForm() {
       if (!tx.account) return;
 
       const deployParams = buildDeployParams(
-        normalizeAddress(tx.account, "Allocation mechanism admin"),
+        normalizeEvmAddress(tx.account, "Allocation mechanism admin"),
         form
       );
       const goalCreateTx = buildGoalCreateTransaction({

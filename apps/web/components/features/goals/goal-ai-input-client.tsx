@@ -10,7 +10,6 @@ import {
 } from "@/lib/domains/chat/input-message";
 import { useActiveIdentityToken } from "@/lib/domains/auth/use-active-identity-token";
 import { useLogin } from "@/lib/domains/auth/use-login";
-import { writeChatGrant } from "@/lib/domains/chat/grant";
 import { primeChatGeo } from "@/lib/domains/chat/geo";
 import { createGoalChat, isAuthExpiredStatus } from "@/lib/domains/chat/create-goal-chat";
 import {
@@ -62,10 +61,6 @@ export function GoalAiInputClient({ goalAddress, identityToken }: GoalAiInputCli
         return "auth_expired";
       }
       return fail(result.error);
-    }
-
-    if (result.data.chatGrant) {
-      writeChatGrant(result.data.chatId, result.data.chatGrant);
     }
 
     return result.data.chatId;

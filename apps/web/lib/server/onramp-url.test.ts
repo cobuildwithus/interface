@@ -6,17 +6,18 @@ const { generateJwt } = vi.hoisted(() => ({
   generateJwt: vi.fn(),
 }));
 
-const { getAddress, isAddress } = vi.hoisted(() => ({
-  getAddress: vi.fn(),
+const { isAddress } = vi.hoisted(() => ({
   isAddress: vi.fn(),
 }));
 
 vi.mock("@coinbase/cdp-sdk/auth", () => ({ generateJwt }));
-vi.mock("viem", () => ({ getAddress, isAddress }));
+vi.mock("viem", () => ({ isAddress }));
 
 import { getCoinbaseOnrampUrl } from "./onramp-url";
 
 const ORIGINAL_ENV = { ...process.env };
+const sessionAddress = "0x1111111111111111111111111111111111111111";
+const otherAddress = "0x2222222222222222222222222222222222222222";
 
 function setEnv(overrides: Record<string, string | undefined>) {
   process.env = { ...ORIGINAL_ENV, ...overrides };
@@ -25,6 +26,9 @@ function setEnv(overrides: Record<string, string | undefined>) {
 describe("getCoinbaseOnrampUrl", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    isAddress.mockImplementation(
+      (value: unknown) => typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
+    );
     setEnv({
       CDP_API_KEY_ID: "key",
       CDP_API_KEY_SECRET: "secret",
@@ -42,7 +46,7 @@ describe("getCoinbaseOnrampUrl", () => {
   });
 
   it("rejects invalid body", async () => {
-    const result = await getCoinbaseOnrampUrl("0xabc", "bad", "https://co.build");
+    const result = await getCoinbaseOnrampUrl(sessionAddress, "bad", "https://co.build");
     expect(result).toEqual({
       ok: false,
       status: 400,
@@ -52,23 +56,27 @@ describe("getCoinbaseOnrampUrl", () => {
 
   it("rejects invalid address", async () => {
     isAddress.mockReturnValueOnce(false);
-    const result = await getCoinbaseOnrampUrl("0xabc", { address: "nope" }, "https://co.build");
+    const result = await getCoinbaseOnrampUrl(
+      sessionAddress,
+      { address: "nope" },
+      "https://co.build"
+    );
     expect(result).toEqual({ ok: false, status: 400, error: "Invalid address" });
   });
 
   it("rejects mismatched address", async () => {
-    isAddress.mockReturnValueOnce(true);
-    getAddress.mockReturnValueOnce("0xDEF");
-    const result = await getCoinbaseOnrampUrl("0xabc", { address: "0xdef" }, "https://co.build");
+    const result = await getCoinbaseOnrampUrl(
+      sessionAddress,
+      { address: otherAddress },
+      "https://co.build"
+    );
     expect(result).toEqual({ ok: false, status: 403, error: "Address mismatch" });
   });
 
   it("rejects preset fiat amount below minimum", async () => {
-    isAddress.mockReturnValueOnce(true);
-    getAddress.mockReturnValueOnce("0xabc");
     const result = await getCoinbaseOnrampUrl(
-      "0xabc",
-      { address: "0xabc", presetFiatAmount: 1 },
+      sessionAddress,
+      { address: sessionAddress, presetFiatAmount: 1 },
       "https://co.build"
     );
     expect(result).toEqual({
@@ -79,11 +87,9 @@ describe("getCoinbaseOnrampUrl", () => {
   });
 
   it("rejects preset crypto amount when non-positive", async () => {
-    isAddress.mockReturnValueOnce(true);
-    getAddress.mockReturnValueOnce("0xabc");
     const result = await getCoinbaseOnrampUrl(
-      "0xabc",
-      { address: "0xabc", presetCryptoAmount: 0 },
+      sessionAddress,
+      { address: sessionAddress, presetCryptoAmount: 0 },
       "https://co.build"
     );
     expect(result).toEqual({
@@ -94,11 +100,9 @@ describe("getCoinbaseOnrampUrl", () => {
   });
 
   it("rejects non-string fiat currency", async () => {
-    isAddress.mockReturnValueOnce(true);
-    getAddress.mockReturnValueOnce("0xabc");
     const result = await getCoinbaseOnrampUrl(
-      "0xabc",
-      { address: "0xabc", fiatCurrency: 123 },
+      sessionAddress,
+      { address: sessionAddress, fiatCurrency: 123 },
       "https://co.build"
     );
     expect(result).toEqual({
@@ -110,9 +114,11 @@ describe("getCoinbaseOnrampUrl", () => {
 
   it("rejects when Coinbase CDP env missing", async () => {
     setEnv({ CDP_API_KEY_ID: undefined, CDP_API_KEY_SECRET: undefined });
-    isAddress.mockReturnValueOnce(true);
-    getAddress.mockReturnValueOnce("0xabc");
-    const result = await getCoinbaseOnrampUrl("0xabc", { address: "0xabc" }, "https://co.build");
+    const result = await getCoinbaseOnrampUrl(
+      sessionAddress,
+      { address: sessionAddress },
+      "https://co.build"
+    );
     expect(result).toEqual({
       ok: false,
       status: 500,
@@ -121,8 +127,6 @@ describe("getCoinbaseOnrampUrl", () => {
   });
 
   it("returns upstream errors when session token request fails", async () => {
-    isAddress.mockReturnValueOnce(true);
-    getAddress.mockReturnValueOnce("0xabc");
     generateJwt.mockResolvedValueOnce("jwt");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
@@ -130,7 +134,11 @@ describe("getCoinbaseOnrampUrl", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await getCoinbaseOnrampUrl("0xabc", { address: "0xabc" }, "https://co.build");
+    const result = await getCoinbaseOnrampUrl(
+      sessionAddress,
+      { address: sessionAddress },
+      "https://co.build"
+    );
 
     expect(result).toEqual({
       ok: false,
@@ -140,8 +148,6 @@ describe("getCoinbaseOnrampUrl", () => {
   });
 
   it("returns onramp url on success", async () => {
-    isAddress.mockReturnValueOnce(true);
-    getAddress.mockReturnValueOnce("0xAbC");
     generateJwt.mockResolvedValueOnce("jwt");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -150,9 +156,9 @@ describe("getCoinbaseOnrampUrl", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await getCoinbaseOnrampUrl(
-      "0xabc",
+      sessionAddress,
       {
-        address: "0xabc",
+        address: sessionAddress,
         presetFiatAmount: 10,
         presetCryptoAmount: 2,
         fiatCurrency: "USD",
@@ -172,13 +178,11 @@ describe("getCoinbaseOnrampUrl", () => {
       expect(url.searchParams.get("presetCryptoAmount")).toBe("2");
       expect(url.searchParams.get("fiatCurrency")).toBe("USD");
       expect(url.searchParams.get("redirectUrl")).toBe("https://co.build/return");
-      expect(url.searchParams.get("partnerUserId")).toBe("0xabc");
+      expect(url.searchParams.get("partnerUserId")).toBe(sessionAddress);
     }
   });
 
   it("falls back to same-origin redirect", async () => {
-    isAddress.mockReturnValueOnce(true);
-    getAddress.mockReturnValueOnce("0xabc");
     generateJwt.mockResolvedValueOnce("jwt");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -187,8 +191,8 @@ describe("getCoinbaseOnrampUrl", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await getCoinbaseOnrampUrl(
-      "0xabc",
-      { address: "0xabc", redirectUrl: "https://evil.com" },
+      sessionAddress,
+      { address: sessionAddress, redirectUrl: "https://evil.com" },
       "https://co.build"
     );
 

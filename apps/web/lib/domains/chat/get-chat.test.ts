@@ -8,12 +8,11 @@ afterEach(() => {
 });
 
 describe("fetchGoalChat", () => {
-  it("returns ok payload with grant", async () => {
+  it("returns ok payload", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: () => Promise.resolve({ messages: [{ id: "m1", role: "user" }] }),
-      headers: { get: () => "grant-1" },
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -23,7 +22,6 @@ describe("fetchGoalChat", () => {
       ok: true,
       status: 200,
       payload: { messages: [{ id: "m1", role: "user" }] },
-      grant: "grant-1",
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -105,7 +103,6 @@ describe("fetchGoalChat", () => {
       ok: true,
       status: 200,
       json: () => Promise.reject(new Error("bad json")),
-      headers: { get: () => null },
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -121,7 +118,6 @@ describe("fetchGoalChat", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve(null),
-      headers: { get: () => null },
     });
     vi.stubGlobal("fetch", fetchMock);
 

@@ -4,7 +4,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { useChatSync } from "@/components/features/chat/chat-client/hooks/use-chat-sync";
 
 const buildProps = (overrides: Partial<Parameters<typeof useChatSync>[0]> = {}) => {
-  const fetchWithGrant = vi.fn(async () => {
+  const fetchWithAuth = vi.fn(async () => {
     return {
       ok: true,
       json: async () => ({ messages: [] }),
@@ -20,7 +20,7 @@ const buildProps = (overrides: Partial<Parameters<typeof useChatSync>[0]> = {}) 
     chatMessagesLength: 0,
     hasPendingAssistant: false,
     isLoading: false,
-    fetchWithGrant,
+    fetchWithAuth,
     resolveHeaders: vi.fn(() => ({})),
     setChatMessages: vi.fn(),
     ...overrides,
@@ -37,7 +37,7 @@ describe("useChatSync", () => {
     renderHook(() => useChatSync(props));
 
     await waitFor(() => {
-      expect(props.fetchWithGrant).toHaveBeenCalledTimes(1);
+      expect(props.fetchWithAuth).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -46,7 +46,7 @@ describe("useChatSync", () => {
     renderHook(() => useChatSync(props));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(props.fetchWithGrant).not.toHaveBeenCalled();
+    expect(props.fetchWithAuth).not.toHaveBeenCalled();
   });
 
   it("does not clobber local messages with an empty server response", async () => {
@@ -59,7 +59,7 @@ describe("useChatSync", () => {
     const { unmount } = renderHook(() => useChatSync(props));
 
     await waitFor(() => {
-      expect(props.fetchWithGrant).toHaveBeenCalledTimes(1);
+      expect(props.fetchWithAuth).toHaveBeenCalledTimes(1);
     });
 
     expect(props.setChatMessages).not.toHaveBeenCalled();

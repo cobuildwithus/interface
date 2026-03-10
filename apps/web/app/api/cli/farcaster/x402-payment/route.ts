@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { buildFarcasterHostedX402PaymentResponse } from "@cobuild/wire";
 import { z } from "zod";
 import { requireCliBearerAuth } from "@/lib/server/cli/auth";
 import {
@@ -49,16 +50,9 @@ export async function POST(request: Request) {
       agentKey: auth.agentKey,
     });
 
-    return NextResponse.json(
-      {
-        ok: true,
-        result: {
-          ...result,
-          agentKey: auth.agentKey,
-        },
-      },
-      { headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json(buildFarcasterHostedX402PaymentResponse(result), {
+      headers: NO_STORE_HEADERS,
+    });
   } catch (error) {
     return cliErrorResponse(error, {
       tag: "farcaster][x402-payment",

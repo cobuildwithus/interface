@@ -1,4 +1,4 @@
-import type { ProtocolRouteHint as ProtocolRouteHintData } from "@/lib/domains/notifications/protocol-route-state";
+import type { ProtocolRouteHint as ProtocolRouteHintData } from "@cobuild/wire/protocol-notifications";
 
 type ProtocolRouteHintProps = {
   hint: ProtocolRouteHintData;
