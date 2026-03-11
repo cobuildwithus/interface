@@ -92,6 +92,33 @@ describe("saveVerifiedAddressForFid", () => {
     });
   });
 
+  it("creates missing profile with manual and Neynar verified addresses", async () => {
+    findUnique.mockResolvedValueOnce(null);
+    vi.mocked(neynarFetchUsersByFids).mockResolvedValueOnce([
+      {
+        fid: 123,
+        username: "alice",
+        display_name: "Alice",
+        pfp_url: "https://example.com/pfp.png",
+        custody_address: "0x999",
+        verified_addresses: {
+          primary: { eth_address: "0xAbC" },
+          eth_addresses: ["0x456", "0xabc", "0x999"],
+        },
+        experimental: { neynar_user_score: 0.4 },
+      },
+    ]);
+
+    await saveVerifiedAddressForFid(123, "0xdef");
+
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        verifiedAddresses: ["0xdef", "0xabc", "0x456"],
+        manualVerifiedAddresses: ["0xdef"],
+      }),
+    });
+  });
+
   it("creates profile when neynar user is missing", async () => {
     findUnique.mockResolvedValueOnce(null);
     vi.mocked(neynarFetchUsersByFids).mockResolvedValueOnce([]);

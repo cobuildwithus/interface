@@ -5,6 +5,15 @@ export type NeynarUser = {
   username?: string;
   display_name?: string;
   pfp_url?: string;
+  custody_address?: string;
+  verified_addresses?: {
+    eth_addresses?: string[];
+    sol_addresses?: string[];
+    primary?: {
+      eth_address?: string;
+      sol_address?: string;
+    } | null;
+  } | null;
   experimental?: {
     neynar_user_score?: number;
     [key: string]: JsonValue | undefined;
