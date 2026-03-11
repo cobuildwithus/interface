@@ -33,8 +33,8 @@ importers:
   apps/contracts:
     dependencies:
       '@cobuild/wire':
-        specifier: ^0.1.9
-        version: 0.1.9(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.1.13)
+        specifier: ^0.2.0
+        version: 0.2.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.1.13)
       '@types/node':
         specifier: ^22.5.5
         version: 22.19.1
@@ -549,11 +549,6 @@ packages:
 
   '@cobuild/review-gpt@0.2.15':
     resolution: {integrity: sha512-wxpb5fwLya/DjNlBS1YOzqrccPk73OoEFxViMpMVDmIfI+UjcA16qSzO+hLndwpGAY3Xnzbk2yMvlZvtrlkDbw==}
-    hasBin: true
-
-  '@cobuild/wire@0.1.9':
-    resolution: {integrity: sha512-I+uKDvS5Er+D3ILarOx8cVsVi02edPPEBZPcGEiEp8oCMOJTcHYZ1afN+kAGtj2jf1Z9ryv3tgWWNJSdN7N9QA==}
-    engines: {node: '>=20'}
     hasBin: true
 
   '@cobuild/wire@0.2.0':
@@ -8768,7 +8763,7 @@ snapshots:
 
   '@cobuild/review-gpt@0.2.15': {}
 
-  '@cobuild/wire@0.1.9(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.1.13)':
+  '@cobuild/wire@0.2.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.1.13)':
     dependencies:
       viem: 2.47.1(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.1.13)
     transitivePeerDependencies:
