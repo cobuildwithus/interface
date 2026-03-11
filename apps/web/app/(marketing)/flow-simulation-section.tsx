@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentProps, ReactNode, Key } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { GoalTopicToggle } from "@/components/common/goal-topic-toggle";
 import { DaoFlowDiagram } from "@/components/visuals/dao-flow-diagram/dao-flow-diagram";
 import {
@@ -11,6 +11,10 @@ import {
   TOPICS,
   type TopicId,
 } from "./flow-simulation/data";
+
+const MIN_LANDING_OFFSET_PX = 96;
+const MAX_LANDING_OFFSET_PX = 160;
+const VIEWPORT_LANDING_OFFSET_RATIO = 0.18;
 
 type FlowSimulationCopyProps = {
   className?: string;
@@ -34,6 +38,27 @@ type FlowSimulationDiagramProps = {
 type FlowSimulationSectionProps = {
   sectionId?: string;
 };
+
+function getLandingOffsetPx() {
+  return Math.min(
+    MAX_LANDING_OFFSET_PX,
+    Math.max(MIN_LANDING_OFFSET_PX, Math.round(window.innerHeight * VIEWPORT_LANDING_OFFSET_RATIO))
+  );
+}
+
+function prefersReducedMotion() {
+  return (
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function getLandingScrollTop(target: HTMLElement) {
+  return Math.max(
+    0,
+    Math.round(window.scrollY + target.getBoundingClientRect().top - getLandingOffsetPx())
+  );
+}
 
 function FlowSimulationHeading({ className }: { className: string }) {
   return (
@@ -100,6 +125,61 @@ export function FlowSimulationSection({ sectionId }: FlowSimulationSectionProps)
     flowTasks: activeTopic.flowTasks,
     roundTasks: activeTopic.roundTasks,
   };
+
+  useEffect(() => {
+    if (!sectionId) {
+      return;
+    }
+
+    const hash = `#${sectionId}`;
+
+    const scrollToSection = (behavior: ScrollBehavior) => {
+      const target = document.getElementById(sectionId);
+      if (!target) {
+        return;
+      }
+
+      const nextTop = getLandingScrollTop(target);
+      if (Math.abs(window.scrollY - nextTop) < 2) {
+        return;
+      }
+
+      window.scrollTo({ top: nextTop, behavior });
+    };
+
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+
+      const trigger = event.target.closest(`a[href="${hash}"]`);
+      if (!(trigger instanceof HTMLAnchorElement)) {
+        return;
+      }
+
+      const target = document.getElementById(sectionId);
+      if (!target) {
+        return;
+      }
+
+      event.preventDefault();
+      window.history.replaceState(window.history.state, "", hash);
+      window.scrollTo({
+        top: getLandingScrollTop(target),
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+      });
+    };
+
+    document.addEventListener("click", handleDocumentClick);
+
+    if (window.location.hash === hash) {
+      scrollToSection("auto");
+    }
+
+    return () => {
+      document.removeEventListener("click", handleDocumentClick);
+    };
+  }, [sectionId]);
 
   return (
     <section className="relative min-h-screen overflow-hidden pt-16 pb-24">
