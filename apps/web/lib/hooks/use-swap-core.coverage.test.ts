@@ -53,7 +53,9 @@ vi.mock("viem", async (importOriginal) => {
 });
 
 import { useSwapCore } from "@/lib/hooks/use-swap-core";
-import { COBUILD_SWAP_PROJECT_ID } from "@/lib/domains/token/onchain/revnet";
+import { COBUILD_PROJECT_ID } from "@/lib/domains/token/onchain/revnet";
+
+const CUSTOM_PROJECT_ID = 999n;
 
 const ACCOUNT = ("0x" + "a".repeat(40)) as `0x${string}`;
 
@@ -103,11 +105,20 @@ describe("useSwapCore", () => {
   });
 
   it("passes projectId through to revnet hooks", () => {
-    renderHook(() => useSwapCore({ projectId: COBUILD_SWAP_PROJECT_ID }));
+    renderHook(() => useSwapCore({ projectId: CUSTOM_PROJECT_ID }));
 
-    expect(usePaymentQuoteMock).toHaveBeenCalledWith(expect.any(String), COBUILD_SWAP_PROJECT_ID);
+    expect(usePaymentQuoteMock).toHaveBeenCalledWith(expect.any(String), CUSTOM_PROJECT_ID);
     expect(useRevnetPayMock).toHaveBeenCalledWith(
-      expect.objectContaining({ projectId: COBUILD_SWAP_PROJECT_ID })
+      expect.objectContaining({ projectId: CUSTOM_PROJECT_ID })
+    );
+  });
+
+  it("uses the canonical project id by default", () => {
+    renderHook(() => useSwapCore());
+
+    expect(usePaymentQuoteMock).toHaveBeenCalledWith(expect.any(String), COBUILD_PROJECT_ID);
+    expect(useRevnetPayMock).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: COBUILD_PROJECT_ID })
     );
   });
 

@@ -18,7 +18,7 @@ vi.mock("@/lib/domains/token/onchain/use-contract-transaction", () => ({
 
 import { useRevnetPay } from "@/lib/hooks/use-revnet-pay";
 import {
-  COBUILD_SWAP_PROJECT_ID,
+  COBUILD_PROJECT_ID,
   REVNET_CHAIN_ID,
   NATIVE_TOKEN,
 } from "@/lib/domains/token/onchain/revnet";
@@ -92,7 +92,7 @@ describe("useRevnetPay", () => {
       account: ACCOUNT,
     });
 
-    const { result } = renderHook(() => useRevnetPay({ projectId: COBUILD_SWAP_PROJECT_ID }));
+    const { result } = renderHook(() => useRevnetPay({ projectId: COBUILD_PROJECT_ID }));
 
     await act(async () => {
       await result.current.pay("0.01", { memo: "hi" });
@@ -103,10 +103,44 @@ describe("useRevnetPay", () => {
       address: ACCOUNT,
       abi: expect.any(Array),
       functionName: "pay",
-      args: [COBUILD_SWAP_PROJECT_ID, NATIVE_TOKEN, expect.any(BigInt), ACCOUNT, 0n, "hi", "0x"],
+      args: [COBUILD_PROJECT_ID, NATIVE_TOKEN, expect.any(BigInt), ACCOUNT, 0n, "hi", "0x"],
       value: expect.any(BigInt),
       chainId: REVNET_CHAIN_ID,
     });
+  });
+
+  it("uses the canonical project id by default", async () => {
+    const prepareWallet = vi.fn();
+    const writeContractAsync = vi.fn();
+
+    useRevnetDataMock.mockReturnValue({
+      data: { terminalAddress: ACCOUNT, supportsEthPayments: true },
+      isLoading: false,
+    });
+    useContractTransactionMock.mockReturnValue({
+      prepareWallet,
+      writeContractAsync,
+      isPending: false,
+      isConfirming: false,
+      isConfirmed: false,
+      isLoading: false,
+      hash: undefined,
+      error: null,
+      account: ACCOUNT,
+    });
+
+    const { result } = renderHook(() => useRevnetPay());
+
+    await act(async () => {
+      await result.current.pay("0.01");
+    });
+
+    expect(useRevnetDataMock).toHaveBeenCalledWith(COBUILD_PROJECT_ID);
+    expect(writeContractAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: [COBUILD_PROJECT_ID, NATIVE_TOKEN, expect.any(BigInt), ACCOUNT, 0n, "", "0x"],
+      })
+    );
   });
 
   it("marks not ready when terminal is zero address", () => {
