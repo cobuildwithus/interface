@@ -32,12 +32,16 @@ vi.mock("@/lib/domains/auth/use-login", () => ({
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: routerRefresh }) }));
 vi.mock("sonner", () => ({ toast: toastMock }));
-vi.mock("@cobuild/wire", () => ({
-  baseBuilderCodeDataSuffixForChainId: (chainId: number) =>
-    chainId === 8453
-      ? ("0x0b62635f64647972736c69780080218021802180218021802180218021" as const)
-      : undefined,
-}));
+vi.mock("@cobuild/wire", async () => {
+  const actual = await vi.importActual<typeof import("@cobuild/wire")>("@cobuild/wire");
+  return {
+    ...actual,
+    baseBuilderCodeDataSuffixForChainId: (chainId: number) =>
+      chainId === 8453
+        ? ("0x0b62635f64647972736c69780080218021802180218021802180218021" as const)
+        : undefined,
+  };
+});
 
 import { useContractTransaction } from "@/lib/domains/token/onchain/use-contract-transaction";
 

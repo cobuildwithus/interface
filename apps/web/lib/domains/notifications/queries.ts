@@ -1,15 +1,16 @@
 import "server-only";
 
 import { normalizeEvmAddress } from "@cobuild/wire";
-import { buildProtocolNotificationPresentation } from "@cobuild/wire/protocol-notifications";
+import {
+  buildDiscussionNotificationAppPath,
+  buildProtocolNotificationPresentation,
+  normalizeWalletNotificationPayload,
+  type WalletNotificationPayload,
+} from "@cobuild/wire/protocol-notifications";
 import { Prisma } from "@/generated/prisma/client";
 import type { MentionProfileInput } from "@/lib/integrations/farcaster/mentions";
 import { insertMentionsFromProfiles } from "@/lib/integrations/farcaster/mentions";
-import { NEYNAR_SCORE_THRESHOLD } from "@/lib/integrations/farcaster/casts/shared";
-import {
-  buildMentionProfilesAggSql,
-  buildRenderableCastSql,
-} from "@/lib/integrations/farcaster/casts/thread/sql";
+import { buildMentionProfilesAggSql } from "@/lib/integrations/farcaster/casts/thread/sql";
 import prisma from "@/lib/server/db/cobuild-db-client";
 import type {
   NotificationsPageData,
@@ -128,14 +129,6 @@ function summarizeText(text: string | null | undefined, maxLength: number): stri
   return `${compact.slice(0, maxLength - 3)}...`;
 }
 
-function buildDiscussionAppPath(sourceHash: string | null, rootHash: string | null): string | null {
-  if (!sourceHash) return null;
-  if (!rootHash || sourceHash === rootHash) {
-    return `/cast/${sourceHash}`;
-  }
-  return `/cast/${rootHash}?post=${sourceHash}`;
-}
-
 function toRootTitle(text: string | null | undefined): string | null {
   if (!text) return null;
   const firstLine = text
@@ -145,12 +138,8 @@ function toRootTitle(text: string | null | undefined): string | null {
   return summarizeText(firstLine ?? null, 80);
 }
 
-function buildHref(row: NotificationRow): string | null {
+function buildHref(row: NotificationRow, payload: WalletNotificationPayload): string | null {
   if (row.kind === "protocol") {
-    const payload =
-      row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
-        ? (row.payload as Record<string, unknown>)
-        : null;
     return buildProtocolNotificationPresentation({
       reason: row.reason,
       payload,
@@ -158,7 +147,10 @@ function buildHref(row: NotificationRow): string | null {
     }).appPath;
   }
   if (row.kind !== "discussion") return null;
-  return buildDiscussionAppPath(bufferToHash(row.sourceHash), bufferToHash(row.rootHash));
+  return buildDiscussionNotificationAppPath(
+    bufferToHash(row.sourceHash),
+    bufferToHash(row.rootHash)
+  );
 }
 
 function toMentionProfiles(
@@ -181,10 +173,7 @@ function buildRenderedText(
 }
 
 function mapNotificationRow(row: NotificationRow): NotificationListItem {
-  const payload =
-    row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
-      ? (row.payload as Record<string, unknown>)
-      : null;
+  const payload = normalizeWalletNotificationPayload(row.kind, row.payload);
   const protocolPresentation =
     row.kind === "protocol"
       ? buildProtocolNotificationPresentation({
@@ -232,7 +221,7 @@ function mapNotificationRow(row: NotificationRow): NotificationListItem {
     eventAt: toIsoString(row.eventAt),
     createdAt: toIsoString(row.createdAt),
     isUnread: row.isUnread,
-    href: buildHref(row),
+    href: buildHref(row, payload),
     sourceHash: bufferToHash(row.sourceHash),
     rootHash: bufferToHash(row.rootHash),
     targetHash: bufferToHash(row.targetHash),
@@ -261,35 +250,13 @@ const buildNotificationFromSql = Prisma.sql`
 const buildVisibleNotificationsWhereSql = (address: string) => Prisma.sql`
   WHERE notification.recipient_wallet_address = ${address}
     AND notification.invalidated_at IS NULL
-    AND (
-      notification.kind <> 'discussion'
-      OR (
-        source.hash IS NOT NULL
-        AND source.deleted_at IS NULL
-        AND source.hidden_at IS NULL
-        AND ${buildRenderableCastSql("source")}
-        AND root.hash IS NOT NULL
-        AND root.deleted_at IS NULL
-        AND root.hidden_at IS NULL
-        AND ${buildRenderableCastSql("root")}
-        AND root_author.fid IS NOT NULL
-        AND root_author.hidden_at IS NULL
-        AND root_author.neynar_user_score IS NOT NULL
-        AND root_author.neynar_user_score >= ${NEYNAR_SCORE_THRESHOLD}
-        AND actor.fid IS NOT NULL
-        AND actor.hidden_at IS NULL
-        AND actor.neynar_user_score IS NOT NULL
-        AND actor.neynar_user_score >= ${NEYNAR_SCORE_THRESHOLD}
-        AND (
-          notification.reason <> 'reply_to_reply'
-          OR (
-            target.hash IS NOT NULL
-            AND target.deleted_at IS NULL
-            AND target.hidden_at IS NULL
-            AND ${buildRenderableCastSql("target")}
-          )
-        )
-      )
+    AND cobuild.notification_row_is_visible(
+      notification,
+      source,
+      actor,
+      root,
+      root_author,
+      target
     )
 `;
 

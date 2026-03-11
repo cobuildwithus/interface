@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   buildFarcasterSignupAlreadyRegisteredErrorResponse,
   buildFarcasterSignupResponse,
+  normalizeFarcasterExtraStorage,
   normalizeEvmAddress as normalizeAddress,
 } from "@cobuild/wire";
 import { isAddress } from "viem";
@@ -29,40 +30,18 @@ const SignupRequestSchema = z.object({
     .trim()
     .regex(/^0x[0-9a-fA-F]{64}$/, "signerPublicKey must be 32-byte hex (0x + 64 hex chars)"),
   recoveryAddress: z.string().trim().optional(),
-  extraStorage: z
-    .union([z.string().trim(), z.number().int().nonnegative()])
-    .optional()
-    .refine(
-      (value) => {
-        if (value === undefined) return true;
-        if (typeof value === "number") {
-          return value <= 10;
-        }
-        return /^\d+$/.test(value) ? BigInt(value) <= 10n : true;
-      },
-      { message: "extraStorage max is 10" }
-    ),
+  extraStorage: z.union([z.string().trim(), z.number()]).optional(),
 });
 
 function parseExtraStorage(value: string | number | undefined): bigint {
-  if (value === undefined) return 0n;
-  if (typeof value === "number") {
-    if (value > 10) {
-      throw new RequestValidationError("extraStorage max is 10");
+  try {
+    return normalizeFarcasterExtraStorage(value, "extraStorage");
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new RequestValidationError(error.message);
     }
-    return BigInt(value);
+    throw error;
   }
-
-  if (!/^\d+$/.test(value)) {
-    throw new RequestValidationError("extraStorage must be a non-negative integer");
-  }
-
-  const parsed = BigInt(value);
-  if (parsed > 10n) {
-    throw new RequestValidationError("extraStorage max is 10");
-  }
-
-  return parsed;
 }
 
 function signupErrorResponse(error: unknown) {

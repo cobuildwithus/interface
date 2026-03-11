@@ -36,8 +36,8 @@ export function PriceChart({ priceHistory }: PriceChartProps) {
             </span>
           </div>
           <div>
-            <div className="text-sm font-medium">$NETWORK</div>
-            <div className="text-xs text-neutral-500">Token price</div>
+            <div className="text-sm font-medium">Cobuild</div>
+            <div className="text-xs text-neutral-500">Social funding</div>
           </div>
         </div>
         <div className="text-right">

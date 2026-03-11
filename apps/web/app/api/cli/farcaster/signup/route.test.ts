@@ -6,6 +6,9 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@cobuild/wire", async () => {
+  return await vi.importActual<typeof import("@cobuild/wire")>("@cobuild/wire");
+});
 
 const { requireCliBearerAuthMock, signupCliFarcasterMock } = vi.hoisted(() => ({
   requireCliBearerAuthMock: vi.fn(),
@@ -99,6 +102,47 @@ describe("cli farcaster signup route", () => {
     });
   });
 
+  it("passes non-zero extraStorage through shared normalization to the hosted signup service", async () => {
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    signupCliFarcasterMock.mockResolvedValue({
+      status: "needs_funding",
+      network: "optimism",
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      custodyAddress: "0x0000000000000000000000000000000000000002",
+      recoveryAddress: "0x0000000000000000000000000000000000000009",
+      idGatewayPriceWei: "7000000000000000",
+      idGatewayPriceEth: "0.007",
+      balanceWei: "0",
+      balanceEth: "0",
+      requiredWei: "7200000000000000",
+      requiredEth: "0.0072",
+    });
+
+    const request = new Request("http://localhost/api/cli/farcaster/signup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        signerPublicKey: "0x1111111111111111111111111111111111111111111111111111111111111111",
+        recoveryAddress: "0x0000000000000000000000000000000000000009",
+        extraStorage: 2,
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(signupCliFarcasterMock).toHaveBeenCalledWith({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      agentKey: "default",
+      signerPublicKey: "0x1111111111111111111111111111111111111111111111111111111111111111",
+      recoveryAddress: "0x0000000000000000000000000000000000000009",
+      extraStorage: 2n,
+    });
+  });
+
   it("returns 401 on auth errors", async () => {
     requireCliBearerAuthMock.mockRejectedValue(new CliAuthError(401, "Unauthorized"));
 
@@ -173,7 +217,55 @@ describe("cli farcaster signup route", () => {
     const payload = (await response.json()) as { ok?: boolean; error?: string; details?: unknown };
     expect(response.status).toBe(400);
     expect(payload.ok).toBe(false);
-    expect(payload.error).toBe("Invalid request body");
+    expect(payload.error).toBe("extraStorage max is 10");
+    expect(signupCliFarcasterMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when numeric extraStorage is negative", async () => {
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+
+    const request = new Request("http://localhost/api/cli/farcaster/signup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        signerPublicKey: "0x1111111111111111111111111111111111111111111111111111111111111111",
+        extraStorage: -1,
+      }),
+    });
+
+    const response = await POST(request);
+    const payload = (await response.json()) as { ok?: boolean; error?: string };
+    expect(response.status).toBe(400);
+    expect(payload.ok).toBe(false);
+    expect(payload.error).toBe("extraStorage must be a non-negative integer");
+    expect(signupCliFarcasterMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when numeric extraStorage is fractional", async () => {
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+
+    const request = new Request("http://localhost/api/cli/farcaster/signup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        signerPublicKey: "0x1111111111111111111111111111111111111111111111111111111111111111",
+        extraStorage: 1.5,
+      }),
+    });
+
+    const response = await POST(request);
+    const payload = (await response.json()) as { ok?: boolean; error?: string };
+    expect(response.status).toBe(400);
+    expect(payload.ok).toBe(false);
+    expect(payload.error).toBe("extraStorage must be a non-negative integer");
     expect(signupCliFarcasterMock).not.toHaveBeenCalled();
   });
 

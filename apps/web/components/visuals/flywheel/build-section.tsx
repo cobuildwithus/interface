@@ -25,7 +25,7 @@ export function BuildSection({ label, fireworkTrigger, isAnimating }: BuildSecti
         </div>
       </div>
       <p className="max-w-xs text-center text-xs text-neutral-400">
-        Builders make grassroots impact and post evidence online.
+        Builders improve software and share progress.
       </p>
     </div>
   );

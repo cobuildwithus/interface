@@ -34,7 +34,7 @@ export function EngageSection({
         recastCount={recastCount}
       />
       <p className="max-w-xs text-center text-xs text-neutral-400">
-        Likes, comments, and follows buy tokens to support goals you believe in.
+        Likes, comments, and follows fund software you love to use.
       </p>
     </div>
   );

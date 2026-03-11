@@ -40,6 +40,45 @@ import {
 } from "./queries";
 import { Prisma } from "@/generated/prisma/client";
 
+type SqlChunk =
+  | string
+  | Prisma.Sql
+  | readonly SqlChunk[]
+  | {
+      sql?: string;
+      text?: string;
+      strings?: string[];
+      values?: readonly SqlChunk[];
+    }
+  | null
+  | undefined;
+
+const collectSqlChunks = (value: SqlChunk, acc: string[] = []): string[] => {
+  if (typeof value === "string") {
+    acc.push(value);
+    return acc;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectSqlChunks(entry, acc));
+    return acc;
+  }
+  if (!value || typeof value !== "object") {
+    return acc;
+  }
+  if ("sql" in value && typeof value.sql === "string") acc.push(value.sql);
+  if ("text" in value && typeof value.text === "string") acc.push(value.text);
+  if ("strings" in value && Array.isArray(value.strings)) {
+    acc.push(...value.strings.filter(Boolean));
+  }
+  if ("values" in value && Array.isArray(value.values)) {
+    (value.values as readonly SqlChunk[]).forEach((entry) => collectSqlChunks(entry, acc));
+  }
+  return acc;
+};
+
+const collectSqlFromCall = (call: unknown[] | undefined): string =>
+  (call ?? []).flatMap((entry) => collectSqlChunks(entry as SqlChunk)).join(" ");
+
 describe("notifications queries", () => {
   beforeEach(() => {
     replicaQueryRawMock.mockReset();
@@ -66,6 +105,37 @@ describe("notifications queries", () => {
       count: 2,
       watermark: "1741435200000003:9",
     });
+  });
+
+  it("uses the DB-owned notification visibility helper instead of restating discussion rules", async () => {
+    replicaQueryRawMock.mockResolvedValueOnce([{ count: 2n, watermark: "1741435200000003:9" }]);
+
+    await getUnreadNotificationsState("0x0000000000000000000000000000000000000001");
+
+    const sqlText = collectSqlFromCall(replicaQueryRawMock.mock.calls[0]);
+
+    expect(sqlText).toContain("cobuild.notification_row_is_visible(");
+    expect(sqlText).not.toContain("root_author.neynar_user_score");
+    expect(sqlText).not.toContain("target.deleted_at IS NULL");
+  });
+
+  it("uses the DB-owned notification visibility helper for page queries too", async () => {
+    primaryQueryRawMock
+      .mockResolvedValueOnce([{ count: 2n, watermark: "1741435200000003:9" }])
+      .mockResolvedValueOnce([{ count: 1n }])
+      .mockResolvedValueOnce([{ watermark: "1741435200000003:9" }])
+      .mockResolvedValueOnce([]);
+
+    await getNotificationsPage("0x0000000000000000000000000000000000000001", 1);
+
+    const pageQuerySql = primaryQueryRawMock.mock.calls.slice(1).map(collectSqlFromCall);
+
+    expect(pageQuerySql).toHaveLength(3);
+    for (const sqlText of pageQuerySql) {
+      expect(sqlText).toContain("cobuild.notification_row_is_visible(");
+      expect(sqlText).not.toContain("root_author.neynar_user_score");
+      expect(sqlText).not.toContain("target.deleted_at IS NULL");
+    }
   });
 
   it("returns zero unread count when the address is invalid", async () => {
@@ -132,6 +202,7 @@ describe("notifications queries", () => {
           username: "alice",
           avatarUrl: "https://example.com/alice.png",
         },
+        payload: null,
       }),
     ]);
     expect(page.watermark).toBe("1741435200000001:7");
@@ -211,6 +282,57 @@ describe("notifications queries", () => {
     );
   });
 
+  it("normalizes payment notification payloads through the shared wire contract", async () => {
+    const createdAt = new Date("2026-03-08T12:00:00.000Z");
+
+    primaryQueryRawMock
+      .mockResolvedValueOnce([{ count: 1n, watermark: "1741435200000001:12" }])
+      .mockResolvedValueOnce([{ count: 1n }])
+      .mockResolvedValueOnce([{ watermark: "1741435200000001:12" }])
+      .mockResolvedValueOnce([
+        {
+          id: 12n,
+          kind: "payment",
+          reason: "payment_received",
+          eventAt: createdAt,
+          createdAt,
+          lastReadAt: null,
+          isUnread: true,
+          sourceHash: null,
+          rootHash: null,
+          targetHash: null,
+          actorFid: null,
+          actorWalletAddress: null,
+          actorUsername: null,
+          actorDisplayName: null,
+          actorAvatarUrl: null,
+          sourceText: "Paid out from the treasury",
+          sourceMentionsPositions: null,
+          sourceMentionProfiles: null,
+          rootText: null,
+          rootMentionsPositions: null,
+          rootMentionProfiles: null,
+          payload: {
+            amount: 42,
+            ignored: "value that should not leak through",
+          },
+        },
+      ]);
+
+    const page = await getNotificationsPage("0x0000000000000000000000000000000000000001", 1);
+
+    expect(page.items[0]).toEqual(
+      expect.objectContaining({
+        kind: "payment",
+        href: null,
+        sourceExcerpt: "Paid out from the treasury",
+        payload: {
+          amount: "42",
+        },
+      })
+    );
+  });
+
   it("preserves protocol actor labels when only actor_wallet_address is present", async () => {
     const createdAt = new Date("2026-03-08T12:00:00.000Z");
 
@@ -264,6 +386,16 @@ describe("notifications queries", () => {
         rootTitle: "New budget proposed in Alpha.",
         sourceExcerpt: "0x0000...00aa opened a new budget request.",
         href: "/0x00000000000000000000000000000000000000bb/events?focus=request",
+        payload: expect.objectContaining({
+          role: null,
+          actor: null,
+          labels: expect.objectContaining({
+            goalName: "Alpha",
+          }),
+          resource: expect.objectContaining({
+            goalTreasury: "0x00000000000000000000000000000000000000bb",
+          }),
+        }),
       })
     );
   });

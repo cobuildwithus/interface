@@ -135,6 +135,22 @@ function modeledUnreadAfterReopen(args: {
 }
 
 describe("protocol notification schedule SQL", () => {
+  it("pins the profile-fid discussion rematerializer wrapper predicates and delegation", () => {
+    const discussionSql = readFileSync(discussionSqlPath, "utf8");
+    const functionSql = sqlForFunction(
+      discussionSql,
+      "materialize_discussion_notifications_for_profile_fids"
+    );
+
+    expect(functionSql).toContain("WHERE target.fid IS NOT NULL");
+    expect(functionSql).toContain("AND target.fid > 0");
+    expect(functionSql).toContain("source.parent_fid = ANY(target.fids)");
+    expect(functionSql).toContain("source.mentioned_fids && target.fids");
+    expect(functionSql).not.toContain("source.fid = ANY(target.fids)");
+    expect(functionSql).not.toContain("root.fid = ANY(target.fids)");
+    expect(functionSql).toContain("SELECT cobuild.materialize_discussion_notifications(");
+  });
+
   it("preserves existing inbox created_at in both protocol re-materialization paths", () => {
     const sql = readFileSync(sqlPath, "utf8");
     const discussionSql = readFileSync(discussionSqlPath, "utf8");

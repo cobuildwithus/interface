@@ -64,7 +64,13 @@ vi.mock("@/lib/domains/token/onchain/chains", () => ({
   getRpcUrl,
 }));
 vi.mock("@/lib/domains/token/onchain/addresses", () => ({ contracts }));
-vi.mock("@cobuild/wire", () => ({ baseBuilderCodeDataSuffixForChainId }));
+vi.mock("@cobuild/wire", async () => {
+  const actual = await vi.importActual<typeof import("@cobuild/wire")>("@cobuild/wire");
+  return {
+    ...actual,
+    baseBuilderCodeDataSuffixForChainId,
+  };
+});
 vi.mock("@vercel/kv", () => ({
   kv: {
     set: (...args: Parameters<typeof kvSetMock>) => kvSetMock(...args),

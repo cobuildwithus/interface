@@ -5,15 +5,9 @@ import {
   FARCASTER_ID_GATEWAY_ABI,
   FARCASTER_ID_REGISTRY_ABI,
   baseBuilderCodeDataSuffixForNetwork,
-  buildFarcasterSignupCompletedResult,
-  buildFarcasterSignupNeedsFundingResult,
-  buildFarcasterSignedKeyRequestMetadata,
-  buildFarcasterSignedKeyRequestTypedData,
-  buildFarcasterSignupCallPlan,
-  buildFarcasterSignupExecutableCalls,
-  computeFarcasterSignedKeyRequestDeadline,
-  evaluateFarcasterSignupPreflight,
+  normalizeFarcasterExtraStorage,
   normalizeEvmAddress as normalizeAddress,
+  planFarcasterSignup,
   type FarcasterSignupResult,
 } from "@cobuild/wire";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
@@ -51,16 +45,15 @@ export async function signupCliFarcaster(params: {
   ownerAddress: `0x${string}`;
   agentKey: string;
   signerPublicKey: `0x${string}`;
-  recoveryAddress?: `0x${string}`;
-  extraStorage?: bigint;
+  recoveryAddress?: `0x${string}` | string;
+  extraStorage?: bigint | number | string;
 }): Promise<FarcasterSignupResult> {
-  const extraStorage = params.extraStorage ?? 0n;
+  const extraStorage = normalizeFarcasterExtraStorage(params.extraStorage, "extraStorage");
   const ownerAddress = normalizeAddress(params.ownerAddress, "ownerAddress");
   const recoveryAddress = normalizeAddress(
     params.recoveryAddress ?? params.ownerAddress,
     "recoveryAddress"
   );
-  const signerPublicKey = params.signerPublicKey.toLowerCase() as `0x${string}`;
 
   const smartAccount = await getOrCreateCliAgentSmartAccount({
     ownerAddress,
@@ -81,55 +74,42 @@ export async function signupCliFarcaster(params: {
     args: [extraStorage],
   });
   const balanceWei = await client.getBalance({ address: custodyAddress });
-  const preflight = evaluateFarcasterSignupPreflight({
+  const signupPlan = planFarcasterSignup({
+    ownerAddress,
     custodyAddress,
+    recoveryAddress,
+    signerPublicKey: params.signerPublicKey,
     existingFid,
     idGatewayPriceWei: priceWei,
     balanceWei,
+    extraStorage,
   });
 
-  if (preflight.status === "needs_funding") {
-    return buildFarcasterSignupNeedsFundingResult({
-      ownerAddress,
+  if (signupPlan.status === "needs_funding") {
+    return signupPlan;
+  }
+  if (signupPlan.status === "already_registered") {
+    throw new CliFarcasterAlreadyRegisteredError({
+      fid: BigInt(signupPlan.existingFid),
       custodyAddress,
-      recoveryAddress,
-      idGatewayPriceWei: priceWei,
-      balanceWei,
-      requiredWei: preflight.requiredWei,
     });
   }
 
-  const deadline = computeFarcasterSignedKeyRequestDeadline();
   const requestSigner = privateKeyToAccount(generatePrivateKey());
-  const typedData = buildFarcasterSignedKeyRequestTypedData({
-    requestFid: 0n,
-    signerPublicKey,
-    deadline,
-  });
+  const typedData = signupPlan.typedData;
   const signedKeyRequestSignature = await requestSigner.signTypedData({
     domain: typedData.domain,
     types: { SignedKeyRequest: typedData.types.SignedKeyRequest },
     primaryType: typedData.primaryType,
     message: typedData.message,
   });
-  const signedKeyRequestMetadata = buildFarcasterSignedKeyRequestMetadata({
-    requestFid: typedData.message.requestFid,
+  const executableCalls = signupPlan.buildExecutableCalls({
     requestSigner: requestSigner.address,
     signature: signedKeyRequestSignature,
-    deadline: typedData.message.deadline,
   });
-
-  const signupCallPlan = buildFarcasterSignupCallPlan({
-    recoveryAddress,
-    extraStorage,
-    idGatewayPriceWei: priceWei,
-    signerPublicKey,
-    signedKeyRequestMetadata,
-  });
-  const executableCalls = buildFarcasterSignupExecutableCalls(signupCallPlan);
-  const dataSuffix = baseBuilderCodeDataSuffixForNetwork(signupCallPlan.network);
+  const dataSuffix = baseBuilderCodeDataSuffixForNetwork(signupPlan.network);
   const signupUserOp = await smartAccount.sendUserOperation({
-    network: signupCallPlan.network,
+    network: signupPlan.network,
     calls: executableCalls,
     ...(dataSuffix ? { dataSuffix } : {}),
   });
@@ -148,12 +128,8 @@ export async function signupCliFarcaster(params: {
     );
   }
 
-  return buildFarcasterSignupCompletedResult({
-    ownerAddress,
-    custodyAddress,
-    recoveryAddress,
+  return signupPlan.buildCompletedResult({
     fid,
-    idGatewayPriceWei: priceWei,
     txHash,
   });
 }

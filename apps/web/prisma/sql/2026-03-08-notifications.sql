@@ -309,6 +309,35 @@ AS $$
   SELECT COUNT(*)::integer FROM upserted
 $$;
 
+CREATE OR REPLACE FUNCTION cobuild.materialize_discussion_notifications_for_profile_fids(
+  profile_fids BIGINT[]
+)
+RETURNS INTEGER
+LANGUAGE sql
+AS $$
+  WITH target_fids AS (
+    SELECT COALESCE(array_agg(DISTINCT target.fid), ARRAY[]::bigint[]) AS fids
+    FROM unnest(profile_fids) AS target(fid)
+    WHERE target.fid IS NOT NULL
+      AND target.fid > 0
+  ),
+  candidate_hashes AS (
+    SELECT DISTINCT source.hash
+    FROM farcaster.casts source
+    CROSS JOIN target_fids target
+    WHERE cardinality(target.fids) > 0
+      AND source.root_parent_url = 'https://farcaster.xyz/~/channel/cobuild'
+      AND (
+        source.parent_fid = ANY(target.fids)
+        OR source.mentioned_fids && target.fids
+      )
+  )
+  SELECT cobuild.materialize_discussion_notifications(
+    COALESCE(array_agg(candidate.hash), ARRAY[]::bytea[])
+  )
+  FROM candidate_hashes candidate
+$$;
+
 CREATE OR REPLACE FUNCTION cobuild.invalidate_notifications_for_source_hashes(source_hashes BYTEA[])
 RETURNS INTEGER
 LANGUAGE sql

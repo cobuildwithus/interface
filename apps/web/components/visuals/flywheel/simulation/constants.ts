@@ -34,15 +34,15 @@ export const INTERACTION_CONFIG = {
 } as const;
 
 export const WORK_TYPES = [
-  "organize meetup",
-  "teach workshop",
-  "lead hike",
-  "run open mic",
-  "mentor student",
-  "build app",
-  "write newsletter",
-  "clean beach",
-  "plant trees",
+  "fix bug",
+  "review pull request",
+  "triage issues",
+  "write documentation",
+  "add tests",
+  "refactor module",
+  "design API",
+  "improve performance",
+  "update dependencies",
 ];
 
 export const WORKERS = [

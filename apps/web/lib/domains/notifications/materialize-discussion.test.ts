@@ -14,7 +14,10 @@ vi.mock("@/lib/server/db/cobuild-db-client", () => ({
   },
 }));
 
-import { materializeDiscussionNotifications } from "./materialize-discussion";
+import {
+  materializeDiscussionNotifications,
+  materializeDiscussionNotificationsForProfileFids,
+} from "./materialize-discussion";
 
 describe("materializeDiscussionNotifications", () => {
   beforeEach(() => {
@@ -34,6 +37,23 @@ describe("materializeDiscussionNotifications", () => {
     await expect(materializeDiscussionNotifications([hash, hash, null, otherHash])).resolves.toBe(
       2
     );
+
+    expect(queryRawMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns zero without querying when no valid profile fids are provided", async () => {
+    await expect(
+      materializeDiscussionNotificationsForProfileFids([null, undefined, 0, -1, ""])
+    ).resolves.toBe(0);
+    expect(queryRawMock).not.toHaveBeenCalled();
+  });
+
+  it("dedupes profile fids before calling the DB wrapper", async () => {
+    queryRawMock.mockResolvedValueOnce([{ count: 3n }]);
+
+    await expect(
+      materializeDiscussionNotificationsForProfileFids([1, "1", 2, 2n, null])
+    ).resolves.toBe(3);
 
     expect(queryRawMock).toHaveBeenCalledTimes(1);
   });

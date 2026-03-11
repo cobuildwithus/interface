@@ -85,10 +85,10 @@ export function SocialPost({
 
       {/* Content */}
       <p className="mb-4 text-sm leading-relaxed text-neutral-200">
-        Just finished our second Cobuild meetup in San Francisco
+        Just put the final touches on your personal health assistant.
         <br />
         <br />
-        So many great people and conversations. Lots to think about going forward.
+        Now supports tracking your sleep, heart rate, and activity from any wearable.
       </p>
 
       {/* Engagement actions */}

@@ -9,6 +9,9 @@ import {
 import { decodeAbiParameters, decodeFunctionData } from "viem";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@cobuild/wire", async () => {
+  return await vi.importActual<typeof import("@cobuild/wire")>("@cobuild/wire");
+});
 
 const { getClientMock, getOrCreateCliAgentSmartAccountMock } = vi.hoisted(() => ({
   getClientMock: vi.fn(),
@@ -68,6 +71,8 @@ describe("cli farcaster signup service", () => {
       })
     ).rejects.toBeInstanceOf(CliFarcasterAlreadyRegisteredError);
 
+    expect(readContractMock).toHaveBeenCalledTimes(1);
+    expect(getBalanceMock).not.toHaveBeenCalled();
     expect(sendUserOperationMock).not.toHaveBeenCalled();
   });
 
@@ -147,9 +152,16 @@ describe("cli farcaster signup service", () => {
       agentKey: "default",
       signerPublicKey: "0xAABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899",
       recoveryAddress: "0x0000000000000000000000000000000000000009",
+      extraStorage: 2n,
     });
 
     expect(sendUserOperationMock).toHaveBeenCalledTimes(1);
+    expect(readContractMock).toHaveBeenNthCalledWith(2, {
+      address: FARCASTER_CONTRACTS.idGateway,
+      abi: FARCASTER_ID_GATEWAY_ABI,
+      functionName: "price",
+      args: [2n],
+    });
     const userOperation = sendUserOperationMock.mock.calls[0]?.[0] as {
       network: string;
       calls: Array<{ to: `0x${string}`; data: `0x${string}`; value: bigint }>;
@@ -165,7 +177,7 @@ describe("cli farcaster signup service", () => {
       data: registerCall.data,
     });
     expect(decodedRegisterCall.functionName).toBe("register");
-    expect(decodedRegisterCall.args).toEqual(["0x0000000000000000000000000000000000000009", 0n]);
+    expect(decodedRegisterCall.args).toEqual(["0x0000000000000000000000000000000000000009", 2n]);
 
     const addKeyCall = userOperation.calls[1];
     expect(addKeyCall.to).toBe(FARCASTER_CONTRACTS.keyGateway);

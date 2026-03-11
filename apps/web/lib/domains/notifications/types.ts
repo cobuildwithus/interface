@@ -1,3 +1,5 @@
+import type { WalletNotificationPayload } from "@cobuild/wire/protocol-notifications";
+
 export type NotificationKind = "discussion" | "payment" | "protocol";
 
 export type NotificationReason = "mention" | "reply_to_root" | "reply_to_reply" | string;
@@ -23,7 +25,7 @@ export type NotificationListItem = {
   targetHash: string | null;
   rootTitle: string | null;
   sourceExcerpt: string | null;
-  payload: Record<string, unknown> | null;
+  payload: WalletNotificationPayload;
 };
 
 export type NotificationsPageData = {
