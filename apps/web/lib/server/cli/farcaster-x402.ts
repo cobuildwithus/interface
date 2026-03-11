@@ -1,54 +1,19 @@
 import "server-only";
 
 import {
-  BASE_CHAIN_ID,
-  USDC_EIP712_DOMAIN_NAME,
-  USDC_EIP712_DOMAIN_VERSION,
-  X402_AUTH_TTL_SECONDS,
-  X402_PAY_TO_ADDRESS,
-  X402_TRANSFER_PRIMARY_TYPE,
-  X402_USDC_CONTRACT,
-  X402_VALUE_MICRO_USDC,
-  buildX402AuthorizationPayload,
-  buildX402PaymentPayload,
-  buildX402TypedDataDomain,
-  buildX402TypedDataTypes,
+  buildFarcasterX402SigningRequest,
+  buildFarcasterX402Spec,
   buildFarcasterHostedX402PaymentResult,
-  encodeX402PaymentPayload,
+  type FarcasterHostedX402PaymentResult,
 } from "@cobuild/wire";
-import type { Address } from "viem";
 import { CliPolicyError } from "./errors";
 import { getCliCdpClient } from "./cdp-client";
 import { getCliAccountPolicyId, getCliEnv, parseCliBoolean } from "./env";
 import { getOrCreateCliAgentOwnerAccount } from "./wallet-store";
 
-// Keep this aligned with local CLI x402 auth TTL to avoid cross-surface drift.
-const X402_VALIDITY_SECONDS = X402_AUTH_TTL_SECONDS;
+const FARCASTER_X402_SPEC = buildFarcasterX402Spec();
 
-const USDC_BASE: Address = X402_USDC_CONTRACT;
-const NEYNAR_PAY_TO: Address = X402_PAY_TO_ADDRESS;
-const X402_AMOUNT_MICRO_USDC = X402_VALUE_MICRO_USDC;
-
-const X402_TYPED_DATA_DOMAIN = buildX402TypedDataDomain({
-  name: USDC_EIP712_DOMAIN_NAME,
-  version: USDC_EIP712_DOMAIN_VERSION,
-  chainId: BASE_CHAIN_ID,
-  verifyingContract: USDC_BASE,
-});
-
-const X402_TYPED_DATA_TYPES = buildX402TypedDataTypes();
-
-export type CliFarcasterX402PaymentResult = {
-  xPayment: string;
-  payerAddress: Address;
-  payTo: Address;
-  token: Address;
-  amount: string;
-  network: "base";
-  validAfter: number;
-  validBefore: number;
-  agentKey: string;
-};
+export type CliFarcasterX402PaymentResult = FarcasterHostedX402PaymentResult;
 
 export class CliFarcasterX402SigningError extends Error {}
 
@@ -76,25 +41,13 @@ function resolveX402Policy(): X402Policy {
   return {
     maxAmountMicroUsdc: maxAmount
       ? parsePositiveInteger(maxAmount, "FARCASTER_X402_MAX_AMOUNT_MICRO_USDC")
-      : X402_AMOUNT_MICRO_USDC,
+      : FARCASTER_X402_SPEC.amount,
     requireAccountPolicy,
   };
 }
 
 function assertPolicyPreconditions(policy: X402Policy): void {
-  if (X402_TRANSFER_PRIMARY_TYPE !== "TransferWithAuthorization") {
-    throw new CliPolicyError("x402 signing policy violation: typed-data primaryType mismatch");
-  }
-  if (X402_TYPED_DATA_DOMAIN.chainId !== BASE_CHAIN_ID) {
-    throw new CliPolicyError("x402 signing policy violation: chainId is not Base mainnet");
-  }
-  if (X402_TYPED_DATA_DOMAIN.verifyingContract !== USDC_BASE) {
-    throw new CliPolicyError("x402 signing policy violation: token contract must be USDC on Base");
-  }
-  if (NEYNAR_PAY_TO !== "0xa6a8736f18f383f1cc2d938576933e5ea7df01a1") {
-    throw new CliPolicyError("x402 signing policy violation: pay-to must be Neynar");
-  }
-  if (BigInt(X402_AMOUNT_MICRO_USDC) > BigInt(policy.maxAmountMicroUsdc)) {
+  if (BigInt(FARCASTER_X402_SPEC.amount) > BigInt(policy.maxAmountMicroUsdc)) {
     throw new CliPolicyError("x402 signing policy violation: amount exceeds configured cap");
   }
   if (policy.requireAccountPolicy) {
@@ -118,12 +71,8 @@ export async function createCliFarcasterX402Payment(params: {
     agentKey: params.agentKey,
   });
 
-  const validAfter = 0;
-  const validBefore = Math.floor(Date.now() / 1000) + X402_VALIDITY_SECONDS;
-  const authorization = buildX402AuthorizationPayload({
-    from: ownerAccount.address,
-    validAfter,
-    validBefore,
+  const signingRequest = buildFarcasterX402SigningRequest({
+    payerAddress: ownerAccount.address,
   });
 
   const cdp = getCliCdpClient();
@@ -131,10 +80,10 @@ export async function createCliFarcasterX402Payment(params: {
   try {
     const signed = await cdp.evm.signTypedData({
       address: ownerAccount.address,
-      domain: X402_TYPED_DATA_DOMAIN,
-      types: X402_TYPED_DATA_TYPES,
-      primaryType: X402_TRANSFER_PRIMARY_TYPE,
-      message: authorization,
+      domain: signingRequest.domain,
+      types: signingRequest.types,
+      primaryType: signingRequest.primaryType,
+      message: signingRequest.authorization,
     });
     signature = signed.signature;
   } catch {
@@ -143,14 +92,13 @@ export async function createCliFarcasterX402Payment(params: {
     );
   }
 
-  const paymentPayload = buildX402PaymentPayload({ signature, authorization });
-  const xPayment = encodeX402PaymentPayload(paymentPayload);
+  const xPayment = signingRequest.encodePayment(signature);
 
   return buildFarcasterHostedX402PaymentResult({
     xPayment,
     payerAddress: ownerAccount.address,
     agentKey: params.agentKey,
-    validAfter,
-    validBefore,
+    validAfter: signingRequest.validAfter,
+    validBefore: signingRequest.validBefore,
   });
 }

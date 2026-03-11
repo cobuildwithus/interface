@@ -2,6 +2,9 @@ import { validateFarcasterHostedX402PaymentResponse } from "@cobuild/wire";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@cobuild/wire", async () => {
+  return await vi.importActual<typeof import("@cobuild/wire")>("@cobuild/wire");
+});
 
 const { randomBytesMock, getCliCdpClientMock, getOrCreateCliAgentOwnerAccountMock } = vi.hoisted(
   () => ({
