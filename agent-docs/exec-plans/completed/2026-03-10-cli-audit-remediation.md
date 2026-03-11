@@ -1,5 +1,10 @@
 # 2026-03-10 CLI Audit Remediation
 
+Status: completed
+Created: 2026-03-10
+Updated: 2026-03-10
+Completed: 2026-03-10
+
 ## Goal
 
 Close the hosted CLI execution and app-surface findings from the 2026-03-10 audit by making bearer auth live-session-aware, adding resumable idempotent user-op state, enforcing explicit wait/body/policy limits, collapsing wallet provisioning into one post-policy layer, and hardening public goal-create and swap permit flows.

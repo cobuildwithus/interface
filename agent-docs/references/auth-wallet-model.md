@@ -54,6 +54,8 @@
 
 - CLI API PAT mint/revoke is session-authenticated (`app/api/cli/token/route.ts`).
 - CLI bearer auth resolves to `{ ownerAddress, agentKey }`; wallet/exec routes derive `agentKey` from PAT auth context rather than request bodies.
+- Hosted CLI bearer verification uses the shared `@cobuild/wire` verifier, but keeps JWT key loading and active-session DB reads local to `interface`.
+- Active CLI sessions must still exist, remain unrevoked/unexpired, and keep the same stored scope as the presented bearer token.
 - Wallet provisioning is keyed by `(ownerAddress, agentKey)` and currently defaults PAT `agentKey` to `"default"` for MVP.
 - CLI CLI docs/tools routes use canonical chat-api `/v1/tools*` and `/v1/tool-executions` surfaces through edge/gateway routing.
 - Interface keeps PAT mint/revoke and cli wallet/exec APIs in-repo (`app/api/cli/**`) while chat-api owns canonical tool-runtime execution.

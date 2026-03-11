@@ -282,6 +282,63 @@ describe("cli exec route", () => {
     );
   });
 
+  it("prefers an explicit protocol-step network over an unsupported stored wallet default", async () => {
+    const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xprotocol-op" });
+    const waitForUserOperationMock = vi
+      .fn()
+      .mockResolvedValue({ status: "complete", transactionHash: "0xprotocol-tx" });
+    setSmartAccountMocks({ sendUserOperationMock, waitForUserOperationMock });
+
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      address: "0x0000000000000000000000000000000000000002",
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base-sepolia",
+    });
+
+    const plan = buildPremiumClaimPlan({
+      premiumEscrowAddress: "0x00000000000000000000000000000000000000aa",
+      recipient: "0x00000000000000000000000000000000000000bb",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "protocol-step",
+        network: "base",
+        action: plan.action,
+        riskClass: plan.riskClass,
+        step: plan.steps[0],
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(getOrCreateCliAgentWalletMock).toHaveBeenCalledWith({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      agentKey: "default",
+      requestedNetwork: "base",
+    });
+    expect(sendUserOperationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        network: "base",
+      })
+    );
+    expect(txLogCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          network: "base",
+        }),
+      })
+    );
+  });
+
   it("prefers an explicit transfer network over an unsupported stored wallet default", async () => {
     const sendUserOperationMock = vi.fn().mockResolvedValue({ userOpHash: "0xtransfer-op" });
     const waitForUserOperationMock = vi
@@ -637,6 +694,31 @@ describe("cli exec route", () => {
     expect(await response.json()).toEqual({ ok: false, error: "Unauthorized" });
   });
 
+  it("returns 403 when bearer auth reports a missing required scope", async () => {
+    requireCliBearerAuthMock.mockRejectedValue(
+      new CliAuthError(403, "wallet:execute scope required")
+    );
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "transfer",
+        token: "eth",
+        amount: "0.01",
+        to: "0x000000000000000000000000000000000000dEaD",
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(403);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "wallet:execute scope required",
+    });
+  });
+
   it("returns 400 when request body is invalid json", async () => {
     requireCliBearerAuthMock.mockResolvedValue({
       ownerAddress: "0x0000000000000000000000000000000000000001",
@@ -807,6 +889,42 @@ describe("cli exec route", () => {
     expect(await response.json()).toEqual({
       ok: false,
       error: "Unsupported transaction network: base-sepolia",
+    });
+    expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects protocol-step when the stored wallet default network is unsupported and the request omits network", async () => {
+    requireCliBearerAuthMock.mockResolvedValue({
+      ownerAddress: "0x0000000000000000000000000000000000000001",
+      tokenId: "1",
+      agentKey: "default",
+    });
+    getOrCreateCliAgentWalletMock.mockResolvedValue({
+      cdpAccountName: "cli-123",
+      defaultNetwork: "base-sepolia",
+    });
+
+    const plan = buildPremiumClaimPlan({
+      premiumEscrowAddress: "0x00000000000000000000000000000000000000aa",
+      recipient: "0x00000000000000000000000000000000000000bb",
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "protocol-step",
+        action: plan.action,
+        riskClass: plan.riskClass,
+        step: plan.steps[0],
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "unsupported protocol network: base-sepolia",
     });
     expect(getOrCreateCliAgentSmartAccountMock).not.toHaveBeenCalled();
   });

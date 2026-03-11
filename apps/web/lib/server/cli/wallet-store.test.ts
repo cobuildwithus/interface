@@ -62,6 +62,7 @@ vi.mock("@/lib/server/db/cobuild-db-client", () => ({
 
 import {
   getCliAgentWallet,
+  resolveCliExecWalletContext,
   getOrCreateCliAgentSmartAccount,
   getOrCreateCliAgentWallet,
 } from "@/lib/server/cli/wallet-store";
@@ -116,6 +117,117 @@ describe("cli wallet store", () => {
         },
       },
     });
+  });
+
+  it("resolves exec wallet metadata without provisioning and prefers the explicit network", async () => {
+    const ownerAddress = "0x000000000000000000000000000000000000dead";
+    const agentKey = "default";
+    findUniqueMock.mockResolvedValue({
+      ownerAddress,
+      agentKey,
+      cdpAccountName: expectedSmartAccountName(ownerAddress, agentKey),
+      address: "0x0000000000000000000000000000000000000002",
+      defaultNetwork: "base-sepolia",
+    });
+
+    const resolved = await resolveCliExecWalletContext({
+      ownerAddress: "0x000000000000000000000000000000000000dEaD",
+      agentKey,
+      requestedNetwork: "base",
+    });
+
+    expect(resolved.requestedNetwork).toBe("base");
+    expect(resolved.walletAddress).toBe("0x0000000000000000000000000000000000000002");
+    expect(getCliCdpClientMock).not.toHaveBeenCalled();
+    expect(getOrCreateAccountMock).not.toHaveBeenCalled();
+    expect(getOrCreateSmartAccountMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps explicit exec network overrides for first-time wallets without provisioning eagerly", async () => {
+    const ownerAddress = "0x0000000000000000000000000000000000000001";
+    const agentKey = "default";
+    const smartAccountAddress = "0x0000000000000000000000000000000000000004";
+    findUniqueMock.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    getOrCreateAccountMock.mockResolvedValue({
+      address: "0x0000000000000000000000000000000000000003",
+    });
+    getOrCreateSmartAccountMock.mockResolvedValue({
+      address: smartAccountAddress,
+    });
+    createMock.mockImplementation(async ({ data }) => ({
+      ...data,
+      id: 1n,
+    }));
+    process.env.CLI_DEFAULT_NETWORK = "base-sepolia";
+
+    const resolved = await resolveCliExecWalletContext({
+      ownerAddress,
+      agentKey,
+      requestedNetwork: "base",
+    });
+
+    expect(resolved.requestedNetwork).toBe("base");
+    expect(resolved.walletAddress).toBeUndefined();
+    expect(getCliCdpClientMock).not.toHaveBeenCalled();
+    expect(createMock).not.toHaveBeenCalled();
+
+    const executionContext = await resolved.getExecutionContext();
+
+    expect(executionContext).toMatchObject({
+      wallet: {
+        ownerAddress,
+        agentKey,
+        defaultNetwork: "base",
+      },
+      walletAddress: smartAccountAddress,
+    });
+    expect(createMock).toHaveBeenCalledWith({
+      data: {
+        ownerAddress,
+        agentKey,
+        cdpAccountName: expectedSmartAccountName(ownerAddress, agentKey),
+        address: smartAccountAddress,
+        defaultNetwork: "base",
+      },
+    });
+  });
+
+  it("memoizes exec wallet execution-context loading", async () => {
+    const ownerAddress = "0x0000000000000000000000000000000000000001";
+    const agentKey = "default";
+    const existingWallet = {
+      ownerAddress,
+      agentKey,
+      cdpAccountName: expectedSmartAccountName(ownerAddress, agentKey),
+      address: "0x0000000000000000000000000000000000000004",
+      defaultNetwork: "base",
+    };
+    const smartAccount = {
+      address: "0x0000000000000000000000000000000000000004",
+    };
+    findUniqueMock.mockResolvedValue(existingWallet);
+    getOrCreateAccountMock.mockResolvedValue({
+      address: "0x0000000000000000000000000000000000000003",
+    });
+    getOrCreateSmartAccountMock.mockResolvedValue(smartAccount);
+
+    const resolved = await resolveCliExecWalletContext({
+      ownerAddress,
+      agentKey,
+    });
+    const [first, second] = await Promise.all([
+      resolved.getExecutionContext(),
+      resolved.getExecutionContext(),
+    ]);
+
+    expect(first).toEqual({
+      wallet: existingWallet,
+      smartAccount,
+      walletAddress: "0x0000000000000000000000000000000000000004",
+    });
+    expect(second).toBe(first);
+    expect(getOrCreateAccountMock).toHaveBeenCalledTimes(1);
+    expect(getOrCreateSmartAccountMock).toHaveBeenCalledTimes(1);
   });
 
   it("returns existing wallet without provisioning a CDP account", async () => {

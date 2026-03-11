@@ -37,7 +37,12 @@ describe("cli auth write-scope audit", () => {
 
   it("allows read-only scopes when write scope is not required", async () => {
     importSpkiMock.mockResolvedValue({});
-    queryRawMock.mockResolvedValue([{ id: 1n }]);
+    queryRawMock.mockResolvedValue([
+      {
+        id: 1n,
+        scope: "tools:read wallet:read offline_access",
+      },
+    ]);
     jwtVerifyMock.mockResolvedValue({
       payload: {
         sub: "0x0000000000000000000000000000000000000001",

@@ -6,11 +6,11 @@ import {
   DEFAULT_CLI_JWT_AUDIENCE,
   DEFAULT_CLI_JWT_ISSUER,
   DEFAULT_DEV_CLI_JWT_PUBLIC_KEY,
-  deriveCliVerifiedPrincipal,
   normalizeEvmAddress as normalizeAddress,
-  parseBearerToken,
-  parseCliJwtVerifiedClaims,
+  type CliJwtVerifiedClaims,
   type CliVerifiedPrincipal,
+  verifyCliBearerAuth,
+  parseCliJwtVerifiedClaims,
 } from "@cobuild/wire";
 import { getSession } from "@/lib/domains/auth/session";
 import { CliAuthError } from "./errors";
@@ -27,6 +27,7 @@ let cachedPublicKeySource: string | undefined;
 
 type ActiveCliSessionRow = {
   id: bigint | number;
+  scope: string;
 };
 
 function allowDevCliKeyFallback(): boolean {
@@ -77,7 +78,7 @@ export async function requireCliSessionAddress(): Promise<`0x${string}`> {
   return normalizeAddress(session.address, "session.address");
 }
 
-async function verifyCliAccessToken(rawToken: string): Promise<CliBearerAuth | null> {
+async function verifyCliAccessToken(rawToken: string): Promise<CliJwtVerifiedClaims | null> {
   const publicKey = await getCliJwtVerificationKey();
   const issuer = getCliJwtIssuer();
   const audience = getCliJwtAudience();
@@ -94,33 +95,21 @@ async function verifyCliAccessToken(rawToken: string): Promise<CliBearerAuth | n
     return null;
   }
 
-  const claims = parseCliJwtVerifiedClaims(payload);
-  if (!claims) {
-    return null;
-  }
-
-  const principal = deriveCliVerifiedPrincipal(claims);
-  if (!principal) {
-    return null;
-  }
-
-  const { hasToolsRead: _hasToolsRead, ...auth } = principal;
-  if (!(await isCliSessionActive(auth))) {
-    return null;
-  }
-  return auth;
+  return parseCliJwtVerifiedClaims(payload);
 }
 
-async function isCliSessionActive(auth: CliBearerAuth): Promise<boolean> {
+async function readActiveCliSession(
+  auth: Pick<CliVerifiedPrincipal, "sessionId" | "ownerAddress" | "agentKey">
+): Promise<{ scope: string } | null> {
   let sessionId: bigint;
   try {
     sessionId = BigInt(auth.sessionId);
   } catch {
-    return false;
+    return null;
   }
 
   const rows = await prismaPrimary(prisma).$queryRaw<ActiveCliSessionRow[]>`
-    SELECT id
+    SELECT id, scope
     FROM cobuild.cli_cli_sessions
     WHERE id = ${sessionId}
       AND owner_address = ${auth.ownerAddress}
@@ -130,33 +119,39 @@ async function isCliSessionActive(auth: CliBearerAuth): Promise<boolean> {
     LIMIT 1
   `;
 
-  return rows.length > 0;
+  const row = rows[0];
+  if (!row) {
+    return null;
+  }
+
+  return {
+    scope: row.scope,
+  };
 }
 
 export async function requireCliBearerAuth(
   req: Request,
   options?: RequireCliBearerAuthOptions
 ): Promise<CliBearerAuth> {
-  const rawToken = parseBearerToken(req.headers.get("authorization"));
-  if (!rawToken) {
-    throw new CliAuthError(401, "Unauthorized");
-  }
-
-  const auth = await verifyCliAccessToken(rawToken);
-  if (!auth) {
-    throw new CliAuthError(401, "Unauthorized");
-  }
-
   const requiredScopes = [...(options?.requiredScopes ?? [])];
   if (options?.requireWalletExecute) {
     requiredScopes.push("wallet:execute");
   }
 
-  for (const requiredScope of requiredScopes) {
-    if (!auth.scopes.includes(requiredScope)) {
-      throw new CliAuthError(403, `${requiredScope} scope required`);
+  const result = await verifyCliBearerAuth({
+    authorization: req.headers.get("authorization"),
+    verifyAccessToken: verifyCliAccessToken,
+    readActiveSession: readActiveCliSession,
+    requiredScopes,
+  });
+
+  if (!result.ok) {
+    if (result.code === "scope_required" && result.requiredScope) {
+      throw new CliAuthError(403, `${result.requiredScope} scope required`);
     }
+    throw new CliAuthError(401, "Unauthorized");
   }
 
+  const { hasToolsRead: _hasToolsRead, ...auth } = result.principal;
   return auth;
 }

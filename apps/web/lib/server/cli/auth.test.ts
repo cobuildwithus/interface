@@ -89,7 +89,12 @@ describe("cli auth", () => {
 
   it("returns auth context when token is valid", async () => {
     importSpkiMock.mockResolvedValue({});
-    queryRawMock.mockResolvedValue([{ id: 42n }]);
+    queryRawMock.mockResolvedValue([
+      {
+        id: 42n,
+        scope: "tools:read tools:write wallet:read wallet:execute offline_access",
+      },
+    ]);
     jwtVerifyMock.mockResolvedValue({
       payload: {
         sub: "0x0000000000000000000000000000000000000001",
@@ -130,7 +135,12 @@ describe("cli auth", () => {
 
   it("throws when write scope is required but token is read-only", async () => {
     importSpkiMock.mockResolvedValue({});
-    queryRawMock.mockResolvedValue([{ id: 7n }]);
+    queryRawMock.mockResolvedValue([
+      {
+        id: 7n,
+        scope: "tools:read wallet:read offline_access",
+      },
+    ]);
     jwtVerifyMock.mockResolvedValue({
       payload: {
         sub: "0x0000000000000000000000000000000000000001",
@@ -150,6 +160,42 @@ describe("cli auth", () => {
     });
 
     await expect(requireCliBearerAuth(request, { requireWalletExecute: true })).rejects.toEqual(
+      expect.objectContaining({
+        status: 403,
+        message: "wallet:execute scope required",
+      })
+    );
+  });
+
+  it("throws when an explicit required scope is missing", async () => {
+    importSpkiMock.mockResolvedValue({});
+    queryRawMock.mockResolvedValue([
+      {
+        id: 7n,
+        scope: "tools:read wallet:read offline_access",
+      },
+    ]);
+    jwtVerifyMock.mockResolvedValue({
+      payload: {
+        sub: "0x0000000000000000000000000000000000000001",
+        sid: "7",
+        agent_key: "default",
+        scope: "tools:read wallet:read offline_access",
+        iat: 1_700_000_000,
+        exp: 1_700_000_600,
+        iss: "cobuild-chat-api",
+        aud: "cli",
+      },
+    });
+
+    const request = new Request("http://localhost", {
+      method: "POST",
+      headers: { authorization: "Bearer read-only-token" },
+    });
+
+    await expect(
+      requireCliBearerAuth(request, { requiredScopes: ["wallet:execute"] })
+    ).rejects.toEqual(
       expect.objectContaining({
         status: 403,
         message: "wallet:execute scope required",
@@ -208,6 +254,40 @@ describe("cli auth", () => {
     const request = new Request("http://localhost", {
       method: "POST",
       headers: { authorization: "Bearer revoked-token" },
+    });
+
+    await expect(requireCliBearerAuth(request)).rejects.toEqual(
+      expect.objectContaining({
+        status: 401,
+        message: "Unauthorized",
+      })
+    );
+  });
+
+  it("rejects sessions whose stored scope no longer matches the token", async () => {
+    importSpkiMock.mockResolvedValue({});
+    queryRawMock.mockResolvedValue([
+      {
+        id: 42n,
+        scope: "tools:read offline_access",
+      },
+    ]);
+    jwtVerifyMock.mockResolvedValue({
+      payload: {
+        sub: "0x0000000000000000000000000000000000000001",
+        sid: "42",
+        agent_key: "default",
+        scope: "tools:read wallet:execute offline_access",
+        iat: 1_700_000_000,
+        exp: 1_700_000_600,
+        iss: "cobuild-chat-api",
+        aud: "cli",
+      },
+    });
+
+    const request = new Request("http://localhost", {
+      method: "POST",
+      headers: { authorization: "Bearer scope-drift-token" },
     });
 
     await expect(requireCliBearerAuth(request)).rejects.toEqual(

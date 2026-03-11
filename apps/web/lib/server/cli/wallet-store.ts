@@ -38,6 +38,18 @@ type CliAgentWalletContextParams = {
   accountPolicyId: string | null;
 };
 
+type CliAgentExecutionContext = {
+  wallet: CliAgentWalletRecord;
+  smartAccount: EvmSmartAccount;
+  walletAddress: `0x${string}`;
+};
+
+export type ResolvedCliExecWalletContext = {
+  requestedNetwork: string;
+  walletAddress?: `0x${string}`;
+  getExecutionContext: () => Promise<CliAgentExecutionContext>;
+};
+
 async function findWalletByOwnerAgent(params: {
   db: CliWalletDb;
   ownerAddress: `0x${string}`;
@@ -273,15 +285,44 @@ export async function getOrCreateCliAgentWallet(params: {
   });
 }
 
+export async function resolveCliExecWalletContext(params: {
+  ownerAddress: string;
+  agentKey: string;
+  requestedNetwork?: string;
+}): Promise<ResolvedCliExecWalletContext> {
+  const ownerAddress = normalizeAddress(params.ownerAddress, "ownerAddress");
+  const existingWallet = await getCliAgentWallet({
+    ownerAddress,
+    agentKey: params.agentKey,
+  });
+  const walletAddress =
+    typeof existingWallet?.address === "string" && existingWallet.address.length > 0
+      ? normalizeAddress(existingWallet.address, "wallet.address")
+      : undefined;
+  const requestedNetwork =
+    params.requestedNetwork ?? existingWallet?.defaultNetwork ?? getCliDefaultNetwork();
+
+  let executionContextPromise: Promise<CliAgentExecutionContext> | undefined;
+
+  return {
+    requestedNetwork,
+    walletAddress,
+    getExecutionContext: async () => {
+      executionContextPromise ??= getOrCreateCliAgentExecutionContext({
+        ownerAddress,
+        agentKey: params.agentKey,
+        defaultNetwork: requestedNetwork,
+      });
+      return await executionContextPromise;
+    },
+  };
+}
+
 export async function getOrCreateCliAgentExecutionContext(params: {
   ownerAddress: string;
   agentKey: string;
   defaultNetwork?: string;
-}): Promise<{
-  wallet: CliAgentWalletRecord;
-  smartAccount: EvmSmartAccount;
-  walletAddress: `0x${string}`;
-}> {
+}): Promise<CliAgentExecutionContext> {
   const context = createCliAgentWalletContext(params);
   let smartAccountPromise: Promise<EvmSmartAccount> | undefined;
   const loadSmartAccount = async () => {
