@@ -1,17 +1,13 @@
 import { type NextResponse } from "next/server";
-import { encodeFunctionData, erc20Abi, isAddress } from "viem";
-import {
-  baseBuilderCodeDataSuffixForNetwork,
-  normalizeEvmAddress as normalizeAddress,
-  usdcContractForNetwork,
-} from "@cobuild/wire";
+import { encodeFunctionData, erc20Abi } from "viem";
+import { baseBuilderCodeDataSuffixForNetwork, usdcContractForNetwork } from "@cobuild/wire";
 import { assertCliTransferAllowed } from "@/lib/server/cli/policy";
 import { RequestValidationError } from "@/lib/server/cli/http";
 import {
   waitForUserOperationComplete,
   UserOperationTimeoutError,
 } from "@/lib/server/cli/user-operation";
-import { getOrCreateCliAgentExecutionContext } from "@/lib/server/cli/wallet-store";
+import { resolveCliExecWalletContext } from "@/lib/server/cli/wallet-store";
 import {
   assertTransferIdempotencyMatch,
   failCliTxLog,
@@ -25,7 +21,12 @@ import {
   writeCliTxLog,
 } from "./idempotency";
 import { buildPendingResponse, buildSuccessResponse, UserOperationFailedError } from "./response";
-import { parseEtherInput, parseTransferNetwork, parseUnitsInput } from "./validation";
+import {
+  parseEtherInput,
+  parseEvmAddressInput,
+  parseTransferNetwork,
+  parseUnitsInput,
+} from "./validation";
 
 const CLI_EXEC_USER_OPERATION_WAIT_TIMEOUT_MS = 20_000;
 
@@ -44,17 +45,9 @@ export async function handleTransferExecution(params: {
   db: CliExecDb;
   auth: { ownerAddress: `0x${string}`; agentKey: string };
   input: TransferInput;
-  requestedNetwork: string;
   idempotencyKey: string | null;
-  walletAddress?: string;
 }): Promise<NextResponse> {
-  const network = parseTransferNetwork(params.requestedNetwork);
-
-  if (!isAddress(params.input.to)) {
-    throw new RequestValidationError("Invalid recipient address");
-  }
-
-  const to = normalizeAddress(params.input.to, "to");
+  const to = parseEvmAddressInput(params.input.to, "to", "Invalid recipient address");
   const tokenLower = params.input.token.toLowerCase();
 
   let amountAtomic: bigint;
@@ -67,18 +60,17 @@ export async function handleTransferExecution(params: {
     amountAtomic = parseUnitsInput(params.input.amount, 6, "amount");
     token = "usdc";
   } else {
-    if (!isAddress(params.input.token)) {
-      throw new RequestValidationError(
-        "token must be 'eth', 'usdc', or an ERC-20 contract address"
-      );
-    }
     if (typeof params.input.decimals !== "number") {
       throw new RequestValidationError(
         "decimals is required when token is an ERC-20 contract address"
       );
     }
 
-    token = normalizeAddress(params.input.token, "token");
+    token = parseEvmAddressInput(
+      params.input.token,
+      "token",
+      "token must be 'eth', 'usdc', or an ERC-20 contract address"
+    );
     amountAtomic = parseUnitsInput(params.input.amount, params.input.decimals, "amount");
   }
 
@@ -86,6 +78,12 @@ export async function handleTransferExecution(params: {
     throw new RequestValidationError("amount must be greater than 0");
   }
   const decimals = params.input.decimals ?? null;
+  const walletContext = await resolveCliExecWalletContext({
+    ownerAddress: params.auth.ownerAddress,
+    agentKey: params.auth.agentKey,
+    requestedNetwork: params.input.network,
+  });
+  const network = parseTransferNetwork(walletContext.requestedNetwork);
   const transferLogData: CliTxLogCreateData = {
     ownerAddress: params.auth.ownerAddress,
     agentKey: params.auth.agentKey,
@@ -106,7 +104,7 @@ export async function handleTransferExecution(params: {
     ownerAddress: params.auth.ownerAddress,
     agentKey: params.auth.agentKey,
     idempotencyKey: params.idempotencyKey,
-    walletAddress: params.walletAddress,
+    walletAddress: walletContext.walletAddress,
     kind: "transfer",
     assertMatch: (existing) => {
       assertTransferIdempotencyMatch({
@@ -136,7 +134,7 @@ export async function handleTransferExecution(params: {
     agentKey: params.auth.agentKey,
     idempotencyKey: params.idempotencyKey,
     data: transferLogData,
-    walletAddress: params.walletAddress,
+    walletAddress: walletContext.walletAddress,
     kind: "transfer",
     assertMatch: (raced) => {
       assertTransferIdempotencyMatch({
@@ -153,11 +151,7 @@ export async function handleTransferExecution(params: {
     return reservation.response;
   }
 
-  const { smartAccount, walletAddress } = await getOrCreateCliAgentExecutionContext({
-    ownerAddress: params.auth.ownerAddress,
-    agentKey: params.auth.agentKey,
-    defaultNetwork: network,
-  });
+  const { smartAccount, walletAddress } = await walletContext.getExecutionContext();
   const transferCall =
     token === "eth"
       ? {

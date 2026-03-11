@@ -1,9 +1,7 @@
 import { type NextResponse } from "next/server";
-import { isAddress } from "viem";
 import {
   baseBuilderCodeDataSuffixForNetwork,
   canonicalizeBaseBuilderCodeAttributedData,
-  normalizeEvmAddress as normalizeAddress,
   normalizeHex,
 } from "@cobuild/wire";
 import { assertCliTxAllowed } from "@/lib/server/cli/policy";
@@ -12,7 +10,7 @@ import {
   waitForUserOperationComplete,
   UserOperationTimeoutError,
 } from "@/lib/server/cli/user-operation";
-import { getOrCreateCliAgentExecutionContext } from "@/lib/server/cli/wallet-store";
+import { resolveCliExecWalletContext } from "@/lib/server/cli/wallet-store";
 import {
   assertTxIdempotencyMatch,
   failCliTxLog,
@@ -26,7 +24,7 @@ import {
   writeCliTxLog,
 } from "./idempotency";
 import { buildPendingResponse, buildSuccessResponse, UserOperationFailedError } from "./response";
-import { parseEtherInput, parseTxNetwork } from "./validation";
+import { parseEtherInput, parseEvmAddressInput, parseTxNetwork } from "./validation";
 
 const CLI_EXEC_USER_OPERATION_WAIT_TIMEOUT_MS = 20_000;
 
@@ -44,17 +42,9 @@ export async function handleTxExecution(params: {
   db: CliExecDb;
   auth: { ownerAddress: `0x${string}`; agentKey: string };
   input: TxInput;
-  requestedNetwork: string;
   idempotencyKey: string | null;
-  walletAddress?: string;
 }): Promise<NextResponse> {
-  const network = parseTxNetwork(params.requestedNetwork);
-
-  if (!isAddress(params.input.to)) {
-    throw new RequestValidationError("Invalid transaction target address");
-  }
-
-  const to = normalizeAddress(params.input.to, "to");
+  const to = parseEvmAddressInput(params.input.to, "to", "Invalid transaction target address");
   const valueEth = params.input.valueEth;
   const valueWei = parseEtherInput(valueEth, "valueEth");
   if (valueWei < 0n) {
@@ -62,6 +52,12 @@ export async function handleTxExecution(params: {
   }
   const requestData = normalizeHex(params.input.data as `0x${string}`);
   const canonicalTxData = canonicalizeBaseBuilderCodeAttributedData(requestData);
+  const walletContext = await resolveCliExecWalletContext({
+    ownerAddress: params.auth.ownerAddress,
+    agentKey: params.auth.agentKey,
+    requestedNetwork: params.input.network,
+  });
+  const network = parseTxNetwork(walletContext.requestedNetwork);
   const txLogData: CliTxLogCreateData = {
     ownerAddress: params.auth.ownerAddress,
     agentKey: params.auth.agentKey,
@@ -82,7 +78,7 @@ export async function handleTxExecution(params: {
     ownerAddress: params.auth.ownerAddress,
     agentKey: params.auth.agentKey,
     idempotencyKey: params.idempotencyKey,
-    walletAddress: params.walletAddress,
+    walletAddress: walletContext.walletAddress,
     kind: "tx",
     assertMatch: (existing) => {
       assertTxIdempotencyMatch({
@@ -111,7 +107,7 @@ export async function handleTxExecution(params: {
     agentKey: params.auth.agentKey,
     idempotencyKey: params.idempotencyKey,
     data: txLogData,
-    walletAddress: params.walletAddress,
+    walletAddress: walletContext.walletAddress,
     kind: "tx",
     assertMatch: (raced) => {
       assertTxIdempotencyMatch({
@@ -127,11 +123,7 @@ export async function handleTxExecution(params: {
     return reservation.response;
   }
 
-  const { smartAccount, walletAddress } = await getOrCreateCliAgentExecutionContext({
-    ownerAddress: params.auth.ownerAddress,
-    agentKey: params.auth.agentKey,
-    defaultNetwork: network,
-  });
+  const { smartAccount, walletAddress } = await walletContext.getExecutionContext();
   let userOpHash: `0x${string}`;
 
   if ("resumeUserOpHash" in reservation) {
