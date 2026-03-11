@@ -3,7 +3,7 @@ import { zeroAddress } from "viem";
 import { base } from "viem/chains";
 import { getClient } from "./clients";
 import { jbControllerAbi, jbDirectoryAbi, jbMultiTerminalAbi } from "./abis";
-import { jbContracts, COBUILD_PROJECT_ID, COBUILD_SWAP_PROJECT_ID, NATIVE_TOKEN } from "./revnet";
+import { jbContracts, COBUILD_PROJECT_ID, NATIVE_TOKEN } from "./revnet";
 
 export interface RevnetData {
   weight: string;
@@ -86,8 +86,4 @@ const getRevnetDataCached = unstable_cache(
 
 export function getRevnetData(projectId: bigint = COBUILD_PROJECT_ID) {
   return getRevnetDataCached(projectId.toString());
-}
-
-export function getSwapRevnetData() {
-  return getRevnetData(COBUILD_SWAP_PROJECT_ID);
 }

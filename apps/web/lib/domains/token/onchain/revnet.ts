@@ -2,17 +2,14 @@
  * COBUILD Revnet Configuration
  *
  * Constants for interacting with the COBUILD revnet on Base.
- * Project ID 6, ETH-backed issuance.
+ * Project ID 138, ETH-backed issuance.
  */
 
 import { contracts, BASE_CHAIN_ID } from "./addresses";
 import { parseEther } from "viem";
 
 // COBUILD revnet project ID on Juicebox v5
-export const COBUILD_PROJECT_ID = 6n;
-
-// Swap-only project ID used for revnet purchases
-export const COBUILD_SWAP_PROJECT_ID = 3n;
+export { COBUILD_PROJECT_ID_BIGINT as COBUILD_PROJECT_ID } from "./addresses";
 
 // Chain configuration
 export const REVNET_CHAIN_ID = BASE_CHAIN_ID;

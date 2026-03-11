@@ -340,8 +340,8 @@ describe("onchain revnet data", () => {
     expect(data.supportsEthPayments).toBe(false);
   });
 
-  it("uses the swap project id when fetching swap revnet data", async () => {
-    const { COBUILD_SWAP_PROJECT_ID } = await import("@/lib/domains/token/onchain/revnet");
+  it("uses the canonical project id by default when fetching revnet data", async () => {
+    const { COBUILD_PROJECT_ID } = await import("@/lib/domains/token/onchain/revnet");
     const client = {
       readContract: vi
         .fn()
@@ -353,9 +353,9 @@ describe("onchain revnet data", () => {
     vi.doMock("next/cache", () => ({ unstable_cache: passthroughCache }));
     vi.doMock("@/lib/domains/token/onchain/clients", () => ({ getClient: () => client }));
 
-    const { getSwapRevnetData } = await import("@/lib/domains/token/onchain/revnet-data");
+    const { getRevnetData } = await import("@/lib/domains/token/onchain/revnet-data");
 
-    await getSwapRevnetData();
-    expect(client.readContract.mock.calls[0]?.[0]?.args?.[0]).toBe(COBUILD_SWAP_PROJECT_ID);
+    await getRevnetData();
+    expect(client.readContract.mock.calls[0]?.[0]?.args?.[0]).toBe(COBUILD_PROJECT_ID);
   });
 });
