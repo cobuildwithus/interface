@@ -150,11 +150,11 @@ export default async function Home() {
         {/* Section header */}
         <div className="relative z-10 mb-12 max-w-xl md:mb-16">
           <h2 className="text-2xl leading-[1.1] font-bold tracking-tight uppercase sm:text-3xl md:text-4xl lg:text-5xl">
-            Demand Becomes
+            Attention Becomes
             <br />
-            <span className="text-neutral-500">Funding Becomes</span>
+            <span className="text-neutral-500">Capital Becomes</span>
             <br />
-            Maintained Software
+            Impact
           </h2>
         </div>
 
