@@ -10,7 +10,6 @@ import {
 } from "@/components/features/funding/confirm-swap-dialog/confirm-swap-dialog";
 import { EthBadge, CobuildBadge, SwapArrow } from "@/components/features/token/token-badge";
 import { useSwapCore } from "@/lib/hooks/use-swap-core";
-import { COBUILD_SWAP_PROJECT_ID } from "@/lib/domains/token/onchain/revnet";
 
 interface SwapProps {
   className?: string;
@@ -35,7 +34,7 @@ export function Swap({ className, hideTitle }: SwapProps) {
     onTokensChange,
     onMaxClick,
     onSwap,
-  } = useSwapCore({ projectId: COBUILD_SWAP_PROJECT_ID });
+  } = useSwapCore();
 
   const handleConfirmSwap = async (memo?: string) => {
     setIsSwapping(true);
