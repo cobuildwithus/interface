@@ -19,7 +19,7 @@ import {
   normalizeFarcasterUsername,
 } from "@/lib/integrations/farcaster/fname";
 import { getFidsByUsernames } from "@/lib/integrations/farcaster/profile";
-import { saveVerifiedAddressForFid } from "@/lib/integrations/farcaster/save-verified-address";
+import { persistFarcasterWalletLink } from "@/lib/integrations/farcaster/persist-wallet-link";
 import { setSignerRecord } from "@/lib/integrations/farcaster/signer-store";
 import {
   getSignerStatusCacheTag,
@@ -282,7 +282,7 @@ export async function completeFarcasterRegistration(
     canPost: true,
   });
 
-  await saveVerifiedAddressForFid(fid, normalizedAddress);
+  await persistFarcasterWalletLink(fid, normalizedAddress);
   revalidateTag("farcaster-profile", "default");
   revalidateTag("profile-v4", "default");
   revalidateTag(getSignerStatusCacheTag(fid), "default");

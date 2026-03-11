@@ -4,21 +4,21 @@ vi.mock("server-only", () => ({}));
 
 const {
   getSession,
-  saveVerifiedAddressForFid,
+  persistFarcasterWalletLink,
   setSignerRecord,
   upsertLinkedAccount,
   revalidateTag,
 } = vi.hoisted(() => ({
   getSession: vi.fn(),
-  saveVerifiedAddressForFid: vi.fn(),
+  persistFarcasterWalletLink: vi.fn(),
   setSignerRecord: vi.fn(),
   upsertLinkedAccount: vi.fn(),
   revalidateTag: vi.fn(),
 }));
 
 vi.mock("@/lib/domains/auth/session", () => ({ getSession }));
-vi.mock("@/lib/integrations/farcaster/save-verified-address", () => ({
-  saveVerifiedAddressForFid,
+vi.mock("@/lib/integrations/farcaster/persist-wallet-link", () => ({
+  persistFarcasterWalletLink,
 }));
 vi.mock("@/lib/integrations/farcaster/signer-store", () => ({ setSignerRecord }));
 vi.mock("@/lib/domains/auth/linked-accounts/store", () => ({ upsertLinkedAccount }));
@@ -110,7 +110,7 @@ describe("handleNeynarSignin", () => {
         canPost: true,
       })
     );
-    expect(saveVerifiedAddressForFid).toHaveBeenCalledWith(1, "0xabc");
+    expect(persistFarcasterWalletLink).toHaveBeenCalledWith(1, "0xabc");
     expect(revalidateTag).toHaveBeenCalledWith("farcaster-profile", "default");
     expect(revalidateTag).toHaveBeenCalledWith("neynar-signer:1", "default");
     expect(revalidateTag).toHaveBeenCalledWith(`neynar-signer:uuid:${signerUuid}`, "default");

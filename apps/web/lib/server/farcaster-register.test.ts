@@ -10,7 +10,7 @@ const {
   neynarGetFreshAccountFid,
   neynarRegisterAccount,
   getFidsByUsernames,
-  saveVerifiedAddressForFid,
+  persistFarcasterWalletLink,
   setSignerRecord,
   upsertLinkedAccount,
   getSignerStatusCacheTag,
@@ -26,7 +26,7 @@ const {
   neynarGetFreshAccountFid: vi.fn(),
   neynarRegisterAccount: vi.fn(),
   getFidsByUsernames: vi.fn(),
-  saveVerifiedAddressForFid: vi.fn(),
+  persistFarcasterWalletLink: vi.fn(),
   setSignerRecord: vi.fn(),
   upsertLinkedAccount: vi.fn(),
   getSignerStatusCacheTag: vi.fn((fid: number) => `signer:${fid}`),
@@ -45,8 +45,8 @@ vi.mock("@/lib/integrations/farcaster/neynar-client", () => ({
   neynarRegisterAccount,
 }));
 vi.mock("@/lib/integrations/farcaster/profile", () => ({ getFidsByUsernames }));
-vi.mock("@/lib/integrations/farcaster/save-verified-address", () => ({
-  saveVerifiedAddressForFid,
+vi.mock("@/lib/integrations/farcaster/persist-wallet-link", () => ({
+  persistFarcasterWalletLink,
 }));
 vi.mock("@/lib/integrations/farcaster/signer-store", () => ({ setSignerRecord }));
 vi.mock("@/lib/integrations/farcaster/signer-status", () => ({
@@ -421,7 +421,7 @@ describe("farcaster-register", () => {
         username: "username",
       })
     );
-    expect(saveVerifiedAddressForFid).toHaveBeenCalledWith(1, baseAddress);
+    expect(persistFarcasterWalletLink).toHaveBeenCalledWith(1, baseAddress);
     expect(revalidateTag).toHaveBeenCalledWith("farcaster-profile", "default");
     expect(revalidateTag).toHaveBeenCalledWith("profile-v4", "default");
     expect(revalidateTag).toHaveBeenCalledWith("signer:1", "default");

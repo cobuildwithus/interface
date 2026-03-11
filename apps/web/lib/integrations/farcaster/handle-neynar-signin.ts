@@ -2,7 +2,7 @@
 
 import { getSession } from "@/lib/domains/auth/session";
 import { revalidateTag } from "next/cache";
-import { saveVerifiedAddressForFid } from "@/lib/integrations/farcaster/save-verified-address";
+import { persistFarcasterWalletLink } from "@/lib/integrations/farcaster/persist-wallet-link";
 import {
   isValidSignerUuid,
   normalizeFid,
@@ -63,7 +63,7 @@ export async function handleNeynarSignin(payload: NeynarSigninPayload) {
     canPost: true,
   });
 
-  await saveVerifiedAddressForFid(fid, address);
+  await persistFarcasterWalletLink(fid, address);
   revalidateTag("farcaster-profile", "default");
   revalidateTag(getSignerStatusCacheTag(fid), "default");
   revalidateTag(getSignerStatusUuidCacheTag(payload.signer_uuid), "default");
