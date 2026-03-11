@@ -6,6 +6,7 @@
 2. Onchain writes must use shared transaction lifecycle hooks.
 3. Consistency-sensitive reads should avoid stale replica assumptions.
 4. Cache-backed flows must tolerate cache/lock failure with safe fallbacks.
+5. Fixed App Router pages must not require live DB access during build-time prerender unless a build-safe fallback is intentional and documented.
 
 ## Reliability-Critical Surfaces
 
@@ -48,6 +49,10 @@
 5. Cache or KV failure
 
 - Flows should degrade gracefully (empty/fallback state) where safe.
+
+6. Build environment lacks live DB access for a fixed route
+
+- The route must opt out of prerendering with `dynamic = "force-dynamic"` unless the page is intentionally static with a documented build-safe fallback.
 
 ## Verification Matrix
 

@@ -23,6 +23,7 @@ This file contains web-app-specific overlays for the root `AGENTS.md`.
 - Use `AuthButton` for auth-gated/onchain actions.
 - Prefer `sonner` toasts for interactive success/error states.
 - Addresses are canonical lowercase; avoid SQL `lower(...)`/`upper(...)` in address joins/filters.
+- Fixed App Router pages that depend on live DB or other build-unsafe server data must opt out of prerendering with `export const dynamic = "force-dynamic"` unless a documented build-safe fallback is intentional.
 - If shared UI architecture changes, update `agent-docs/cobuild-ui-architecture.md` and `agent-docs/cobuild-ui-components.md`.
 - Never access `.env` or `.env*` files.
 - Use a hard cutover approach and never implement backward compatibility unless explicitly asked.

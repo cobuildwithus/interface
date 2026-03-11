@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { getGoalCards } from "@/lib/domains/goals/goal-data";
 import { buildPageMetadata } from "@/lib/shared/page-metadata";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = buildPageMetadata({
   title: "Goals | Cobuild",
   description: "Track ongoing and completed goals in the Cobuild ecosystem.",

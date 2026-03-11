@@ -6,6 +6,8 @@ import { buildPageMetadata } from "@/lib/shared/page-metadata";
 
 const DISCORD_LINK = "https://discord.com/invite/PwWFgTck7f";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = buildPageMetadata({
   title: "Events | Cobuild",
   description: "Weekly builder calls and community hangouts. Join us on Discord.",

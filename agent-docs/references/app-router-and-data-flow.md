@@ -47,6 +47,7 @@ Representative route responsibilities:
 2. API routes are validation and normalization boundaries; request payloads are never trusted raw.
 3. Route files compose domain and UI behavior; persistence/integration side effects belong in domain/server layers.
 4. Wallet identity consistency between connected wallet and session wallet is enforced before privileged actions.
+5. Fixed App Router pages that rely on live DB-backed server data must export `dynamic = "force-dynamic"` unless a documented build-safe fallback is intentional.
 
 ## Notable App Routes
 
