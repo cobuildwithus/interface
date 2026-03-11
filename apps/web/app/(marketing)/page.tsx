@@ -125,9 +125,7 @@ export default async function Home() {
         </main>
       </section>
 
-      <div id="how-it-works">
-        <FlowSimulationSection />
-      </div>
+      <FlowSimulationSection sectionId="how-it-works" />
 
       {/* Flywheel Section */}
       <section className="relative min-h-screen overflow-hidden px-8 pt-16 pb-24 md:px-16 lg:px-24">
@@ -152,11 +150,11 @@ export default async function Home() {
         {/* Section header */}
         <div className="relative z-10 mb-12 max-w-xl md:mb-16">
           <h2 className="text-2xl leading-[1.1] font-bold tracking-tight uppercase sm:text-3xl md:text-4xl lg:text-5xl">
-            Attention Becomes
+            Demand Becomes
             <br />
-            <span className="text-neutral-500">Capital Becomes</span>
+            <span className="text-neutral-500">Funding Becomes</span>
             <br />
-            Impact
+            Maintained Software
           </h2>
         </div>
 

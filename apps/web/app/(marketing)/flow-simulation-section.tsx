@@ -31,6 +31,10 @@ type FlowSimulationDiagramProps = {
   withOrbit?: boolean;
 } & Omit<ComponentProps<typeof DaoFlowDiagram>, "height">;
 
+type FlowSimulationSectionProps = {
+  sectionId?: string;
+};
+
 function FlowSimulationHeading({ className }: { className: string }) {
   return (
     <h2 className={className}>
@@ -83,7 +87,7 @@ function FlowSimulationDiagram({
   );
 }
 
-export function FlowSimulationSection() {
+export function FlowSimulationSection({ sectionId }: FlowSimulationSectionProps) {
   const [activeId, setActiveId] = useState<TopicId>("longevity");
   const activeTopic = TOPIC_BY_ID[activeId] ?? TOPICS[0];
   const handleTopicChange = (id: TopicId) => setActiveId(id);
@@ -98,14 +102,14 @@ export function FlowSimulationSection() {
   };
 
   return (
-    <section className="relative overflow-hidden pt-16 pb-24">
+    <section className="relative min-h-screen overflow-hidden pt-16 pb-24">
       <div className="pointer-events-none absolute inset-0 opacity-[0.06]">
         <div className="absolute top-20 left-0 h-40 w-40 rounded-full border border-white/10" />
         <div className="absolute top-10 right-[-30px] h-64 w-64 rounded-full border border-white/10" />
         <div className="absolute bottom-10 left-1/3 h-24 w-24 rounded-full border border-white/10" />
       </div>
 
-      <div className="relative z-10">
+      <div id={sectionId} className="relative z-10 scroll-mt-32">
         <div className="flex flex-col gap-8 lg:hidden">
           <FlowSimulationCopy
             className="px-8 md:px-16"
