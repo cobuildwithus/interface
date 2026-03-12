@@ -1,25 +1,26 @@
-/**
- * COBUILD Revnet Configuration
- *
- * Constants for interacting with the COBUILD revnet on Base.
- * Project ID 138, ETH-backed issuance.
- */
-
 import { contracts, BASE_CHAIN_ID } from "./addresses";
+import {
+  COBUILD_REVNET_PROJECT_ID,
+  REVNET_CHAIN_ID as WIRE_REVNET_CHAIN_ID,
+  REVNET_NATIVE_TOKEN,
+  REVNET_NATIVE_TOKEN_DECIMALS,
+  REVNET_RESERVED_PERCENT_DENOMINATOR,
+  REVNET_TOKEN_DECIMALS,
+} from "@cobuild/wire";
 import { parseEther } from "viem";
 
 // COBUILD revnet project ID on Juicebox v5
-export { COBUILD_PROJECT_ID_BIGINT as COBUILD_PROJECT_ID } from "./addresses";
+export const COBUILD_PROJECT_ID = COBUILD_REVNET_PROJECT_ID;
 
 // Chain configuration
-export const REVNET_CHAIN_ID = BASE_CHAIN_ID;
+export const REVNET_CHAIN_ID = WIRE_REVNET_CHAIN_ID ?? BASE_CHAIN_ID;
 
 // Native token (ETH) address used by JB protocol
-export const NATIVE_TOKEN = "0x000000000000000000000000000000000000EEEe" as const;
+export const NATIVE_TOKEN = REVNET_NATIVE_TOKEN;
 
 // Token decimals
-export const NATIVE_TOKEN_DECIMALS = 18;
-export const JB_TOKEN_DECIMALS = 18;
+export const NATIVE_TOKEN_DECIMALS = REVNET_NATIVE_TOKEN_DECIMALS;
+export const JB_TOKEN_DECIMALS = REVNET_TOKEN_DECIMALS;
 
 // Gas buffer to leave when using "max" (0.0001 ETH)
 export const GAS_BUFFER = parseEther("0.0001");
@@ -32,4 +33,4 @@ export const jbContracts = {
 } as const;
 
 // Reserved percent max value (10000 = 100%)
-export const MAX_RESERVED_PERCENT = 10000n;
+export const MAX_RESERVED_PERCENT = REVNET_RESERVED_PERCENT_DENOMINATOR;

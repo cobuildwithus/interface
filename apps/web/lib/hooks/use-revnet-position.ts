@@ -1,6 +1,12 @@
 "use client";
 
-import { isSameEvmAddress, parseEvmAddress } from "@cobuild/wire";
+import {
+  applyJbDaoCashOutFee,
+  applyRevnetCashOutFee,
+  parseEvmAddress,
+  REVNET_NATIVE_TOKEN,
+  selectPreferredRevnetAccountingContext,
+} from "@cobuild/wire";
 import { useMemo } from "react";
 import { erc20Abi, formatUnits, zeroAddress } from "viem";
 import { useAccount, useReadContract } from "wagmi";
@@ -18,12 +24,11 @@ import {
   COBUILD_JUICEBOX_PROJECT_ID,
   COBUILD_JUICEBOX_PROJECT_ID_BIGINT,
 } from "@/lib/domains/token/juicebox/constants";
-import { applyJbDaoCashoutFee, applyRevnetCashoutFee } from "@/lib/domains/token/juicebox/fees";
 
 const TOKEN_SYMBOL_BY_ADDRESS: Record<string, string> = {
   [contracts.USDCBase.toLowerCase()]: "USDC",
   [WETH_ADDRESS.toLowerCase()]: "WETH",
-  ["0x000000000000000000000000000000000000eeee"]: "ETH",
+  [REVNET_NATIVE_TOKEN.toLowerCase()]: "ETH",
 };
 
 function getBaseTokenSymbol(address?: string) {
@@ -90,13 +95,10 @@ export function useRevnetPosition() {
   });
 
   const baseTokenContext = useMemo(() => {
-    if (!accountingContexts?.length) return undefined;
-
-    const usdcContext = accountingContexts.find((context) =>
-      isSameEvmAddress(context.token, contracts.USDCBase)
+    return (
+      selectPreferredRevnetAccountingContext(accountingContexts ?? [], contracts.USDCBase) ??
+      undefined
     );
-
-    return usdcContext || accountingContexts[0];
   }, [accountingContexts]);
 
   const { data: terminalAddress } = useReadContract({
@@ -133,7 +135,7 @@ export function useRevnetPosition() {
       baseTokenContext && terminalAddress
         ? [
             COBUILD_JUICEBOX_PROJECT_ID_BIGINT,
-            applyRevnetCashoutFee(tokenBalance ?? 0n),
+            applyRevnetCashOutFee(tokenBalance ?? 0n),
             [terminalAddress],
             [baseTokenContext],
             BigInt(baseTokenContext.decimals),
@@ -146,7 +148,7 @@ export function useRevnetPosition() {
 
   const formattedBalance = formatUnits(tokenBalance ?? 0n, tokenDecimals ?? 18);
 
-  const netCashOutValue = applyJbDaoCashoutFee(cashOutValue ?? 0n);
+  const netCashOutValue = applyJbDaoCashOutFee(cashOutValue ?? 0n);
 
   const formattedCashOutValue =
     baseTokenContext && cashOutValue != null

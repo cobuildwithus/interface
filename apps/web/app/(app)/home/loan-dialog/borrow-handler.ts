@@ -1,6 +1,6 @@
+import { buildRevnetBorrowPlan, jbPermissionsRevnetAbi } from "@cobuild/wire";
 import { toast } from "sonner";
 import type { usePublicClient } from "wagmi";
-import { jbPermissionsAbi, revLoansAbi } from "@/lib/domains/token/onchain/abis";
 import { REVNET_CHAIN_ID } from "@/lib/domains/token/onchain/revnet";
 import type { useContractTransaction } from "@/lib/domains/token/onchain/use-contract-transaction";
 import type { RevnetPosition } from "./types";
@@ -49,6 +49,8 @@ export const createBorrowHandler =
     setSubmitStep,
   }: BorrowHandlerInput) =>
   async () => {
+    type PermissionWriteRequest = Parameters<typeof permissionTx.writeContractAsync>[0];
+    type BorrowWriteRequest = Parameters<typeof borrowTx.writeContractAsync>[0];
     setIsSubmitting(true);
     let borrowToastId: string | number | undefined;
     let permissionToastId: string | number | undefined;
@@ -72,7 +74,7 @@ export const createBorrowHandler =
         try {
           const livePermission = await publicClient.readContract({
             address: permissionsAddress,
-            abi: jbPermissionsAbi,
+            abi: jbPermissionsRevnetAbi,
             functionName: "hasPermission",
             args: [revLoansAddress, position.account, position.projectId, 1n, true, true],
           });
@@ -82,51 +84,43 @@ export const createBorrowHandler =
         }
       }
 
-      setSubmitStep(requiresPermission ? "permission" : "loan");
+      const plan = buildRevnetBorrowPlan({
+        account: position.account,
+        projectId: position.projectId,
+        source: {
+          token: loanSourceToken as `0x${string}`,
+          terminal: loanSourceTerminal as `0x${string}`,
+        },
+        collateralCount,
+        prepaidFeePercent: BigInt(prepaidFeePercent),
+        needsPermission: requiresPermission,
+        permissionsAddress,
+        revLoansAddress,
+      });
 
-      if (requiresPermission) {
-        permissionToastId = await permissionTx.prepareWallet();
-        const permissionHash = await permissionTx.writeContractAsync({
-          address: permissionsAddress,
-          abi: jbPermissionsAbi,
-          functionName: "setPermissionsFor",
-          args: [
-            position.account,
-            {
-              operator: revLoansAddress,
-              projectId: position.projectId,
-              permissionIds: [1],
-            },
-          ],
-          chainId: REVNET_CHAIN_ID,
-        });
+      for (const step of plan.steps) {
+        setSubmitStep(step.key === "borrow" ? "loan" : step.key);
+        if (step.key === "permission") {
+          permissionToastId = await permissionTx.prepareWallet();
+          const permissionHash = await permissionTx.writeContractAsync({
+            ...(step.intent as PermissionWriteRequest),
+            chainId: REVNET_CHAIN_ID,
+          } as PermissionWriteRequest);
 
-        if (permissionHash && publicClient) {
-          await publicClient.waitForTransactionReceipt({ hash: permissionHash });
+          if (permissionHash && publicClient) {
+            await publicClient.waitForTransactionReceipt({ hash: permissionHash });
+          }
+
+          refetchPermission?.();
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          continue;
         }
 
-        refetchPermission?.();
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setSubmitStep("loan");
+        await borrowTx.writeContractAsync({
+          ...(step.intent as BorrowWriteRequest),
+          chainId: REVNET_CHAIN_ID,
+        } as BorrowWriteRequest);
       }
-
-      await borrowTx.writeContractAsync({
-        address: revLoansAddress,
-        abi: revLoansAbi,
-        functionName: "borrowFrom",
-        args: [
-          position.projectId,
-          {
-            token: loanSourceToken as `0x${string}`,
-            terminal: loanSourceTerminal as `0x${string}`,
-          },
-          0n,
-          collateralCount,
-          position.account,
-          BigInt(prepaidFeePercent),
-        ],
-        chainId: REVNET_CHAIN_ID,
-      });
     } catch {
       if (borrowToastId) toast.dismiss(borrowToastId);
       if (permissionToastId) toast.dismiss(permissionToastId);

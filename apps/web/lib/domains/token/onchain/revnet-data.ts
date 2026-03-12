@@ -1,9 +1,9 @@
 import { unstable_cache } from "next/cache";
+import { getRevnetPaymentContext } from "@cobuild/wire";
 import { zeroAddress } from "viem";
 import { base } from "viem/chains";
 import { getClient } from "./clients";
-import { jbControllerAbi, jbDirectoryAbi, jbMultiTerminalAbi } from "./abis";
-import { jbContracts, COBUILD_PROJECT_ID, NATIVE_TOKEN } from "./revnet";
+import { COBUILD_PROJECT_ID } from "./revnet";
 
 export interface RevnetData {
   weight: string;
@@ -15,63 +15,14 @@ export interface RevnetData {
 
 async function fetchRevnetData(projectId: bigint): Promise<RevnetData> {
   const client = getClient(base.id);
-
-  const [rulesetResult, primaryTerminal, terminals] = await Promise.all([
-    client.readContract({
-      address: jbContracts.controller,
-      abi: jbControllerAbi,
-      functionName: "currentRulesetOf",
-      args: [projectId],
-    }),
-    client.readContract({
-      address: jbContracts.directory,
-      abi: jbDirectoryAbi,
-      functionName: "primaryTerminalOf",
-      args: [projectId, NATIVE_TOKEN],
-    }),
-    client.readContract({
-      address: jbContracts.directory,
-      abi: jbDirectoryAbi,
-      functionName: "terminalsOf",
-      args: [projectId],
-    }),
-  ]);
-
-  const [ruleset, metadata] = rulesetResult;
-  const normalizedTerminals = terminals ?? [];
-  const multiTerminal = normalizedTerminals.find(
-    (terminal) => terminal.toLowerCase() === jbContracts.multiTerminal.toLowerCase()
-  );
-  const fallbackTerminal = multiTerminal ?? normalizedTerminals[0] ?? zeroAddress;
-  const terminalAddress =
-    primaryTerminal && primaryTerminal !== zeroAddress ? primaryTerminal : fallbackTerminal;
-  let supportsEthPayments = terminalAddress !== zeroAddress;
-
-  if (
-    supportsEthPayments &&
-    terminalAddress.toLowerCase() === jbContracts.multiTerminal.toLowerCase()
-  ) {
-    try {
-      const contexts = await client.readContract({
-        address: jbContracts.multiTerminal,
-        abi: jbMultiTerminalAbi,
-        functionName: "accountingContextsOf",
-        args: [projectId],
-      });
-      supportsEthPayments = contexts.some(
-        (context) => context.token.toLowerCase() === NATIVE_TOKEN.toLowerCase()
-      );
-    } catch {
-      supportsEthPayments = false;
-    }
-  }
+  const context = await getRevnetPaymentContext(client, { projectId });
 
   return {
-    weight: ruleset.weight.toString(),
-    reservedPercent: metadata.reservedPercent,
-    isPaused: metadata.pausePay,
-    terminalAddress,
-    supportsEthPayments,
+    weight: context.ruleset.ruleset.weight.toString(),
+    reservedPercent: context.ruleset.metadata.reservedPercent,
+    isPaused: context.ruleset.metadata.pausePay,
+    terminalAddress: context.terminalAddress ?? zeroAddress,
+    supportsEthPayments: context.supportsPayments,
   };
 }
 

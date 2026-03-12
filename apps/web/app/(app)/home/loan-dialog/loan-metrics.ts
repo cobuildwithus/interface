@@ -1,5 +1,6 @@
+import { quoteRevnetLoan } from "@cobuild/wire";
 import { formatUnits } from "viem";
-import { FEE_BPS_DENOMINATOR, LOAN_LIQUIDATION_YEARS } from "./constants";
+import { LOAN_LIQUIDATION_YEARS } from "./constants";
 import { formatDisplay, formatPercentValue, formatRepayWindow } from "./utils";
 
 type LoanMetricsInput = {
@@ -35,14 +36,15 @@ export const calculateLoanMetrics = ({
   revPrepaidFeePercent,
 }: LoanMetricsInput): LoanMetrics => {
   const revFeeBps = revPrepaidFeePercent ?? 0n;
-  const totalFeeBps = revFeeBps + BigInt(prepaidFeePercent);
-  const grossBorrowableAmount = borrowableAmount ?? 0n;
-  const netBorrowableAmount =
-    totalFeeBps >= FEE_BPS_DENOMINATOR
-      ? 0n
-      : (grossBorrowableAmount * (FEE_BPS_DENOMINATOR - totalFeeBps)) / FEE_BPS_DENOMINATOR;
-  const upfrontFeeAmount =
-    grossBorrowableAmount > netBorrowableAmount ? grossBorrowableAmount - netBorrowableAmount : 0n;
+  const loanQuote = quoteRevnetLoan({
+    borrowableAmount: borrowableAmount ?? 0n,
+    prepaidFeePercent: BigInt(prepaidFeePercent),
+    revPrepaidFeePercent: revFeeBps,
+    maxPrepaidFeePercent: BigInt(maxPrepaidFeePercentBps),
+  });
+  const grossBorrowableAmount = loanQuote.grossBorrowableAmount;
+  const netBorrowableAmount = loanQuote.netBorrowableAmount;
+  const upfrontFeeAmount = loanQuote.upfrontFeeAmount;
 
   const baseTokenDisplayDecimals = borrowableDecimals > 8 ? 6 : borrowableDecimals;
 
@@ -59,15 +61,8 @@ export const calculateLoanMetrics = ({
     baseTokenDisplayDecimals
   );
 
-  const prepaidDurationYears =
-    maxPrepaidFeePercentBps > 0
-      ? (prepaidFeePercent / maxPrepaidFeePercentBps) * LOAN_LIQUIDATION_YEARS
-      : 0;
-  const hasFullPrepayCoverage = prepaidDurationYears >= LOAN_LIQUIDATION_YEARS;
-  const prepaidFeeAmount =
-    (grossBorrowableAmount * BigInt(prepaidFeePercent)) / FEE_BPS_DENOMINATOR;
-  const variableFeeAtYear10 = hasFullPrepayCoverage ? 0n : grossBorrowableAmount - prepaidFeeAmount;
-  const maxRepayAmount = grossBorrowableAmount + variableFeeAtYear10;
+  const hasFullPrepayCoverage = loanQuote.hasFullPrepayCoverage;
+  const maxRepayAmount = loanQuote.maxRepayAmount;
   const maxRepayDisplay = formatDisplay(
     formatUnits(maxRepayAmount, borrowableDecimals),
     baseTokenDisplayDecimals

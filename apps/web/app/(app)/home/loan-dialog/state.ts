@@ -1,6 +1,10 @@
 "use client";
 
-import { isSameEvmAddress } from "@cobuild/wire";
+import {
+  getRevnetPrepaidFeePercent,
+  isSameEvmAddress,
+  selectPreferredRevnetLoanSource,
+} from "@cobuild/wire";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { erc20Abi, formatUnits, parseUnits } from "viem";
@@ -62,17 +66,12 @@ export function useLoanDialogState(position: RevnetPosition) {
     query: { enabled: !!revLoansAddress },
   });
 
-  const selectedLoanSource = useMemo(() => {
-    if (!loanSources?.length) return undefined;
-    const baseToken = position.baseTokenContext?.token;
-    if (baseToken) {
-      const matchingSource = loanSources.find((source) =>
-        isSameEvmAddress(source.token, baseToken)
-      );
-      if (matchingSource) return matchingSource;
-    }
-    return loanSources[0];
-  }, [loanSources, position.baseTokenContext?.token]);
+  const selectedLoanSource = useMemo(
+    () =>
+      selectPreferredRevnetLoanSource(loanSources ?? [], position.baseTokenContext?.token) ??
+      undefined,
+    [loanSources, position.baseTokenContext?.token]
+  );
 
   const loanSourceToken = selectedLoanSource?.token ?? position.baseTokenContext?.token;
   const loanSourceTerminal = selectedLoanSource?.terminal ?? position.terminalAddress;
@@ -165,12 +164,13 @@ export function useLoanDialogState(position: RevnetPosition) {
   const maxPrepaidFeePercentBps = Number(maxPrepaidFeePercent ?? BigInt(MAX_PREPAID_FEE_PERCENT));
 
   const prepaidFeePercent = useMemo(() => {
-    const rawFee = (repayYears / LOAN_LIQUIDATION_YEARS) * maxPrepaidFeePercentBps;
-    const rounded = Math.round(rawFee);
-    if (!Number.isFinite(rounded)) return minPrepaidFeePercentBps;
-    return Math.min(
-      maxPrepaidFeePercentBps,
-      Math.max(minPrepaidFeePercentBps, rounded || minPrepaidFeePercentBps)
+    return Number(
+      getRevnetPrepaidFeePercent({
+        repayYears,
+        minPrepaidFeePercent: BigInt(minPrepaidFeePercentBps),
+        maxPrepaidFeePercent: BigInt(maxPrepaidFeePercentBps),
+        liquidationYears: LOAN_LIQUIDATION_YEARS,
+      })
     );
   }, [repayYears, minPrepaidFeePercentBps, maxPrepaidFeePercentBps]);
 

@@ -1,9 +1,9 @@
 "use client";
 
+import { buildRevnetPayIntent } from "@cobuild/wire";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import { parseEther, zeroAddress } from "viem";
-import { jbMultiTerminalAbi } from "@/lib/domains/token/onchain/abis";
 import { useContractTransaction } from "@/lib/domains/token/onchain/use-contract-transaction";
 import {
   COBUILD_PROJECT_ID,
@@ -51,6 +51,7 @@ export function useRevnetPay(options: UseRevnetPayOptions = {}) {
 
   const pay = useCallback(
     async (ethAmount: string, options?: { beneficiary?: `0x${string}`; memo?: string }) => {
+      type WriteRequest = Parameters<typeof writeContractAsync>[0];
       let toastId: string | number | undefined;
       try {
         toastId = await prepareWallet();
@@ -67,16 +68,19 @@ export function useRevnetPay(options: UseRevnetPayOptions = {}) {
 
         const value = parseEther(ethAmount);
         const recipient = options?.beneficiary || account;
-        const memo = options?.memo || "";
+        const intent = buildRevnetPayIntent({
+          terminalAddress,
+          projectId,
+          amount: value,
+          beneficiary: recipient,
+          token: NATIVE_TOKEN,
+          memo: options?.memo || "",
+        });
 
         await writeContractAsync({
-          address: terminalAddress,
-          abi: jbMultiTerminalAbi,
-          functionName: "pay",
-          args: [projectId, NATIVE_TOKEN, value, recipient, BigInt(0), memo, "0x"],
-          value,
+          ...(intent as WriteRequest),
           chainId: REVNET_CHAIN_ID,
-        });
+        } as WriteRequest);
       } catch (error) {
         if (toastId) toast.dismiss(toastId);
         throw error;

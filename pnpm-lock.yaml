@@ -54,8 +54,8 @@ importers:
         specifier: ^3.0.41
         version: 3.0.41(react@19.2.1)(zod@4.2.1)
       '@cobuild/wire':
-        specifier: 0.2.2
-        version: 0.2.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.2.1)
+        specifier: link:../../../wire
+        version: link:../../../wire
       '@coinbase/cdp-sdk':
         specifier: ^1.44.1
         version: 1.44.1(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -553,11 +553,6 @@ packages:
 
   '@cobuild/wire@0.2.0':
     resolution: {integrity: sha512-6P+ny8BBayE/iotrNQLacep6k7uGqVfEhMSAIJLhV5tQoSF9Y6PuO6jrnX44j1vdsB2aII0tEimiHgvVm0WmKw==}
-    engines: {node: '>=20'}
-    hasBin: true
-
-  '@cobuild/wire@0.2.2':
-    resolution: {integrity: sha512-71zLbff6vZx4nUU4Wlf5MHp/M8LhexcEXtdpuP3GRFh3NIkGa9/XegFUgXvxUtQk8O5ey5wOdTHDBGMuhBqkXg==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -8771,15 +8766,6 @@ snapshots:
   '@cobuild/wire@0.2.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.1.13)':
     dependencies:
       viem: 2.47.1(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.1.13)
-    transitivePeerDependencies:
-      - bufferutil
-      - typescript
-      - utf-8-validate
-      - zod
-
-  '@cobuild/wire@0.2.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.2.1)':
-    dependencies:
-      viem: 2.47.1(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.2.1)
     transitivePeerDependencies:
       - bufferutil
       - typescript

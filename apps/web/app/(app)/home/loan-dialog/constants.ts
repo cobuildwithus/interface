@@ -1,7 +1,9 @@
+import { REVNET_LOAN_FEE_DENOMINATOR, REVNET_LOAN_LIQUIDATION_YEARS } from "@cobuild/wire";
+
 export const MAX_PREPAID_FEE_PERCENT = 500;
 export const MIN_PREPAID_FEE_PERCENT = 25;
-export const LOAN_LIQUIDATION_YEARS = 10;
-export const FEE_BPS_DENOMINATOR = 1000n;
+export const LOAN_LIQUIDATION_YEARS = REVNET_LOAN_LIQUIDATION_YEARS;
+export const FEE_BPS_DENOMINATOR = REVNET_LOAN_FEE_DENOMINATOR;
 
 export const REPAY_OPTIONS = [
   { label: "6 mo", years: 0.5 },

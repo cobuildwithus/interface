@@ -1,16 +1,5 @@
-/**
- * Token Issuance Quote Calculation
- *
- * Calculates how many project tokens a user receives for a given ETH payment.
- * Based on the JB ruleset weight and reserved percent.
- *
- * Formula:
- *   totalTokens = (weight × ethAmount) / 10^18
- *   reservedTokens = totalTokens × reservedPercent / 10000
- *   payerTokens = totalTokens - reservedTokens
- */
-
-import { MAX_RESERVED_PERCENT, NATIVE_TOKEN_DECIMALS, JB_TOKEN_DECIMALS } from "./revnet";
+import { quoteRevnetPaymentForTokens, quoteRevnetPurchase } from "@cobuild/wire";
+import { JB_TOKEN_DECIMALS } from "./revnet";
 
 interface TokenQuote {
   /** Tokens the payer receives */
@@ -34,27 +23,11 @@ export function getTokenQuote(
   weight: bigint,
   reservedPercent: number
 ): TokenQuote {
-  if (ethAmount === 0n || weight === 0n) {
-    return { payerTokens: 0n, reservedTokens: 0n, totalTokens: 0n };
-  }
-
-  const weightRatio = 10n ** BigInt(NATIVE_TOKEN_DECIMALS);
-
-  // totalTokens = (weight × ethAmount) / 10^18
-  const totalTokens = (weight * ethAmount) / weightRatio;
-
-  // reservedTokens = (weight × reservedPercent × ethAmount) / MAX_RESERVED_PERCENT / 10^18
-  const reservedTokens =
-    (weight * BigInt(reservedPercent) * ethAmount) / MAX_RESERVED_PERCENT / weightRatio;
-
-  // payerTokens = totalTokens - reservedTokens
-  const payerTokens = totalTokens - reservedTokens;
-
-  return {
-    payerTokens,
-    reservedTokens,
-    totalTokens,
-  };
+  return quoteRevnetPurchase({
+    amount: ethAmount,
+    weight,
+    reservedPercent,
+  });
 }
 
 /**
@@ -70,17 +43,11 @@ export function getEthForTokens(
   weight: bigint,
   reservedPercent: number
 ): bigint {
-  if (payerTokens === 0n || weight === 0n) return 0n;
-
-  const weightRatio = 10n ** BigInt(NATIVE_TOKEN_DECIMALS);
-  // payerTokens = totalTokens × (1 - reservedPercent/10000)
-  // totalTokens = payerTokens × 10000 / (10000 - reservedPercent)
-  // ethAmount = totalTokens × 10^18 / weight
-  const effectivePercent = MAX_RESERVED_PERCENT - BigInt(reservedPercent);
-  if (effectivePercent === 0n) return 0n;
-
-  const totalTokens = (payerTokens * MAX_RESERVED_PERCENT) / effectivePercent;
-  return (totalTokens * weightRatio) / weight;
+  return quoteRevnetPaymentForTokens({
+    payerTokens,
+    weight,
+    reservedPercent,
+  });
 }
 
 /**

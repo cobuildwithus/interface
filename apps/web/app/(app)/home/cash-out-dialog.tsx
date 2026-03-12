@@ -1,5 +1,6 @@
 "use client";
 
+import { buildRevnetCashOutIntent } from "@cobuild/wire";
 import { PropsWithChildren, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { formatUnits, parseUnits } from "viem";
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useRevnetPosition } from "@/lib/hooks/use-revnet-position";
-import { jbMultiTerminalAbi, jbTerminalStoreAbi } from "@/lib/domains/token/onchain/abis";
+import { jbTerminalStoreAbi } from "@/lib/domains/token/onchain/abis";
 import { contracts } from "@/lib/domains/token/onchain/addresses";
 import { REVNET_CHAIN_ID } from "@/lib/domains/token/onchain/revnet";
 import { applyJbDaoCashoutFee, applyRevnetCashoutFee } from "@/lib/domains/token/juicebox/fees";
@@ -113,6 +114,7 @@ export function CashOutDialog({
   });
 
   const handleCashOut = async () => {
+    type WriteRequest = Parameters<typeof cashOutTx.writeContractAsync>[0];
     let toastId: string | number | undefined;
     try {
       toastId = await cashOutTx.prepareWallet();
@@ -129,21 +131,19 @@ export function CashOutDialog({
         throw new Error("Invalid cash out amount");
       }
 
-      await cashOutTx.writeContractAsync({
-        address: position.terminalAddress,
-        abi: jbMultiTerminalAbi,
-        functionName: "cashOutTokensOf",
-        args: [
-          position.account,
-          position.projectId,
-          cashOutCount,
-          position.baseTokenContext.token,
-          0n,
-          position.account,
-          "0x",
-        ],
-        chainId: REVNET_CHAIN_ID,
+      const intent = buildRevnetCashOutIntent({
+        terminalAddress: position.terminalAddress,
+        holder: position.account,
+        projectId: position.projectId,
+        cashOutCount,
+        tokenToReclaim: position.baseTokenContext.token,
+        beneficiary: position.account,
       });
+
+      await cashOutTx.writeContractAsync({
+        ...(intent as WriteRequest),
+        chainId: REVNET_CHAIN_ID,
+      } as WriteRequest);
     } catch {
       if (toastId) toast.dismiss(toastId);
     }
