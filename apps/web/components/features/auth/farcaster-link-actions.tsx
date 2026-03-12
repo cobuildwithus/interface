@@ -1,11 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useUser } from "@/lib/hooks/use-user";
-import { useFarcasterSigner } from "@/lib/hooks/use-farcaster-signer";
-import { useLinkedAccounts } from "@/lib/hooks/use-linked-accounts";
 import { handleNeynarSignin } from "@/lib/integrations/farcaster/handle-neynar-signin";
 import {
   attachNeynarListener,
@@ -17,6 +13,7 @@ import {
   type NeynarCallbackData,
 } from "@/components/features/auth/farcaster/neynar-auth";
 import { disconnectFarcasterSignerAction } from "@/app/(app)/actions/farcaster-signer";
+import { useRefreshLinkedAccountState } from "@/lib/domains/auth/use-refresh-linked-account-state";
 
 type FarcasterLinkActions = {
   connectSigner: () => void;
@@ -39,7 +36,7 @@ export function useFarcasterLinkActionsCore({
   onLinked,
   onDisconnected,
 }: FarcasterLinkActionsParams): FarcasterLinkActions {
-  const router = useRouter();
+  const { refreshLinkedAccountState } = useRefreshLinkedAccountState(address);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const authCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -63,17 +60,17 @@ export function useFarcasterLinkActionsCore({
     if (onLinked) {
       await onLinked();
     } else {
-      router.refresh();
+      await refreshLinkedAccountState({ includeSigner: true });
     }
-  }, [onLinked, router]);
+  }, [onLinked, refreshLinkedAccountState]);
 
   const refreshAfterDisconnect = useCallback(async () => {
     if (onDisconnected) {
       await onDisconnected();
     } else {
-      router.refresh();
+      await refreshLinkedAccountState({ includeSigner: true });
     }
-  }, [onDisconnected, router]);
+  }, [onDisconnected, refreshLinkedAccountState]);
 
   const handleSignInSuccess = useCallback(
     async (data: NeynarCallbackData) => {
@@ -176,24 +173,4 @@ export function useFarcasterLinkActionsCore({
   }, [refreshAfterDisconnect]);
 
   return { connectSigner, disconnectSigner, linkReadOnly, isConnecting, isDisconnecting };
-}
-
-export function useFarcasterLinkActions(linkFarcaster: () => Promise<void>): FarcasterLinkActions {
-  const router = useRouter();
-  const { address } = useUser();
-  const { mutate: mutateSigner } = useFarcasterSigner();
-  const { mutate: mutateLinkedAccounts } = useLinkedAccounts();
-
-  const handleLinked = useCallback(async () => {
-    await mutateSigner();
-    await mutateLinkedAccounts();
-    router.refresh();
-  }, [mutateLinkedAccounts, mutateSigner, router]);
-
-  return useFarcasterLinkActionsCore({
-    address,
-    linkFarcaster,
-    onLinked: handleLinked,
-    onDisconnected: handleLinked,
-  });
 }
