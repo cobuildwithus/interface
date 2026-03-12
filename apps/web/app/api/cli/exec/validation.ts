@@ -5,6 +5,7 @@ import { RequestValidationError } from "@/lib/server/cli/http";
 import { IdempotencyKeySchema } from "@/lib/server/cli/idempotency";
 
 export const CLI_EXEC_NETWORKS = ["base"] as const;
+export type CliExecNetwork = (typeof CLI_EXEC_NETWORKS)[number];
 
 const ExecRequestBaseSchema = z.object({
   network: z.string().trim().min(1).max(64).optional(),
@@ -31,6 +32,12 @@ export const ExecRequestSchema = z.discriminatedUnion("kind", [
     action: z.string().trim().min(1).max(128),
     riskClass: z.string().trim().min(1).max(64),
     step: z.unknown(),
+  }),
+  ExecRequestBaseSchema.extend({
+    kind: z.literal("protocol-plan"),
+    action: z.string().trim().min(1).max(128),
+    riskClass: z.string().trim().min(1).max(64),
+    steps: z.array(z.unknown()).min(1),
   }),
 ]);
 
@@ -80,11 +87,11 @@ function parseNetwork<TNetwork extends string>(
   return parsed.data;
 }
 
-export function parseTransferNetwork(network: string): (typeof CLI_EXEC_NETWORKS)[number] {
+export function parseTransferNetwork(network: string): CliExecNetwork {
   return parseNetwork(network, TransferNetworkSchema, "transfer");
 }
 
-export function parseTxNetwork(network: string): (typeof CLI_EXEC_NETWORKS)[number] {
+export function parseTxNetwork(network: string): CliExecNetwork {
   return parseNetwork(network, TxNetworkSchema, "transaction");
 }
 

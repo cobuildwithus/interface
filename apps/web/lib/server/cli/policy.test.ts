@@ -1,10 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseEther, parseUnits } from "viem";
-import { buildCliProtocolStepRequest, buildPremiumClaimPlan } from "@cobuild/wire";
+import {
+  buildCliProtocolPlanRequest,
+  buildCliProtocolStepRequest,
+  buildGoalStakeDepositPlan,
+  buildPremiumClaimPlan,
+} from "@cobuild/wire";
 
 vi.mock("server-only", () => ({}));
 
 import {
+  assertCliProtocolPlanAllowed,
   assertCliProtocolStepAllowed,
   assertCliTransferAllowed,
   assertCliTxAllowed,
@@ -212,6 +218,50 @@ describe("cli policy", () => {
         riskClass: "stake",
       } as typeof request)
     ).toThrow('riskClass must be "claim" for action "premium.claim"');
+  });
+
+  it("allows canonical protocol-plan requests without generic tx allowlists", () => {
+    setEnv({
+      CLI_ALLOWED_NETWORKS: "base",
+    });
+    const plan = buildGoalStakeDepositPlan({
+      network: "base",
+      stakeVaultAddress: "0x0000000000000000000000000000000000000022",
+      goalTokenAddress: "0x0000000000000000000000000000000000000011",
+      amount: "100",
+      approvalMode: "force",
+    });
+    const request = buildCliProtocolPlanRequest({
+      network: plan.network,
+      action: plan.action,
+      riskClass: plan.riskClass,
+      steps: plan.steps,
+    });
+
+    expect(() => assertCliProtocolPlanAllowed(request)).not.toThrow();
+  });
+
+  it("rejects protocol-plan requests whose step ordering is invalid", () => {
+    const plan = buildGoalStakeDepositPlan({
+      network: "base",
+      stakeVaultAddress: "0x0000000000000000000000000000000000000022",
+      goalTokenAddress: "0x0000000000000000000000000000000000000011",
+      amount: "100",
+      approvalMode: "force",
+    });
+    const request = buildCliProtocolPlanRequest({
+      network: plan.network,
+      action: plan.action,
+      riskClass: plan.riskClass,
+      steps: plan.steps,
+    });
+
+    expect(() =>
+      assertCliProtocolPlanAllowed({
+        ...request,
+        steps: [request.steps[1]!, request.steps[0]!],
+      } as typeof request)
+    ).toThrow('steps must end with exactly one "contract-call" step.');
   });
 
   it("requires allowed networks in strict mode", () => {

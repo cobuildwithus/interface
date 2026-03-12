@@ -6,6 +6,8 @@ export class IdempotencyConflictError extends Error {}
 
 export class UserOperationFailedError extends Error {}
 
+export type CliExecResponseKind = "transfer" | "tx" | "protocol-step" | "protocol-plan";
+
 export function execErrorResponse(error: unknown) {
   if (error instanceof IdempotencyConflictError) {
     return jsonError(409, error.message);
@@ -18,7 +20,7 @@ export function execErrorResponse(error: unknown) {
 }
 
 export function buildSuccessResponse(params: {
-  kind: "transfer" | "tx" | "protocol-step";
+  kind: CliExecResponseKind;
   walletAddress: string;
   network: string;
   transactionHash: string | null;
@@ -43,7 +45,7 @@ export function buildSuccessResponse(params: {
 }
 
 export function buildPendingResponse(params: {
-  kind: "transfer" | "tx" | "protocol-step";
+  kind: CliExecResponseKind;
   walletAddress: string;
   network: string;
   userOpHash: string;

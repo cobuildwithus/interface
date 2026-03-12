@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { buildPremiumClaimPlan } from "@cobuild/wire";
+import { buildGoalStakeDepositPlan, buildPremiumClaimPlan } from "@cobuild/wire";
 
 vi.mock("server-only", () => ({}));
 
@@ -9,6 +9,7 @@ const {
   getOrCreateCliAgentExecutionContextMock,
   assertCliTransferAllowedMock,
   assertCliTxAllowedMock,
+  assertCliProtocolPlanAllowedMock,
   assertCliProtocolStepAllowedMock,
   txLogFindUniqueMock,
   txLogCreateMock,
@@ -20,6 +21,7 @@ const {
   getOrCreateCliAgentExecutionContextMock: vi.fn(),
   assertCliTransferAllowedMock: vi.fn(),
   assertCliTxAllowedMock: vi.fn(),
+  assertCliProtocolPlanAllowedMock: vi.fn(),
   assertCliProtocolStepAllowedMock: vi.fn(),
   txLogFindUniqueMock: vi.fn(),
   txLogCreateMock: vi.fn(),
@@ -51,6 +53,7 @@ vi.mock("@/lib/server/cli/wallet-store", () => ({
 vi.mock("@/lib/server/cli/policy", () => ({
   assertCliTransferAllowed: (...args: unknown[]) => assertCliTransferAllowedMock(...args),
   assertCliTxAllowed: (...args: unknown[]) => assertCliTxAllowedMock(...args),
+  assertCliProtocolPlanAllowed: (...args: unknown[]) => assertCliProtocolPlanAllowedMock(...args),
   assertCliProtocolStepAllowed: (...args: unknown[]) => assertCliProtocolStepAllowedMock(...args),
 }));
 
@@ -76,6 +79,7 @@ vi.mock("@/lib/server/db/cobuild-db-client", () => ({
 }));
 
 import { POST } from "./route";
+import { buildProtocolPlanIdempotencyFingerprint } from "./idempotency";
 
 const BASE_BUILDER_SUFFIX = "0x0b62635f64647972736c69780080218021802180218021802180218021";
 
@@ -364,6 +368,109 @@ describe("cli exec route user-op failure handling", () => {
         data: {
           status: "submitted",
           userOpHash: "0xprotocol-user-op",
+          expiresAt: null,
+        },
+      })
+    );
+    expect(txLogUpdateMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: {
+          status: "failed",
+          expiresAt: null,
+        },
+      })
+    );
+  });
+
+  it("returns 500 and marks protocol-plan idempotency failed when user-op settles unsuccessfully", async () => {
+    const sendUserOperationMock = vi
+      .fn()
+      .mockResolvedValue({ userOpHash: "0xprotocol-plan-user-op" });
+    const waitForUserOperationMock = vi.fn().mockResolvedValue({ status: "failed" });
+    getOrCreateCliAgentExecutionContextMock.mockResolvedValue({
+      wallet: {
+        ownerAddress: "0x0000000000000000000000000000000000000001",
+        agentKey: "default",
+        cdpAccountName: "cli-smart",
+        address: "0x0000000000000000000000000000000000000002",
+        defaultNetwork: "base",
+      },
+      smartAccount: {
+        address: "0x0000000000000000000000000000000000000002",
+        sendUserOperation: sendUserOperationMock,
+        waitForUserOperation: waitForUserOperationMock,
+      },
+      walletAddress: "0x0000000000000000000000000000000000000002",
+    });
+
+    const plan = buildGoalStakeDepositPlan({
+      network: "base",
+      stakeVaultAddress: "0x0000000000000000000000000000000000000022",
+      goalTokenAddress: "0x0000000000000000000000000000000000000011",
+      amount: "100",
+      approvalMode: "force",
+    });
+    const idempotencyKey = "0bc1f9f9-4321-4cb8-9e84-8e305a356f0c";
+    const fingerprint = buildProtocolPlanIdempotencyFingerprint({
+      logKind: "protocol-plan:stake.deposit-goal",
+      network: "base",
+      steps: plan.steps,
+    });
+
+    const request = new Request("http://localhost/api/cli/exec", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+      },
+      body: JSON.stringify({
+        kind: "protocol-plan",
+        network: "base",
+        action: plan.action,
+        riskClass: plan.riskClass,
+        steps: plan.steps,
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(500);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: "User operation failed before confirmation",
+    });
+
+    expect(sendUserOperationMock).toHaveBeenCalledWith({
+      network: "base",
+      calls: plan.steps.map((step) => ({
+        to: step.transaction.to,
+        value: 0n,
+        data: step.transaction.data,
+      })),
+      dataSuffix: BASE_BUILDER_SUFFIX,
+      idempotencyKey,
+    });
+    expect(txLogCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          kind: "protocol-plan",
+          idempotencyKey,
+          status: "pending",
+          valueEth: plan.steps[1]!.transaction.valueEth,
+          data: fingerprint,
+          txHash: null,
+          userOpHash: null,
+          expiresAt: expect.any(Date),
+        }),
+      })
+    );
+    expect(txLogUpdateMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: {
+          status: "submitted",
+          userOpHash: "0xprotocol-plan-user-op",
           expiresAt: null,
         },
       })

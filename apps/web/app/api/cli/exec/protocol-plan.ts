@@ -1,51 +1,52 @@
 import { type NextResponse } from "next/server";
 import {
-  buildCliProtocolStepLogKind,
-  type CliProtocolStepRequest,
-  validateCliProtocolStepRequest,
+  buildCliProtocolPlanLogKind,
+  type CliProtocolPlanRequest,
+  validateCliProtocolPlanRequest,
 } from "@cobuild/wire";
-import { assertCliProtocolStepAllowed } from "@/lib/server/cli/policy";
+import { assertCliProtocolPlanAllowed } from "@/lib/server/cli/policy";
 import { RequestValidationError } from "@/lib/server/cli/http";
 import { resolveCliExecWalletContext } from "@/lib/server/cli/wallet-store";
 import {
-  assertProtocolStepIdempotencyMatch,
+  buildProtocolPlanIdempotencyFingerprint,
+  assertProtocolPlanIdempotencyMatch,
   type CliExecDb,
   type CliTxLogCreateData,
 } from "./idempotency";
 import { executeHostedCliUserOperation } from "./hosted-user-operation";
 import { parseEtherInput, parseTxNetwork } from "./validation";
 
-type ProtocolStepInput = {
-  kind: "protocol-step";
+type ProtocolPlanInput = {
+  kind: "protocol-plan";
   network?: string;
   idempotencyKey?: string;
   agentKey?: string;
   action: string;
   riskClass: string;
-  step: unknown;
+  steps: unknown[];
 };
 
-function validateProtocolRequest(params: {
-  input: ProtocolStepInput;
+function validateProtocolPlanRequest(params: {
+  input: ProtocolPlanInput;
   requestedNetwork: string;
-}): CliProtocolStepRequest {
+}): CliProtocolPlanRequest {
   try {
-    return validateCliProtocolStepRequest({
-      kind: "protocol-step",
+    return validateCliProtocolPlanRequest({
+      kind: "protocol-plan",
       network: params.input.network ?? params.requestedNetwork,
       action: params.input.action,
       riskClass: params.input.riskClass,
-      step: params.input.step,
+      steps: params.input.steps,
     });
   } catch (error) {
     throw new RequestValidationError(error instanceof Error ? error.message : String(error));
   }
 }
 
-export async function handleProtocolStepExecution(params: {
+export async function handleProtocolPlanExecution(params: {
   db: CliExecDb;
   auth: { ownerAddress: `0x${string}`; agentKey: string };
-  input: ProtocolStepInput;
+  input: ProtocolPlanInput;
   idempotencyKey: string | null;
 }): Promise<NextResponse> {
   const walletContext = await resolveCliExecWalletContext({
@@ -53,30 +54,36 @@ export async function handleProtocolStepExecution(params: {
     agentKey: params.auth.agentKey,
     requestedNetwork: params.input.network,
   });
-  const protocolRequest = validateProtocolRequest({
+  const protocolRequest = validateProtocolPlanRequest({
     input: params.input,
     requestedNetwork: walletContext.requestedNetwork,
   });
-  assertCliProtocolStepAllowed(protocolRequest);
+  assertCliProtocolPlanAllowed(protocolRequest);
 
   const network = parseTxNetwork(protocolRequest.network);
-  const { step } = protocolRequest;
-  const to = step.transaction.to;
-  const valueEth = step.transaction.valueEth;
-  const valueWei = parseEtherInput(valueEth, "step.transaction.valueEth");
-  const logKind = buildCliProtocolStepLogKind(protocolRequest.action);
+  const logKind = buildCliProtocolPlanLogKind(protocolRequest.action);
+  const lastStep = protocolRequest.steps.at(-1);
+  if (!lastStep) {
+    throw new RequestValidationError("steps must contain at least one step.");
+  }
+
+  const fingerprint = buildProtocolPlanIdempotencyFingerprint({
+    logKind,
+    network,
+    steps: protocolRequest.steps,
+  });
   const txLogData: CliTxLogCreateData = {
     ownerAddress: params.auth.ownerAddress,
     agentKey: params.auth.agentKey,
     idempotencyKey: params.idempotencyKey,
-    kind: logKind,
+    kind: "protocol-plan",
     network,
-    to,
+    to: lastStep.transaction.to,
     token: null,
     amount: null,
     decimals: null,
-    valueEth,
-    data: step.transaction.data,
+    valueEth: lastStep.transaction.valueEth,
+    data: fingerprint,
     txHash: null,
   };
 
@@ -85,18 +92,19 @@ export async function handleProtocolStepExecution(params: {
     auth: params.auth,
     walletContext,
     idempotencyKey: params.idempotencyKey,
-    kind: "protocol-step",
+    kind: "protocol-plan",
     network,
     txLogData,
-    calls: [{ to, value: valueWei, data: step.transaction.data }],
+    calls: protocolRequest.steps.map((step, index) => ({
+      to: step.transaction.to,
+      value: parseEtherInput(step.transaction.valueEth, `steps[${index}].transaction.valueEth`),
+      data: step.transaction.data,
+    })),
     assertMatch: (existing) => {
-      assertProtocolStepIdempotencyMatch({
+      assertProtocolPlanIdempotencyMatch({
         existing,
-        logKind,
         network,
-        to,
-        valueWei,
-        data: step.transaction.data,
+        fingerprint,
       });
     },
   });

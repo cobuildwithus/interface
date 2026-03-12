@@ -2,6 +2,7 @@ import { requireCliBearerAuth } from "@/lib/server/cli/auth";
 import { cliErrorResponse, parseJsonStrict } from "@/lib/server/cli/http";
 import { resolveIdempotencyKey } from "@/lib/server/cli/idempotency";
 import { cliExecPrimaryDb } from "./idempotency";
+import { handleProtocolPlanExecution } from "./protocol-plan";
 import { handleProtocolStepExecution } from "./protocol-step";
 import { execErrorResponse } from "./response";
 import { handleTransferExecution } from "./transfer";
@@ -41,6 +42,18 @@ export async function POST(request: Request) {
 
     if (input.kind === "protocol-step") {
       return await handleProtocolStepExecution({
+        db,
+        auth: {
+          ownerAddress: auth.ownerAddress,
+          agentKey: auth.agentKey,
+        },
+        input,
+        idempotencyKey,
+      });
+    }
+
+    if (input.kind === "protocol-plan") {
+      return await handleProtocolPlanExecution({
         db,
         auth: {
           ownerAddress: auth.ownerAddress,

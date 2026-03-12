@@ -1,10 +1,15 @@
+import { createHash } from "node:crypto";
 import { type NextResponse } from "next/server";
 import { canonicalizeBaseBuilderCodeAttributedData } from "@cobuild/wire";
 import type { Hex } from "viem";
 import prisma, { prismaPrimary } from "@/lib/server/db/cobuild-db-client";
 import { isPrismaUniqueViolation } from "@/lib/server/cli/prisma-errors";
 import { parseEtherInput } from "./validation";
-import { buildSuccessResponse, IdempotencyConflictError } from "./response";
+import {
+  buildSuccessResponse,
+  IdempotencyConflictError,
+  type CliExecResponseKind,
+} from "./response";
 
 const CLI_TX_LOG_REPLAY_SELECT = {
   kind: true,
@@ -68,11 +73,13 @@ type ReserveOrReplayResult =
   | { response: NextResponse }
   | { resumeUserOpHash: `0x${string}` };
 
+type ReplayableCliExecKind = Exclude<CliExecResponseKind, "transfer-status">;
+
 export function cliExecPrimaryDb(): CliExecDb {
   return prismaPrimary(prisma) as CliExecDb;
 }
 
-async function findCliTxLogByIdempotency(params: {
+export async function findCliTxLogByIdempotency(params: {
   db: CliExecDb;
   ownerAddress: `0x${string}`;
   agentKey: string;
@@ -239,6 +246,7 @@ export async function failCliTxLog(params: {
   ownerAddress: `0x${string}`;
   agentKey: string;
   idempotencyKey: string;
+  userOpHash?: `0x${string}`;
 }) {
   await params.db.cliTxLog.update({
     where: {
@@ -250,6 +258,7 @@ export async function failCliTxLog(params: {
     },
     data: {
       status: CLI_TX_LOG_STATUSES.FAILED,
+      ...(params.userOpHash ? { userOpHash: params.userOpHash } : {}),
       expiresAt: null,
     },
   });
@@ -349,6 +358,61 @@ export function assertProtocolStepIdempotencyMatch(params: {
   });
 }
 
+type ProtocolPlanFingerprintStep = {
+  kind: string;
+  transaction: {
+    to: string;
+    data: `0x${string}`;
+    valueEth: string;
+  };
+  contract?: string;
+  functionName?: string;
+  tokenAddress?: string;
+  spenderAddress?: string;
+  amount?: string;
+};
+
+export function buildProtocolPlanIdempotencyFingerprint(params: {
+  logKind: string;
+  network: string;
+  steps: readonly ProtocolPlanFingerprintStep[];
+}): string {
+  const parts = ["protocol-plan", params.logKind, params.network];
+
+  params.steps.forEach((step, index) => {
+    parts.push(
+      String(index),
+      step.kind,
+      step.transaction.to,
+      step.transaction.valueEth,
+      canonicalizeBaseBuilderCodeAttributedData(step.transaction.data as Hex)
+    );
+    if (step.kind === "contract-call") {
+      parts.push(step.contract ?? "", step.functionName ?? "");
+      return;
+    }
+    parts.push(step.tokenAddress ?? "", step.spenderAddress ?? "", step.amount ?? "");
+  });
+
+  return `0x${createHash("sha256").update(parts.join("\n")).digest("hex")}`;
+}
+
+export function assertProtocolPlanIdempotencyMatch(params: {
+  existing: CliTxLogReplayRecord;
+  network: string;
+  fingerprint: string;
+}) {
+  if (
+    params.existing.kind !== "protocol-plan" ||
+    params.existing.network !== params.network ||
+    params.existing.data !== params.fingerprint
+  ) {
+    throw new IdempotencyConflictError(
+      "Idempotency key is already associated with a different protocol-plan request"
+    );
+  }
+}
+
 function assertStoredCallIdempotencyMatch(params: {
   existing: CliTxLogReplayRecord;
   expectedKind: string;
@@ -384,7 +448,7 @@ function assertStoredCallIdempotencyMatch(params: {
 }
 
 function buildReplayResponse(params: {
-  kind: "transfer" | "tx" | "protocol-step";
+  kind: ReplayableCliExecKind;
   walletAddress?: string;
   existing: CliTxLogReplayRecord;
 }) {
@@ -409,6 +473,13 @@ function isResumableUserOperationStatus(status: string): boolean {
   return status === CLI_TX_LOG_STATUSES.SUBMITTED || status === CLI_TX_LOG_STATUSES.TIMED_OUT;
 }
 
+export function hasResumableUserOperation(existing: CliTxLogReplayRecord): boolean {
+  return (
+    isResumableUserOperationStatus(existing.status) ||
+    (existing.status === CLI_TX_LOG_STATUSES.FAILED && typeof existing.userOpHash === "string")
+  );
+}
+
 async function resolveExistingCliTxLog(params: {
   db: CliExecDb;
   ownerAddress: `0x${string}`;
@@ -417,7 +488,7 @@ async function resolveExistingCliTxLog(params: {
   data: CliTxLogCreateData;
   existing: CliTxLogReplayRecord;
   walletAddress?: string;
-  kind: "transfer" | "tx" | "protocol-step";
+  kind: ReplayableCliExecKind;
   assertMatch: (existing: CliTxLogReplayRecord) => void;
 }): Promise<ReserveOrReplayResult> {
   params.assertMatch(params.existing);
@@ -435,7 +506,7 @@ async function resolveExistingCliTxLog(params: {
     };
   }
 
-  if (isResumableUserOperationStatus(params.existing.status)) {
+  if (hasResumableUserOperation(params.existing)) {
     if (!params.existing.userOpHash) {
       throw new Error("Resumable idempotency record is missing userOpHash");
     }
@@ -509,7 +580,7 @@ export async function replayIfFinalized(params: {
   agentKey: string;
   idempotencyKey: string | null;
   walletAddress?: string;
-  kind: "transfer" | "tx" | "protocol-step";
+  kind: ReplayableCliExecKind;
   assertMatch: (existing: CliTxLogReplayRecord) => void;
 }): Promise<NextResponse | null> {
   const existing = await findCliTxLogByIdempotency({
@@ -541,7 +612,7 @@ export async function reserveOrReplay(params: {
   idempotencyKey: string | null;
   data: CliTxLogCreateData;
   walletAddress?: string;
-  kind: "transfer" | "tx" | "protocol-step";
+  kind: ReplayableCliExecKind;
   assertMatch: (existing: CliTxLogReplayRecord) => void;
 }): Promise<ReserveOrReplayResult> {
   if (!params.idempotencyKey) {

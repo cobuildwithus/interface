@@ -1,32 +1,18 @@
 import { type NextResponse } from "next/server";
-import {
-  baseBuilderCodeDataSuffixForNetwork,
-  canonicalizeBaseBuilderCodeAttributedData,
-  normalizeHex,
-} from "@cobuild/wire";
+import { canonicalizeBaseBuilderCodeAttributedData, normalizeHex } from "@cobuild/wire";
 import { assertCliTxAllowed } from "@/lib/server/cli/policy";
 import { RequestValidationError } from "@/lib/server/cli/http";
-import {
-  waitForUserOperationComplete,
-  UserOperationTimeoutError,
-} from "@/lib/server/cli/user-operation";
 import { resolveCliExecWalletContext } from "@/lib/server/cli/wallet-store";
 import {
   assertTxIdempotencyMatch,
-  failCliTxLog,
-  finalizeCliTxLog,
-  markCliTxSubmitted,
-  markCliTxTimedOut,
+  findCliTxLogByIdempotency,
+  hasResumableUserOperation,
   replayIfFinalized,
-  reserveOrReplay,
   type CliExecDb,
   type CliTxLogCreateData,
-  writeCliTxLog,
 } from "./idempotency";
-import { buildPendingResponse, buildSuccessResponse, UserOperationFailedError } from "./response";
+import { executeHostedCliUserOperation } from "./hosted-user-operation";
 import { parseEtherInput, parseEvmAddressInput, parseTxNetwork } from "./validation";
-
-const CLI_EXEC_USER_OPERATION_WAIT_TIMEOUT_MS = 20_000;
 
 type TxInput = {
   kind: "tx";
@@ -58,21 +44,6 @@ export async function handleTxExecution(params: {
     requestedNetwork: params.input.network,
   });
   const network = parseTxNetwork(walletContext.requestedNetwork);
-  const txLogData: CliTxLogCreateData = {
-    ownerAddress: params.auth.ownerAddress,
-    agentKey: params.auth.agentKey,
-    idempotencyKey: params.idempotencyKey,
-    kind: "tx",
-    network,
-    to,
-    token: null,
-    amount: null,
-    decimals: null,
-    valueEth,
-    data: canonicalTxData,
-    txHash: null,
-  };
-
   const replayResponse = await replayIfFinalized({
     db: params.db,
     ownerAddress: params.auth.ownerAddress,
@@ -94,21 +65,58 @@ export async function handleTxExecution(params: {
     return replayResponse;
   }
 
-  assertCliTxAllowed({
-    network,
-    to,
-    valueWei,
-    data: canonicalTxData,
-  });
-
-  const reservation = await reserveOrReplay({
+  const existing = await findCliTxLogByIdempotency({
     db: params.db,
     ownerAddress: params.auth.ownerAddress,
     agentKey: params.auth.agentKey,
     idempotencyKey: params.idempotencyKey,
-    data: txLogData,
-    walletAddress: walletContext.walletAddress,
+  });
+  const canResumeExistingUserOperation =
+    !!existing &&
+    (() => {
+      assertTxIdempotencyMatch({
+        existing,
+        network,
+        to,
+        valueWei,
+        data: canonicalTxData,
+      });
+      return hasResumableUserOperation(existing);
+    })();
+
+  const txLogData: CliTxLogCreateData = {
+    ownerAddress: params.auth.ownerAddress,
+    agentKey: params.auth.agentKey,
+    idempotencyKey: params.idempotencyKey,
     kind: "tx",
+    network,
+    to,
+    token: null,
+    amount: null,
+    decimals: null,
+    valueEth,
+    data: canonicalTxData,
+    txHash: null,
+  };
+
+  if (!canResumeExistingUserOperation) {
+    assertCliTxAllowed({
+      network,
+      to,
+      valueWei,
+      data: canonicalTxData,
+    });
+  }
+
+  return await executeHostedCliUserOperation({
+    db: params.db,
+    auth: params.auth,
+    walletContext,
+    idempotencyKey: params.idempotencyKey,
+    kind: "tx",
+    network,
+    txLogData,
+    calls: [{ to, value: valueWei, data: canonicalTxData }],
     assertMatch: (raced) => {
       assertTxIdempotencyMatch({
         existing: raced,
@@ -118,112 +126,6 @@ export async function handleTxExecution(params: {
         data: canonicalTxData,
       });
     },
-  });
-  if ("response" in reservation) {
-    return reservation.response;
-  }
-
-  const { smartAccount, walletAddress } = await walletContext.getExecutionContext();
-  let userOpHash: `0x${string}`;
-
-  if ("resumeUserOpHash" in reservation) {
-    userOpHash = reservation.resumeUserOpHash;
-  } else {
-    try {
-      const dataSuffix = baseBuilderCodeDataSuffixForNetwork(network);
-      const txResult = await smartAccount.sendUserOperation({
-        network,
-        calls: [{ to, value: valueWei, data: canonicalTxData }],
-        ...(dataSuffix ? { dataSuffix } : {}),
-        idempotencyKey: params.idempotencyKey ?? undefined,
-      });
-      userOpHash = txResult.userOpHash;
-      if (params.idempotencyKey) {
-        await markCliTxSubmitted({
-          db: params.db,
-          ownerAddress: params.auth.ownerAddress,
-          agentKey: params.auth.agentKey,
-          idempotencyKey: params.idempotencyKey,
-          userOpHash,
-        });
-      }
-    } catch (error) {
-      if (params.idempotencyKey) {
-        await failCliTxLog({
-          db: params.db,
-          ownerAddress: params.auth.ownerAddress,
-          agentKey: params.auth.agentKey,
-          idempotencyKey: params.idempotencyKey,
-        });
-      }
-      throw error;
-    }
-  }
-
-  let transactionHash: `0x${string}` | null;
-  try {
-    transactionHash = await waitForUserOperationComplete({
-      smartAccount,
-      userOpHash,
-      label: "User operation",
-      createError: (message) => new UserOperationFailedError(message),
-      timeoutMs: CLI_EXEC_USER_OPERATION_WAIT_TIMEOUT_MS,
-    });
-  } catch (error) {
-    if (error instanceof UserOperationTimeoutError) {
-      if (params.idempotencyKey) {
-        await markCliTxTimedOut({
-          db: params.db,
-          ownerAddress: params.auth.ownerAddress,
-          agentKey: params.auth.agentKey,
-          idempotencyKey: params.idempotencyKey,
-          userOpHash,
-        });
-      }
-      return buildPendingResponse({
-        kind: "tx",
-        walletAddress,
-        network,
-        userOpHash,
-        replayed: "resumeUserOpHash" in reservation,
-      });
-    }
-    if (params.idempotencyKey) {
-      await failCliTxLog({
-        db: params.db,
-        ownerAddress: params.auth.ownerAddress,
-        agentKey: params.auth.agentKey,
-        idempotencyKey: params.idempotencyKey,
-      });
-    }
-    throw error;
-  }
-
-  if (params.idempotencyKey) {
-    await finalizeCliTxLog({
-      db: params.db,
-      ownerAddress: params.auth.ownerAddress,
-      agentKey: params.auth.agentKey,
-      idempotencyKey: params.idempotencyKey,
-      txHash: transactionHash,
-      userOpHash,
-    });
-  } else {
-    await writeCliTxLog({
-      db: params.db,
-      data: {
-        ...txLogData,
-        userOpHash,
-        txHash: transactionHash,
-      },
-    });
-  }
-
-  return buildSuccessResponse({
-    kind: "tx",
-    walletAddress,
-    network,
-    transactionHash,
-    userOpHash,
+    skipReplayIfFinalized: true,
   });
 }

@@ -1,7 +1,12 @@
 import "server-only";
 
 import { isAddress, parseEther, parseUnits } from "viem";
-import { type CliProtocolStepRequest, validateCliProtocolStepRequest } from "@cobuild/wire";
+import {
+  type CliProtocolPlanRequest,
+  type CliProtocolStepRequest,
+  validateCliProtocolPlanRequest,
+  validateCliProtocolStepRequest,
+} from "@cobuild/wire";
 import { CliPolicyError } from "./errors";
 import {
   canonicalizeCliConfiguredNetwork,
@@ -181,6 +186,14 @@ export function assertCliTxAllowed(input: {
 export function assertCliProtocolStepAllowed(input: CliProtocolStepRequest): void {
   try {
     validateCliProtocolStepRequest(input);
+  } catch (error) {
+    throw new CliPolicyError(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export function assertCliProtocolPlanAllowed(input: CliProtocolPlanRequest): void {
+  try {
+    validateCliProtocolPlanRequest(input);
   } catch (error) {
     throw new CliPolicyError(error instanceof Error ? error.message : String(error));
   }
