@@ -17,6 +17,7 @@ const baseUser: UserResponse = {
     displayName: "Alice",
     pfp: "https://example.com/pfp.png",
     neynarScore: 0.85,
+    source: "privy",
   },
   twitter: {
     username: "alice_x",
@@ -84,6 +85,7 @@ describe("useUser derived values", () => {
           displayName: null,
           pfp: null,
           neynarScore: null,
+          source: "privy",
         },
         twitter: null,
       };
@@ -100,6 +102,7 @@ describe("useUser derived values", () => {
           displayName: null,
           pfp: null,
           neynarScore: 0.4,
+          source: "privy",
         },
         twitter: null,
       };
@@ -116,6 +119,7 @@ describe("useUser derived values", () => {
           displayName: null,
           pfp: null,
           neynarScore: 0.55,
+          source: "privy",
         },
         twitter: null,
       };
@@ -132,6 +136,7 @@ describe("useUser derived values", () => {
           displayName: null,
           pfp: null,
           neynarScore: 0.85,
+          source: "privy",
         },
         twitter: null,
       };

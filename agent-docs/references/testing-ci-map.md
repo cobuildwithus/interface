@@ -2,6 +2,7 @@
 
 ## Local Verification Baseline
 
+- `pnpm wire:ensure-published`
 - `pnpm lint`
 - `pnpm typecheck`
 - `pnpm test`
@@ -23,6 +24,8 @@
 - `agent-docs/exec-plans/active/COORDINATION_LEDGER.md` alone does not count as an active execution plan for docs-drift relief.
 - Dependency-only `package.json` + optional `pnpm-lock.yaml` updates do not require matching docs updates.
 - Gardening/index validation: `scripts/doc-gardening.sh`
+- Published dependency guard: `scripts/wire-ensure-published.sh` (must reject committed local-link `@cobuild/wire` specs in both `apps/web/package.json` and `apps/contracts/package.json`)
+- Local pre-commit runs `pnpm wire:ensure-published` before staging repo manifests so `link:../wire` cannot be committed from the interface workspace packages.
 - Local pre-commit runs doc gardening only when docs/governance files are staged.
 
 ## Architecture Enforcement Posture
@@ -30,7 +33,7 @@
 - Architecture/doc drift is enforced by CI script checks.
 - Generated doc artifacts are auto-generated and staged in local pre-commit hooks only for docs/governance changes.
 - CI runs doc-gardening validation but does not fail on generated-doc diff-only drift.
-- Code quality is enforced by lint/typecheck/tests/build checks.
+- Code quality is enforced by published-wire/lint/typecheck/tests/build checks.
 - Coverage artifacts are uploaded for analysis.
 
 ## Update Rule

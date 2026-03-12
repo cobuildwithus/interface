@@ -1,25 +1,31 @@
 "use client";
 
-import useSWR from "swr";
+import { useQuery } from "@tanstack/react-query";
 import type { RevnetData } from "@/lib/domains/token/onchain/revnet-data";
 import { COBUILD_PROJECT_ID } from "@/lib/domains/token/onchain/revnet";
+import { getRevnetDataQueryKey } from "@/lib/hooks/query-keys";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+export async function fetchRevnetData(url: string): Promise<RevnetData> {
+  const response = await fetch(url);
+  return response.json();
+}
 
 export function useRevnetData(projectId: bigint = COBUILD_PROJECT_ID) {
-  const key =
+  const url =
     projectId === COBUILD_PROJECT_ID
       ? "/api/revnet"
       : `/api/revnet?projectId=${projectId.toString()}`;
 
-  const { data, error, isLoading } = useSWR<RevnetData>(key, fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 60_000,
+  const query = useQuery({
+    queryKey: getRevnetDataQueryKey(projectId),
+    queryFn: () => fetchRevnetData(url),
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
   });
 
   return {
-    data,
-    error,
-    isLoading,
+    data: query.data,
+    error: query.error,
+    isLoading: query.isLoading,
   };
 }

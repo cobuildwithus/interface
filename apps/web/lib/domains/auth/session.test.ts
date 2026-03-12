@@ -15,6 +15,25 @@ const mockJwtVerify = vi.mocked(jwtVerify);
 const mockImportSPKI = vi.mocked(importSPKI);
 const mockGetFarcasterByVerifiedAddress = vi.mocked(getFarcasterByVerifiedAddress);
 const mockGetProfileMetaByFid = vi.mocked(getProfileMetaByFid);
+const cacheStores = vi.hoisted(() => [] as Array<Map<string, unknown>>);
+const mockReactCache = vi.hoisted(
+  () =>
+    function mockReactCache(fn: (...args: readonly unknown[]) => unknown) {
+      const store = new Map<string, unknown>();
+      cacheStores.push(store);
+
+      return (...args: readonly unknown[]) => {
+        const key = JSON.stringify(args);
+        if (store.has(key)) {
+          return store.get(key);
+        }
+
+        const value = fn(...args);
+        store.set(key, value);
+        return value;
+      };
+    }
+);
 
 vi.mock("next/headers", () => {
   return {
@@ -32,6 +51,9 @@ vi.mock("jose", () => {
 vi.mock("@/lib/integrations/farcaster/profile", () => ({
   getFarcasterByVerifiedAddress: vi.fn(),
   getProfileMetaByFid: vi.fn(),
+}));
+vi.mock("react", () => ({
+  cache: mockReactCache,
 }));
 
 const walletAddress = "0x0000000000000000000000000000000000000001";
@@ -111,6 +133,9 @@ function mockCookieValue(value?: string) {
 describe("session auth helpers", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    for (const store of cacheStores) {
+      store.clear();
+    }
     process.env.NEXT_PUBLIC_PRIVY_APP_ID = "app-id";
     process.env.PRIVY_VERIFICATION_KEY = "test-public-key";
     mockImportSPKI.mockResolvedValue(mockCryptoKey);
@@ -212,6 +237,38 @@ describe("session auth helpers", () => {
     });
     expect(mockGetProfileMetaByFid).toHaveBeenCalledWith(123);
     expect(mockGetFarcasterByVerifiedAddress).not.toHaveBeenCalled();
+  });
+
+  it("dedupes session parsing across auth helpers in one request", async () => {
+    mockCookieValue(token);
+    mockJwtVerify.mockResolvedValue(
+      buildJwtResult({
+        sub: "user-1",
+        linked_accounts: JSON.stringify([
+          { type: "wallet", address: walletAddress },
+          { type: "farcaster", fid: 123, username: "alice" },
+          { type: "twitter_oauth", username: "alice_x", subject: "123" },
+        ]),
+      })
+    );
+    mockGetProfileMetaByFid.mockResolvedValue({ bio: "hello world", neynarScore: 0.85 });
+
+    const [session, sessionAgain, user, linkedIdentity, privyToken] = await Promise.all([
+      getSession(),
+      getSession(),
+      getUser(),
+      getPrivyLinkedIdentity(),
+      getPrivyIdToken(),
+    ]);
+
+    expect(session.address).toBe(walletAddress);
+    expect(sessionAgain.farcaster?.fid).toBe(123);
+    expect(user).toBe(walletAddress);
+    expect(linkedIdentity?.farcaster?.fid).toBe(123);
+    expect(privyToken).toBe(token);
+    expect(mockCookies).toHaveBeenCalledTimes(1);
+    expect(mockJwtVerify).toHaveBeenCalledTimes(1);
+    expect(mockGetProfileMetaByFid).toHaveBeenCalledTimes(1);
   });
 
   it("getSession falls back to verified address when privy farcaster is missing", async () => {

@@ -6,6 +6,7 @@ export type UserResponse = {
     displayName: string | null;
     pfp: string | null;
     neynarScore: number | null;
+    source: "privy" | "verified_address";
   } | null;
   twitter: {
     username: string | null;

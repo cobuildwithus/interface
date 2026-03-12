@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import useSWR from "swr";
+import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ONRAMP_STATUS_QUERY_KEY } from "@/lib/hooks/query-keys";
 
 type OnrampTx = null | {
   status:
@@ -48,40 +49,40 @@ export function useOnrampStatus() {
   const [timedOut, setTimedOut] = useState(false);
   const startRef = useRef<number | null>(null);
   const stepRef = useRef(0);
-  const errorRef = useRef<Error | null>(null);
+  const query = useQuery({
+    queryKey: ONRAMP_STATUS_QUERY_KEY,
+    queryFn: fetchOnrampStatus,
+    refetchOnWindowFocus: false,
+    retry: false,
+    refetchInterval: ({ state }) => {
+      if (state.error instanceof UnauthorizedError) {
+        return false;
+      }
 
-  const { data, error, isLoading, isValidating } = useSWR<StatusResponse>(
-    "/api/onramp-status",
-    fetchOnrampStatus,
-    {
-      revalidateOnFocus: false,
-      shouldRetryOnError: false,
-      refreshInterval: (latestData) => {
-        if (errorRef.current instanceof UnauthorizedError) return 0;
-        const status = latestData?.tx?.status;
-        if (
-          status === "ONRAMP_TRANSACTION_STATUS_SUCCESS" ||
-          status === "ONRAMP_TRANSACTION_STATUS_FAILED" ||
-          timedOut
-        ) {
-          return 0;
-        }
+      const latestData = state.data as StatusResponse | undefined;
+      const status = latestData?.tx?.status;
+      if (
+        status === "ONRAMP_TRANSACTION_STATUS_SUCCESS" ||
+        status === "ONRAMP_TRANSACTION_STATUS_FAILED" ||
+        timedOut
+      ) {
+        return false;
+      }
 
-        if (startRef.current === null) {
-          startRef.current = Date.now();
-        }
-        const elapsed = Date.now() - (startRef.current ?? 0);
-        if (elapsed > MAX_MS) {
-          return 0;
-        }
+      if (startRef.current === null) {
+        startRef.current = Date.now();
+      }
+      const elapsed = Date.now() - (startRef.current ?? 0);
+      if (elapsed > MAX_MS) {
+        return false;
+      }
 
-        const step = Math.min(stepRef.current, BACKOFF.length - 1);
-        const jitter = Math.random() * 0.4 + 0.8;
-        stepRef.current = Math.min(stepRef.current + 1, BACKOFF.length - 1);
-        return Math.round(BACKOFF[step] * jitter);
-      },
-    }
-  );
+      const step = Math.min(stepRef.current, BACKOFF.length - 1);
+      const jitter = Math.random() * 0.4 + 0.8;
+      stepRef.current = Math.min(stepRef.current + 1, BACKOFF.length - 1);
+      return Math.round(BACKOFF[step] * jitter);
+    },
+  });
 
   useEffect(() => {
     if (startRef.current === null) {
@@ -91,22 +92,22 @@ export function useOnrampStatus() {
     return () => window.clearTimeout(timeout);
   }, []);
 
-  useEffect(() => {
-    errorRef.current = error ?? null;
-  }, [error]);
-
-  const tx = data?.tx ?? null;
-  const isUnauthorized = error instanceof UnauthorizedError;
+  const tx = query.data?.tx ?? null;
+  const isUnauthorized = query.error instanceof UnauthorizedError;
   const status = tx?.status ?? null;
 
-  const state = useMemo<StatusState>(() => {
-    if (isUnauthorized) return "unauthorized";
-    if (status === "ONRAMP_TRANSACTION_STATUS_SUCCESS") return "success";
-    if (status === "ONRAMP_TRANSACTION_STATUS_FAILED") return "failed";
-    if (timedOut) return "timeout";
-    if (isLoading || isValidating) return "polling";
-    return "idle";
-  }, [isLoading, isUnauthorized, isValidating, status, timedOut]);
+  let state: StatusState = "idle";
+  if (isUnauthorized) {
+    state = "unauthorized";
+  } else if (status === "ONRAMP_TRANSACTION_STATUS_SUCCESS") {
+    state = "success";
+  } else if (status === "ONRAMP_TRANSACTION_STATUS_FAILED") {
+    state = "failed";
+  } else if (timedOut) {
+    state = "timeout";
+  } else if (query.isLoading || query.isFetching) {
+    state = "polling";
+  }
 
   return { tx, state };
 }

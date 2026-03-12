@@ -1,7 +1,3 @@
-export type PostAttachment = {
-  id: string;
-  url: string | null;
-  previewUrl: string;
-  isUploading: boolean;
-  size: number;
-};
+import type { ImageAttachmentState } from "@/lib/integrations/images/upload-flow";
+
+export type PostAttachment = ImageAttachmentState;

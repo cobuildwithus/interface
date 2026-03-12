@@ -6,7 +6,7 @@ export type WizardStep = {
 };
 
 type UseWizardOptions<TData> = {
-  steps: WizardStep[];
+  steps: readonly WizardStep[];
   initialData: TData;
   validate?: (step: number, data: TData) => { ok: boolean; error?: string };
 };

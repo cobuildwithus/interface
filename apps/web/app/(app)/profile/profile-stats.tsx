@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import { getSession } from "@/lib/domains/auth/session";
 import { getTopicsViewedCount } from "@/lib/domains/social/cast-read/kv";
 import {
   getProfileStatsByFid,
@@ -7,6 +6,7 @@ import {
 } from "@/lib/integrations/farcaster/casts/profile-topics";
 import { getCobuildActivityByFid } from "@/lib/integrations/farcaster/activity";
 import { ProfileStatItemSkeleton } from "@/components/common/skeletons/profile-stats-skeleton";
+import type { Session } from "@/lib/server/session-types";
 import { pluralize } from "@/lib/shared/text/pluralize";
 
 const EMPTY_PROFILE_STATS: ProfileStatsData = {
@@ -15,9 +15,11 @@ const EMPTY_PROFILE_STATS: ProfileStatsData = {
   totalViews: 0,
 };
 
-export async function ProfileStats() {
-  const session = await getSession();
+type ProfileStatsProps = {
+  session: Session;
+};
 
+export async function ProfileStats({ session }: ProfileStatsProps) {
   const fid = session.farcaster?.fid ?? null;
   const address = session.address ?? null;
   const profileStatsPromise = fid

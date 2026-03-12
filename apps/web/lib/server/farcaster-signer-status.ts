@@ -2,14 +2,24 @@ import "server-only";
 
 import { getSignerRecord, setSignerRecord } from "@/lib/integrations/farcaster/signer-store";
 import { getCachedNeynarSignerStatus } from "@/lib/integrations/farcaster/signer-status";
+import type { LinkedAccountServerView } from "@/lib/domains/auth/linked-accounts/server-view";
 import type { FarcasterSignerStatus } from "@/lib/integrations/farcaster/signer-types";
 import type { Session } from "./session-types";
+import { getActiveFarcasterIdentity } from "./active-farcaster-identity";
 
 export async function getFarcasterSignerStatus(
   session: Session,
-  options?: { signerRecord?: Awaited<ReturnType<typeof getSignerRecord>> }
+  options?: {
+    signerRecord?: Awaited<ReturnType<typeof getSignerRecord>>;
+    linkedAccounts?: LinkedAccountServerView[];
+    usePrimary?: boolean;
+  }
 ): Promise<FarcasterSignerStatus> {
-  const fid = session.farcaster?.fid ?? null;
+  const activeFarcaster = await getActiveFarcasterIdentity(session, {
+    linkedAccounts: options?.linkedAccounts,
+    usePrimary: options?.usePrimary,
+  });
+  const fid = activeFarcaster.fid;
 
   if (!fid) {
     return {

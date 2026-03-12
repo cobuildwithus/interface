@@ -32,7 +32,11 @@ vi.mock("next/cache", () => ({
   revalidateTag: revalidateTagMock,
 }));
 
-import { getLinkedAccountsByAddress, upsertLinkedAccount } from "./store";
+import {
+  clearLinkedAccountPostingAccess,
+  getLinkedAccountsByAddress,
+  upsertLinkedAccount,
+} from "./store";
 
 describe("linked accounts store", () => {
   beforeEach(() => {
@@ -104,6 +108,51 @@ describe("linked accounts store", () => {
     expect(prismaMock.linkedSocialAccount.update).toHaveBeenCalled();
     expect(result.canPost).toBe(true);
     expect(result.source).toBe("neynar_signer");
+  });
+
+  it("clears posting capability for an existing linked account", async () => {
+    prismaMock.linkedSocialAccount.findUnique.mockResolvedValueOnce({
+      id: 7,
+      ownerAddress: "0x" + "a".repeat(40),
+      platform: "farcaster",
+      platformId: "1",
+      username: "alice",
+      displayName: "Alice",
+      avatarUrl: "https://pfp",
+      source: "neynar_signer",
+      canPost: true,
+    });
+    prismaMock.linkedSocialAccount.update.mockResolvedValueOnce({
+      platform: "farcaster",
+      platformId: "1",
+      username: "alice",
+      displayName: "Alice",
+      avatarUrl: "https://pfp",
+      source: "privy",
+      canPost: false,
+      updatedAt: new Date("2024-01-03T00:00:00Z"),
+    });
+
+    const result = await clearLinkedAccountPostingAccess({
+      ownerAddress: "0x" + "a".repeat(40),
+      platform: "farcaster",
+      platformId: "1",
+      source: "privy",
+    });
+
+    expect(prismaMock.linkedSocialAccount.update).toHaveBeenCalledWith({
+      where: { id: 7 },
+      data: {
+        canPost: false,
+        source: "privy",
+        revokedAt: null,
+      },
+    });
+    expect(revalidateTagMock).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      canPost: false,
+      source: "privy",
+    });
   });
 
   it("returns cached linked accounts by address", async () => {

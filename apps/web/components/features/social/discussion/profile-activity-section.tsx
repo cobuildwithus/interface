@@ -5,7 +5,6 @@ import { DateTime } from "@/components/ui/date-time";
 import { PostContent } from "@/components/features/social/discussion/post-content";
 import { QuotedPostCard } from "@/components/features/social/discussion/quoted-post-card";
 import { TopicTitle } from "@/components/features/social/discussion/topic-title";
-import { getSession } from "@/lib/domains/auth/session";
 import {
   getTopTopicsByFid,
   getRecentRepliesGroupedByFid,
@@ -47,7 +46,7 @@ export async function ProfileActivitySection({
     actionLabel: "Join a discussion",
   },
 }: ProfileActivitySectionProps) {
-  const resolvedFid = fid && fid > 0 ? fid : ((await getSession()).farcaster?.fid ?? null);
+  const resolvedFid = fid && fid > 0 ? fid : null;
 
   const [topics, replyGroups] =
     resolvedFid && resolvedFid > 0

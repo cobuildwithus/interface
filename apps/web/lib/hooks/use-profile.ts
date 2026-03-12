@@ -3,6 +3,7 @@
 import { getEmptyProfile } from "@/lib/domains/profile/empty-profile";
 import type { Profile } from "@/lib/domains/profile/types";
 import { useQuery } from "@tanstack/react-query";
+import { getProfileQueryKey } from "@/lib/hooks/query-keys";
 
 async function fetchProfile(address: string): Promise<Profile> {
   const res = await fetch(`/api/profile?address=${encodeURIComponent(address)}`);
@@ -12,7 +13,7 @@ async function fetchProfile(address: string): Promise<Profile> {
 
 export function useProfile(address: string | undefined) {
   return useQuery({
-    queryKey: ["profile", address],
+    queryKey: getProfileQueryKey(address ?? ""),
     queryFn: () => fetchProfile(address!),
     enabled: !!address,
     staleTime: 1000 * 60 * 60, // 1 hour

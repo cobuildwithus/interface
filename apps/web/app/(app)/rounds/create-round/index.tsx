@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, ArrowRight } from "lucide-react";
 import { useCmdEnter } from "@/lib/hooks/use-cmd-enter";
@@ -13,15 +13,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  INITIAL_CREATE_ROUND_FORM_DATA,
+  buildCreateRoundPayload,
+  getCreateRoundDateRangeError,
+  validateCreateRoundStep,
+} from "@/lib/domains/rounds/create-round";
 import { createRound } from "../actions";
 import { useWizard } from "./use-wizard";
 import { StepIndicator } from "./step-indicator";
 import { StepBasicInfo } from "./step-basic-info";
 import { StepClauses } from "./step-clauses";
 import { StepSettings } from "./step-settings";
-import { serializeClausesDraft } from "@/lib/domains/rules/rules/core/drafts";
-import { INITIAL_DATA, STEPS } from "./constants";
-import { validateStep } from "./validation";
+import { STEPS } from "./constants";
 import { WizardAlert } from "./wizard-alert";
 
 type CreateRoundDialogProps = {
@@ -34,15 +38,12 @@ export function CreateRoundDialog({ open, onOpenChange }: CreateRoundDialogProps
   const [isPending, startTransition] = useTransition();
 
   const wizard = useWizard({
-    steps: [...STEPS],
-    initialData: INITIAL_DATA,
-    validate: validateStep,
+    steps: STEPS,
+    initialData: INITIAL_CREATE_ROUND_FORM_DATA,
+    validate: validateCreateRoundStep,
   });
 
-  const dateRangeError = useMemo(() => {
-    const { startAt, endAt } = wizard.data;
-    return startAt && endAt && endAt < startAt ? "End date must be on or after start date." : null;
-  }, [wizard.data]);
+  const dateRangeError = getCreateRoundDateRangeError(wizard.data);
 
   const handleClose = () => {
     wizard.reset();
@@ -51,32 +52,20 @@ export function CreateRoundDialog({ open, onOpenChange }: CreateRoundDialogProps
 
   const handleCreate = () => {
     wizard.setError(null);
-    const result = validateStep(wizard.currentStep, wizard.data);
+    const result = validateCreateRoundStep(wizard.currentStep, wizard.data);
     if (!result.ok) {
       wizard.setError(result.error);
       return;
     }
 
     startTransition(async () => {
-      const clauses = serializeClausesDraft(wizard.data.clausesDraft);
-      if (!clauses.ok) {
-        wizard.setError(clauses.error);
+      const payload = buildCreateRoundPayload(wizard.data);
+      if (!payload.ok) {
+        wizard.setError(payload.error);
         return;
       }
 
-      const res = await createRound({
-        title: wizard.data.title,
-        prompt: wizard.data.prompt,
-        description: wizard.data.description,
-        castTemplate: wizard.data.castTemplate,
-        clauses: clauses.value,
-        requirementsText: wizard.data.requirementsText,
-        perUserLimit: wizard.data.perUserLimit,
-        status: wizard.data.status,
-        variant: wizard.data.variant,
-        startAt: wizard.data.startAt!.toISOString(),
-        endAt: wizard.data.endAt!.toISOString(),
-      });
+      const res = await createRound(payload.value);
 
       if (res.ok) {
         wizard.reset();
@@ -100,7 +89,7 @@ export function CreateRoundDialog({ open, onOpenChange }: CreateRoundDialogProps
         <DialogHeader className="border-border space-y-4 border-b px-6 pt-6 pb-4">
           <DialogTitle className="text-xl">Create Round</DialogTitle>
           <StepIndicator
-            steps={[...STEPS]}
+            steps={STEPS}
             currentStep={wizard.currentStep}
             onStepClick={wizard.goToStep}
           />

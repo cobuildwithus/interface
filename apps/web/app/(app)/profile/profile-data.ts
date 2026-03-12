@@ -1,6 +1,5 @@
 import "server-only";
 
-import { getSession } from "@/lib/domains/auth/session";
 import { getUserGoalHoldings } from "@/lib/domains/goals/goal-data";
 import { getRevnetSummary } from "@/lib/domains/token/juicebox/revnet-summary";
 import { JB_TOKEN_DECIMALS } from "@/lib/domains/token/onchain/revnet";
@@ -21,9 +20,7 @@ export async function getProfileTokenBalanceData() {
   };
 }
 
-export async function getProfileGoalHoldingsData() {
-  const session = await getSession();
-  const address = session.address;
+export async function getProfileGoalHoldingsData(address: string | null) {
   if (!address) {
     return {
       isConnected: false,

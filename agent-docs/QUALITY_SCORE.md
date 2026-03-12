@@ -18,7 +18,7 @@ Scoring rubric:
 | Onchain execution pipeline                   | 4           | Shared write hooks and generated ABI/address flow are well defined.                                                                  | Keep UX/error parity across all write surfaces.                                         |
 | Server data + cache consistency              | 3           | Prisma read-replica extension + KV patterns in place.                                                                                | Expand explicit primary-safe guidance where read-after-write matters.                   |
 | API route boundary quality                   | 3           | Route validation/normalization is present in key handlers.                                                                           | Add/standardize response envelope contracts and redaction guidance.                     |
-| Test and CI posture                          | 4           | Lint/typecheck/tests/build in CI plus coverage artifact workflow.                                                                    | Add explicit coverage threshold gate if needed.                                         |
+| Test and CI posture                          | 4           | Published-wire guard for both workspace packages plus lint/typecheck/tests/build in CI and coverage artifact workflow.               | Add explicit coverage threshold gate if needed.                                         |
 | Agent docs enforcement                       | 5           | Drift checks enforce non-generated docs-or-active-plan coupling; local pre-commit now auto-generates/stages doc-gardening artifacts. | Keep required artifact list and hook behavior aligned with future doc workflow changes. |
 
 ## Top Risk Register

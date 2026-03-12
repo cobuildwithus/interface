@@ -26,6 +26,7 @@ type ProfilePageProps = {
 };
 
 export default async function ProfilePage({ searchParams }: ProfilePageProps) {
+  const sessionPromise = getSession();
   const activityFallback = (
     <div className="grid gap-6 lg:grid-cols-2">
       <ProfileListSkeleton />
@@ -34,34 +35,35 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   );
 
   const { tab } = await searchParams;
+  const session = await sessionPromise;
   const tabParam = Array.isArray(tab) ? tab[0] : tab;
   const activeTab = tabParam === "conversation" ? "conversation" : "activity";
 
   return (
     <main className="w-full p-4 md:p-6">
-      <ProfileHeader />
+      <ProfileHeader session={session} />
 
       <ProfileTabs
         activeTab={activeTab}
         statsContent={
           <Suspense fallback={<ProfileStatsSkeleton />}>
-            <ProfileStats />
+            <ProfileStats session={session} />
           </Suspense>
         }
         conversationContent={
           <Suspense fallback={activityFallback}>
-            <ProfileActivitySection />
+            <ProfileActivitySection fid={session.farcaster?.fid ?? null} />
           </Suspense>
         }
         activityContent={
           <Suspense fallback={<ProfileRecentActivitySkeleton />}>
-            <RecentActivitySection />
+            <RecentActivitySection address={session.address ?? null} />
           </Suspense>
         }
         holdingsContent={
           <div className="space-y-4">
             <TokenBalanceCard />
-            <HoldingsSection />
+            <HoldingsSection address={session.address ?? null} />
           </div>
         }
       />

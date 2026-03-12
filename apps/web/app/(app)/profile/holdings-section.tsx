@@ -93,9 +93,13 @@ function HoldingRow({ holding }: HoldingRowProps) {
   );
 }
 
-export async function HoldingsSection() {
+type HoldingsSectionProps = {
+  address: string | null;
+};
+
+export async function HoldingsSection({ address }: HoldingsSectionProps) {
   const { isConnected, holdings, totalContribution, goalsFunded } =
-    await getProfileGoalHoldingsData();
+    await getProfileGoalHoldingsData(address);
 
   return (
     <div className="border-border bg-card/50 overflow-hidden rounded-xl border">

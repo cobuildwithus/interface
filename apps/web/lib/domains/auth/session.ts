@@ -3,6 +3,7 @@ import "server-only";
 import { normalizeEvmAddress as normalizeAddress } from "@cobuild/wire";
 import * as jose from "jose";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import {
   getFarcasterByVerifiedAddress,
   getProfileMetaByFid,
@@ -46,62 +47,66 @@ function getPrivyAppId(): string {
   return appId;
 }
 
-async function verifyIdentityToken(): Promise<{ token: string; payload: jose.JWTPayload } | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("privy-id-token")?.value;
-  if (!token) return null;
+const verifyIdentityToken = cache(
+  async (): Promise<{ token: string; payload: jose.JWTPayload } | null> => {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("privy-id-token")?.value;
+    if (!token) return null;
 
-  try {
-    const verificationKey = await getVerificationKey();
-    const { payload } = await jose.jwtVerify(token, verificationKey, {
-      issuer: "privy.io",
-      audience: getPrivyAppId(),
-    });
+    try {
+      const verificationKey = await getVerificationKey();
+      const { payload } = await jose.jwtVerify(token, verificationKey, {
+        issuer: "privy.io",
+        audience: getPrivyAppId(),
+      });
 
-    if (!payload?.sub) {
+      if (!payload?.sub) {
+        return null;
+      }
+
+      return { token, payload };
+    } catch (error) {
+      console.warn("[auth] privy token verify failed", {
+        error: formatError(error as ErrorLike),
+      });
+      return null;
+    }
+  }
+);
+
+const parseIdentityToken = cache(
+  async (): Promise<{
+    token: string;
+    linkedAccounts: LinkedAccount[];
+  } | null> => {
+    const verified = await verifyIdentityToken();
+    if (!verified || typeof verified.payload.linked_accounts !== "string") {
+      return null;
+    }
+    const linkedAccounts = parseLinkedAccountsJson(verified.payload.linked_accounts);
+    if (!linkedAccounts) {
       return null;
     }
 
-    return { token, payload };
-  } catch (error) {
-    console.warn("[auth] privy token verify failed", {
-      error: formatError(error as ErrorLike),
-    });
-    return null;
-  }
-}
-
-async function parseIdentityToken(): Promise<{
-  token: string;
-  linkedAccounts: LinkedAccount[];
-} | null> {
-  const verified = await verifyIdentityToken();
-  if (!verified || typeof verified.payload.linked_accounts !== "string") {
-    return null;
-  }
-  const linkedAccounts = parseLinkedAccountsJson(verified.payload.linked_accounts);
-  if (!linkedAccounts) {
-    return null;
-  }
-
-  const walletEntryCount = countWalletAccounts(linkedAccounts);
-  const validWalletAccounts = linkedAccounts.filter(isWalletAccount);
-  const validWalletCount = validWalletAccounts.length;
-  if (walletEntryCount > 1 || validWalletCount !== walletEntryCount) {
-    console.warn("[auth] rejecting session with invalid linked wallet accounts");
-    return null;
-  }
-  for (const walletAccount of validWalletAccounts) {
-    try {
-      normalizeAddress(walletAccount.address, "walletAccount.address");
-    } catch {
+    const walletEntryCount = countWalletAccounts(linkedAccounts);
+    const validWalletAccounts = linkedAccounts.filter(isWalletAccount);
+    const validWalletCount = validWalletAccounts.length;
+    if (walletEntryCount > 1 || validWalletCount !== walletEntryCount) {
       console.warn("[auth] rejecting session with invalid linked wallet accounts");
       return null;
     }
-  }
+    for (const walletAccount of validWalletAccounts) {
+      try {
+        normalizeAddress(walletAccount.address, "walletAccount.address");
+      } catch {
+        console.warn("[auth] rejecting session with invalid linked wallet accounts");
+        return null;
+      }
+    }
 
-  return { token: verified.token, linkedAccounts };
-}
+    return { token: verified.token, linkedAccounts };
+  }
+);
 
 export async function getPrivyIdToken(): Promise<string | undefined> {
   const parsed = await parseIdentityToken();
@@ -151,11 +156,7 @@ type Session = {
   twitter?: TwitterAccount;
 };
 
-/**
- * Get the full user session from the Privy cookie.
- * Parses the JWT once and returns address + linked accounts.
- */
-export async function getSession(): Promise<Session> {
+const getResolvedSession = cache(async (): Promise<Session> => {
   const parsed = await parseIdentityToken();
   if (!parsed) return {};
 
@@ -184,6 +185,14 @@ export async function getSession(): Promise<Session> {
     farcaster,
     twitter: twitter ? toTwitterAccount(twitter) : undefined,
   };
+});
+
+/**
+ * Get the full user session from the current request.
+ * React cache dedupes repeated server reads during one render/request.
+ */
+export async function getSession(): Promise<Session> {
+  return getResolvedSession();
 }
 
 /**

@@ -5,7 +5,7 @@ import { cn } from "@/lib/shared/utils";
 import type { WizardStep } from "./use-wizard";
 
 type StepIndicatorProps = {
-  steps: WizardStep[];
+  steps: readonly WizardStep[];
   currentStep: number;
   onStepClick?: (step: number) => void;
 };

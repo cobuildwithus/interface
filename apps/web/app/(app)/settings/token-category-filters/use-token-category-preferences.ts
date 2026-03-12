@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import type { TokenCategory } from "@/generated/prisma/enums";
+import { useSettingsPersistence } from "@/lib/domains/settings/use-settings-persistence";
 import { updateTokenCategoryPreferencesAction } from "../actions";
 import { CATEGORY_DEFINITIONS } from "./category-definitions";
 
@@ -26,20 +27,52 @@ export function useTokenCategoryPreferences({
   initialDisallowedCategories,
   initialError,
 }: UseTokenCategoryPreferencesParams): UseTokenCategoryPreferences {
-  const [disallowedCategories, setDisallowedCategories] = useState<TokenCategory[]>(
-    initialDisallowedCategories
+  const initialState = useMemo(
+    () => [...initialDisallowedCategories],
+    [initialDisallowedCategories]
   );
-  const [isSaving, setIsSaving] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(initialError ?? null);
   const toastIdRef = useRef<string | number | null>(null);
 
-  useEffect(() => {
-    setDisallowedCategories(initialDisallowedCategories);
-  }, [initialDisallowedCategories]);
-
-  useEffect(() => {
-    setFetchError(initialError ?? null);
-  }, [initialError]);
+  const {
+    draft: disallowedCategories,
+    saving: isSaving,
+    error: fetchError,
+    commit,
+  } = useSettingsPersistence<
+    TokenCategory[],
+    TokenCategory[],
+    { ok: true; disallowedCategories: TokenCategory[] }
+  >({
+    enabled,
+    initialState,
+    initialError,
+    clearErrorOnSaveStart: false,
+    getPayload: ({ baseline, draft }) =>
+      areTokenCategoryListsEqual(baseline, draft) ? null : draft,
+    save: async (nextDisallowedCategories) => {
+      const result = await updateTokenCategoryPreferencesAction(nextDisallowedCategories);
+      if (!result.ok) {
+        throw new Error(result.error ?? "Unable to save coin filters.");
+      }
+      return result;
+    },
+    applySuccess: (response) => ({
+      baseline: response.disallowedCategories,
+      draft: response.disallowedCategories,
+      success: false,
+    }),
+    applyError: (saveError, context) => {
+      const message =
+        saveError instanceof Error ? saveError.message : "Unable to save coin filters.";
+      toast.error(message, { id: toastIdRef.current ?? undefined });
+      return {
+        baseline: context.baseline,
+        draft: context.baseline,
+        error: context.previousError,
+        success: false,
+      };
+    },
+  });
 
   const disallowedSet = useMemo(
     () => new Set<TokenCategory>(disallowedCategories),
@@ -54,8 +87,6 @@ export function useTokenCategoryPreferences({
     async (category: TokenCategory, nextAllowed: boolean) => {
       if (!enabled) return;
 
-      const previous = disallowedCategories;
-
       if (!nextAllowed && allowedCount <= 1) {
         toast.error("You must allow at least one category.");
         return;
@@ -69,34 +100,22 @@ export function useTokenCategoryPreferences({
       }
       const nextArray = Array.from(nextSet);
 
-      setIsSaving(true);
-      setDisallowedCategories(nextArray);
-
       const toastId = toast.loading("Saving...", {
         id: toastIdRef.current ?? undefined,
       });
       toastIdRef.current = toastId;
 
       try {
-        const result = await updateTokenCategoryPreferencesAction(nextArray);
-        if (!result.ok) {
-          throw new Error(result.error ?? "Unable to save coin filters.");
-        }
-        setDisallowedCategories(result.disallowedCategories);
-        if (fetchError) {
-          setFetchError(null);
+        const didSave = await commit(nextArray);
+        if (!didSave) {
+          return;
         }
         toast.success("Saved", { id: toastIdRef.current ?? undefined });
-      } catch (err) {
-        setDisallowedCategories(previous);
-        const message = err instanceof Error ? err.message : "Unable to save coin filters.";
-        toast.error(message, { id: toastIdRef.current ?? undefined });
       } finally {
-        setIsSaving(false);
         toastIdRef.current = null;
       }
     },
-    [allowedCount, disallowedCategories, disallowedSet, enabled, fetchError]
+    [allowedCount, commit, disallowedSet, enabled]
   );
 
   return {
@@ -118,4 +137,13 @@ function getStatusText({ enabled, isSaving }: StatusParams): string | null {
   if (!enabled) return "Connect a wallet to update your filters.";
   if (isSaving) return "Saving...";
   return null;
+}
+
+function areTokenCategoryListsEqual(left: TokenCategory[], right: TokenCategory[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const rightSet = new Set(right);
+  return left.every((category) => rightSet.has(category));
 }

@@ -6,8 +6,10 @@ import { renderHook, act } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import type { UserResponse } from "@/lib/domains/auth/user-response-types";
 
-const useSWRMock = vi.hoisted(() => vi.fn());
-vi.mock("swr", () => ({ default: useSWRMock }));
+const useQueryMock = vi.hoisted(() => vi.fn());
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: (args: Parameters<typeof useQueryMock>[0]) => useQueryMock(args),
+}));
 
 import { useAutoSubmitPostDialog } from "@/lib/hooks/use-auto-submit-post-dialog";
 import { useNow } from "@/lib/hooks/use-now";
@@ -17,7 +19,7 @@ import { useRevnetData } from "@/lib/hooks/use-revnet-data";
 import { UserProvider, useUserContext } from "@/lib/domains/auth/user-context";
 
 beforeEach(() => {
-  useSWRMock.mockReset();
+  useQueryMock.mockReset();
 });
 
 afterEach(() => {
@@ -116,7 +118,14 @@ describe("useUser", () => {
   it("prefers user context and skips loading state", () => {
     const user: UserResponse = {
       address: `0x${"c".repeat(40)}`,
-      farcaster: { fid: 42, username: "ctx", displayName: null, pfp: null, neynarScore: null },
+      farcaster: {
+        fid: 42,
+        username: "ctx",
+        displayName: null,
+        pfp: null,
+        neynarScore: null,
+        source: "privy",
+      },
       twitter: null,
     };
 
@@ -144,7 +153,7 @@ function withUserProvider(user: UserResponse) {
 
 describe("useEthPrice", () => {
   it("uses data and converts USD to ETH", async () => {
-    useSWRMock.mockReturnValue({ data: { priceUsdc: 2000 }, isLoading: false });
+    useQueryMock.mockReturnValue({ data: { priceUsdc: 2000 }, isLoading: false });
     const { result } = renderHook(() => useEthPrice());
     expect(result.current.ethPriceUsdc).toBe(2000);
     expect(result.current.usdToEth(1)).toBe("0.00050000");
@@ -154,28 +163,28 @@ describe("useEthPrice", () => {
       .mockResolvedValueOnce({ ok: false, json: () => ({}) })
       .mockResolvedValueOnce({ ok: true, json: () => ({ priceUsdc: 1234 }) });
     vi.stubGlobal("fetch", fetchMock);
-    const [, fetcher] = useSWRMock.mock.calls[0];
-    await fetcher();
-    await fetcher();
+    const call = useQueryMock.mock.calls[0]?.[0];
+    await call.queryFn();
+    await call.queryFn();
   });
 });
 
 describe("useRevnetData", () => {
   it("returns data + fetcher", async () => {
-    useSWRMock.mockReturnValue({ data: { weight: "1" }, error: null, isLoading: false });
+    useQueryMock.mockReturnValue({ data: { weight: "1" }, error: null, isLoading: false });
     const { result } = renderHook(() => useRevnetData());
     expect(result.current.data?.weight).toBe("1");
 
     const fetchMock = vi.fn().mockResolvedValue({ json: () => ({ weight: "2" }) });
     vi.stubGlobal("fetch", fetchMock);
-    const [, fetcher] = useSWRMock.mock.calls[0];
-    await fetcher("/api/revnet");
+    const call = useQueryMock.mock.calls[0]?.[0];
+    await call.queryFn();
   });
 
   it("builds a project-specific key when projectId is provided", () => {
-    useSWRMock.mockReturnValue({ data: null, error: null, isLoading: false });
+    useQueryMock.mockReturnValue({ data: null, error: null, isLoading: false });
     renderHook(() => useRevnetData(123n));
-    const [key] = useSWRMock.mock.calls[0];
-    expect(key).toBe("/api/revnet?projectId=123");
+    const call = useQueryMock.mock.calls[0]?.[0];
+    expect(call.queryKey).toEqual(["revnet-data", "123"]);
   });
 });

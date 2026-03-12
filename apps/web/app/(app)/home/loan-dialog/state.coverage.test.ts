@@ -10,6 +10,30 @@ const useReadContractMock = vi.fn();
 const usePublicClientMock = vi.fn();
 const useContractTransactionMock = vi.fn();
 const createBorrowHandlerMock = vi.fn();
+const resolveLoanDialogLoanSourceMock = vi.fn(
+  (
+    loanSources: Array<{ token: `0x${string}`; terminal: `0x${string}` }>,
+    _preferredToken?: string
+  ) => {
+    const selectedLoanSource = loanSources[0] ?? null;
+
+    return {
+      selectedLoanSource,
+      loanSourceToken: selectedLoanSource?.token,
+      loanSourceTerminal: selectedLoanSource?.terminal,
+    };
+  }
+);
+const resolveLoanDialogBorrowableContextMock = vi.fn(
+  (selectedLoanSource: { token: `0x${string}` } | null, _loanSourceAccountingContext?: unknown) =>
+    selectedLoanSource
+      ? {
+          token: selectedLoanSource.token,
+          decimals: 6,
+          currency: 1,
+        }
+      : null
+);
 let permissionTxState: {
   isLoading: boolean;
   prepareWallet: ReturnType<typeof vi.fn>;
@@ -68,19 +92,14 @@ vi.mock("./loan-metrics", () => ({
 }));
 
 vi.mock("./loan-source", () => ({
-  resolveLoanDialogLoanSource: () => ({
-    selectedLoanSource: {
-      token: ("0x" + "2".repeat(40)) as `0x${string}`,
-      terminal: ("0x" + "5".repeat(40)) as `0x${string}`,
-    },
-    loanSourceToken: ("0x" + "2".repeat(40)) as `0x${string}`,
-    loanSourceTerminal: ("0x" + "5".repeat(40)) as `0x${string}`,
-  }),
-  resolveLoanDialogBorrowableContext: () => ({
-    token: ("0x" + "2".repeat(40)) as `0x${string}`,
-    decimals: 6,
-    currency: 1,
-  }),
+  resolveLoanDialogLoanSource: (
+    loanSources: Array<{ token: `0x${string}`; terminal: `0x${string}` }>,
+    preferredToken?: string
+  ) => resolveLoanDialogLoanSourceMock(loanSources, preferredToken),
+  resolveLoanDialogBorrowableContext: (
+    selectedLoanSource: { token: `0x${string}` } | null,
+    loanSourceAccountingContext?: unknown
+  ) => resolveLoanDialogBorrowableContextMock(selectedLoanSource, loanSourceAccountingContext),
 }));
 
 import {
@@ -125,6 +144,8 @@ describe("useLoanDialogState", () => {
     usePublicClientMock.mockReset();
     useContractTransactionMock.mockReset();
     createBorrowHandlerMock.mockReset();
+    resolveLoanDialogLoanSourceMock.mockClear();
+    resolveLoanDialogBorrowableContextMock.mockClear();
     permissionTxState = {
       isLoading: false,
       prepareWallet: vi.fn(),
@@ -144,6 +165,7 @@ describe("useLoanDialogState", () => {
           case "loanSourcesOf":
             return {
               data: [{ token: address("2"), terminal: address("5") }],
+              isFetching: false,
             };
           case "symbol":
             return { data: "USDC" };
@@ -196,6 +218,7 @@ describe("useLoanDialogState", () => {
           case "loanSourcesOf":
             return {
               data: [{ token: address("2"), terminal: address("5") }],
+              isFetching: false,
             };
           case "symbol":
             return { data: "USDC" };
@@ -222,5 +245,200 @@ describe("useLoanDialogState", () => {
 
     expect(result.current.isProcessing).toBe(true);
     expect(result.current.buttonLabel).toBe("Granting permission...");
+  });
+
+  it("keeps the primary CTA label while loan sources are still loading", () => {
+    useReadContractMock.mockImplementation(
+      (args: { functionName?: string; query?: { enabled?: boolean } }) => {
+        switch (args.functionName) {
+          case "loanSourcesOf":
+            return {
+              data: undefined,
+              isFetching: true,
+            };
+          case "symbol":
+            return { data: "USDC" };
+          case "accountingContextForTokenOf":
+            return { data: undefined };
+          case "borrowableAmountFrom":
+            return { data: undefined };
+          case "hasPermission":
+            return { data: true, refetch: vi.fn() };
+          default:
+            return { data: undefined, query: args.query };
+        }
+      }
+    );
+
+    const { result } = renderHook(() => useLoanDialogState(POSITION));
+
+    expect(result.current.buttonLabel).toBe("Take loan");
+    expect(result.current.isLoanAvailable).toBe(false);
+  });
+
+  it("marks the loan unavailable once loading resolves with no sources", () => {
+    let loanSourcesResult:
+      | {
+          data: Array<{ token: `0x${string}`; terminal: `0x${string}` }>;
+          isFetching: boolean;
+        }
+      | {
+          data: [];
+          isFetching: boolean;
+        }
+      | {
+          data: undefined;
+          isFetching: boolean;
+        } = {
+      data: undefined,
+      isFetching: true,
+    };
+
+    useReadContractMock.mockImplementation(
+      (args: { functionName?: string; query?: { enabled?: boolean } }) => {
+        switch (args.functionName) {
+          case "loanSourcesOf":
+            return loanSourcesResult;
+          case "symbol":
+            return { data: "USDC" };
+          case "accountingContextForTokenOf":
+            return { data: undefined };
+          case "borrowableAmountFrom":
+            return { data: undefined };
+          case "hasPermission":
+            return { data: true, refetch: vi.fn() };
+          default:
+            return { data: undefined, query: args.query };
+        }
+      }
+    );
+
+    const { result, rerender } = renderHook(() => useLoanDialogState(POSITION));
+
+    expect(result.current.buttonLabel).toBe("Take loan");
+    expect(result.current.isLoanAvailable).toBe(false);
+
+    loanSourcesResult = {
+      data: [],
+      isFetching: false,
+    };
+
+    rerender();
+
+    expect(result.current.buttonLabel).toBe("Loan unavailable");
+    expect(result.current.isLoanAvailable).toBe(false);
+  });
+
+  it("preserves the last resolved loan source during a transient refetch", () => {
+    let loanSourcesResult:
+      | {
+          data: Array<{ token: `0x${string}`; terminal: `0x${string}` }>;
+          isFetching: boolean;
+        }
+      | {
+          data: undefined;
+          isFetching: boolean;
+        } = {
+      data: [{ token: address("2"), terminal: address("5") }],
+      isFetching: false,
+    };
+
+    useReadContractMock.mockImplementation(
+      (args: { functionName?: string; query?: { enabled?: boolean } }) => {
+        switch (args.functionName) {
+          case "loanSourcesOf":
+            return loanSourcesResult;
+          case "symbol":
+            return { data: "USDC" };
+          case "accountingContextForTokenOf":
+            return {
+              data: {
+                token: address("2"),
+                decimals: 6,
+                currency: 1,
+              },
+            };
+          case "borrowableAmountFrom":
+            return { data: 1_000_000n };
+          case "hasPermission":
+            return { data: true, refetch: vi.fn() };
+          default:
+            return { data: undefined, query: args.query };
+        }
+      }
+    );
+
+    const { result, rerender } = renderHook(() => useLoanDialogState(POSITION));
+
+    expect(result.current.isLoanAvailable).toBe(true);
+
+    loanSourcesResult = {
+      data: undefined,
+      isFetching: true,
+    };
+
+    rerender();
+
+    expect(result.current.isLoanAvailable).toBe(true);
+    expect(result.current.buttonLabel).toBe("Take loan");
+  });
+
+  it("resets cached loan sources when the project changes", () => {
+    const nextPosition = {
+      ...POSITION,
+      projectId: 139n,
+      projectIdNumber: 139,
+    };
+
+    useReadContractMock.mockImplementation(
+      (args: {
+        functionName?: string;
+        args?: readonly unknown[];
+        address?: `0x${string}`;
+        query?: { enabled?: boolean };
+      }) => {
+        switch (args.functionName) {
+          case "loanSourcesOf":
+            return args.args?.[0] === POSITION.projectId
+              ? {
+                  data: [{ token: address("2"), terminal: address("5") }],
+                  isFetching: false,
+                }
+              : {
+                  data: undefined,
+                  isFetching: true,
+                };
+          case "symbol":
+            return { data: "USDC" };
+          case "accountingContextForTokenOf":
+            return args.address === POSITION.terminalAddress
+              ? {
+                  data: {
+                    token: address("2"),
+                    decimals: 6,
+                    currency: 1,
+                  },
+                }
+              : { data: undefined };
+          case "borrowableAmountFrom":
+            return { data: 1_000_000n };
+          case "hasPermission":
+            return { data: true, refetch: vi.fn() };
+          default:
+            return { data: undefined, query: args.query };
+        }
+      }
+    );
+
+    const { result, rerender } = renderHook(({ position }) => useLoanDialogState(position), {
+      initialProps: { position: POSITION },
+    });
+
+    expect(result.current.isLoanAvailable).toBe(true);
+
+    rerender({ position: nextPosition });
+
+    expect(result.current.buttonLabel).toBe("Take loan");
+    expect(result.current.isLoanAvailable).toBe(false);
   });
 });

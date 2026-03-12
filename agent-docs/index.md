@@ -1,6 +1,6 @@
 # Interface Agent Docs Index
 
-Last verified: 2026-03-10 (hosted CLI Base-only execution cutover)
+Last verified: 2026-03-12 (wire published-dependency guard covers both workspace packages)
 
 ## Purpose
 
@@ -20,7 +20,7 @@ This index is the table of contents for durable, repository-local context that a
 | `agent-docs/RELIABILITY.md`                         | Reliability invariants, failure modes, and verification matrix.         | `apps/web/lib/server/**`, cache/data flows, workflows          | Web Maintainers           | Per reliability-affecting PR | High        | 2026-02-18    |
 | `agent-docs/SECURITY.md`                            | Security trust boundaries, threat model notes, and escalation criteria. | Auth/session flows, API handlers, external integrations        | Web Maintainers           | Per auth/security PR         | High        | 2026-02-25    |
 | `agent-docs/PRODUCT_SENSE.md`                       | Product journey constraints and communication norms.                    | Product UX and flow behaviors                                  | Product + Web Maintainers | Monthly                      | Medium      | 2026-02-18    |
-| `agent-docs/QUALITY_SCORE.md`                       | Quality posture rubric with evidence and follow-ups.                    | Architecture docs + tests + CI outputs                         | Web Maintainers           | Bi-weekly                    | Medium      | 2026-02-26    |
+| `agent-docs/QUALITY_SCORE.md`                       | Quality posture rubric with evidence and follow-ups.                    | Architecture docs + tests + CI outputs                         | Web Maintainers           | Bi-weekly                    | Medium      | 2026-03-12    |
 | `agent-docs/PLANS.md`                               | Plan workflow and storage conventions.                                  | `agent-docs/exec-plans/**`                                     | Web Maintainers           | Per process change           | Medium      | 2026-02-23    |
 | `agent-docs/prompts/simplify.md`                    | Reusable simplification pass prompt for behavior-preserving cleanup.    | Agent completion workflow                                      | Web Maintainers           | Per process change           | Medium      | 2026-02-23    |
 | `agent-docs/prompts/test-coverage-audit.md`         | Reusable coverage-audit prompt for high-impact regression protection.   | Agent completion workflow                                      | Web Maintainers           | Per process change           | Medium      | 2026-02-23    |
@@ -36,7 +36,7 @@ This index is the table of contents for durable, repository-local context that a
 | `agent-docs/references/auth-wallet-model.md`        | Auth/session/wallet identity model and invariants.                      | `apps/web/lib/domains/auth/**`, auth components/hooks          | Web Maintainers           | Per auth/wallet PR           | High        | 2026-02-25    |
 | `agent-docs/references/server-data-cache-map.md`    | Prisma/KV/cache topology and consistency notes.                         | `apps/web/lib/server/**`, `apps/web/lib/domains/**`            | Web Maintainers           | Per data/cache PR            | High        | 2026-03-05    |
 | `agent-docs/references/onchain-execution-map.md`    | Onchain read/write execution paths and generated artifacts.             | `apps/contracts/**`, onchain hooks/components                  | Web Maintainers           | Per onchain PR               | High        | 2026-03-10    |
-| `agent-docs/references/testing-ci-map.md`           | Verification and CI enforcement map.                                    | `.github/workflows/**`, test scripts, doc scripts              | Web Maintainers           | Per CI/process PR            | Medium      | 2026-03-05    |
+| `agent-docs/references/testing-ci-map.md`           | Verification and CI enforcement map.                                    | `.github/workflows/**`, test scripts, doc scripts              | Web Maintainers           | Per CI/process PR            | Medium      | 2026-03-12    |
 | `agent-docs/references/nextjs-llms.txt`             | External Next.js/App Router reference pack.                             | Next.js docs                                                   | Web Maintainers           | Quarterly                    | Low         | 2026-02-18    |
 | `agent-docs/references/prisma-llms.txt`             | External Prisma/read-replica reference pack.                            | Prisma docs                                                    | Web Maintainers           | Quarterly                    | Low         | 2026-02-18    |
 | `agent-docs/references/wagmi-llms.txt`              | External wagmi/viem/onchain reference pack.                             | Wagmi + Viem docs                                              | Web Maintainers           | Quarterly                    | Low         | 2026-02-18    |

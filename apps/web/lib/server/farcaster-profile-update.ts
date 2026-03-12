@@ -7,6 +7,7 @@ import { neynarUpdateUserProfile } from "@/lib/integrations/farcaster/neynar-cli
 import { getSignerRecord } from "@/lib/integrations/farcaster/signer-store";
 import { getCachedNeynarSignerStatus } from "@/lib/integrations/farcaster/signer-status";
 import { upsertLinkedAccount } from "@/lib/domains/auth/linked-accounts/store";
+import { getActiveFarcasterIdentity } from "./active-farcaster-identity";
 
 const UPDATE_PROFILE_TAG = "update_profile";
 const WRITE_ALL_TAG = "write_all";
@@ -69,7 +70,8 @@ export async function updateFarcasterProfile(payload: {
 
   const session = await getSession();
   const address = session.address;
-  const fid = session.farcaster?.fid ?? null;
+  const activeFarcaster = await getActiveFarcasterIdentity(session, { usePrimary: true });
+  const fid = activeFarcaster.fid;
 
   if (!address) {
     return { ok: false, error: "Connect a wallet before updating profile.", status: 401 };
@@ -120,7 +122,7 @@ export async function updateFarcasterProfile(payload: {
     ownerAddress: address,
     platform: "farcaster",
     platformId: String(fid),
-    username: session.farcaster?.username ?? null,
+    username: activeFarcaster.username,
     displayName: hasDisplayName ? displayName : undefined,
     avatarUrl: hasPfpUrl ? pfpUrl : undefined,
     source: "neynar_signer",

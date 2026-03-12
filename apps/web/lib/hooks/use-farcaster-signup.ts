@@ -1,14 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useSignTypedData } from "wagmi";
 import { isAddress } from "viem";
-import { useSWRConfig } from "swr";
+import { useRefreshLinkedAccountState } from "@/lib/domains/auth/use-refresh-linked-account-state";
 import { useUser } from "@/lib/hooks/use-user";
-import { useLinkedAccounts } from "@/lib/hooks/use-linked-accounts";
-import { useFarcasterSigner } from "@/lib/hooks/use-farcaster-signer";
 import type { ErrorLike } from "@/lib/shared/errors";
 import { isValidFarcasterUsername } from "@/lib/integrations/farcaster/fname";
 import {
@@ -38,10 +35,7 @@ export function useFarcasterSignup({
 }): FarcasterSignupState {
   const { address } = useUser();
   const { signTypedDataAsync } = useSignTypedData();
-  const { mutate: mutateLinkedAccounts } = useLinkedAccounts();
-  const { mutate: mutateSigner } = useFarcasterSigner();
-  const { mutate } = useSWRConfig();
-  const router = useRouter();
+  const { refreshLinkedAccountState } = useRefreshLinkedAccountState(address);
   const [username, setUsername] = useState("");
   const [availability, setAvailability] = useState<UsernameAvailabilityState>({
     status: "idle",
@@ -159,10 +153,7 @@ export function useFarcasterSignup({
         throw new Error(completeResult.error);
       }
 
-      await mutateLinkedAccounts();
-      await mutateSigner();
-      await mutate("user");
-      router.refresh();
+      await refreshLinkedAccountState({ includeSigner: true });
       toast.success("Farcaster account created.");
       onComplete();
     } catch (err) {
@@ -175,11 +166,8 @@ export function useFarcasterSignup({
   }, [
     address,
     availability.status,
-    mutate,
-    mutateLinkedAccounts,
-    mutateSigner,
     onComplete,
-    router,
+    refreshLinkedAccountState,
     signTypedDataAsync,
     username,
   ]);

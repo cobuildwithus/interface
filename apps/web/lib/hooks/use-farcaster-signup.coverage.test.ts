@@ -8,24 +8,12 @@ const { useUserMock } = vi.hoisted(() => ({
   useUserMock: vi.fn(),
 }));
 
-const { useLinkedAccountsMock } = vi.hoisted(() => ({
-  useLinkedAccountsMock: vi.fn(),
-}));
-
-const { useFarcasterSignerMock } = vi.hoisted(() => ({
-  useFarcasterSignerMock: vi.fn(),
+const { useRefreshLinkedAccountStateMock } = vi.hoisted(() => ({
+  useRefreshLinkedAccountStateMock: vi.fn(),
 }));
 
 const { useSignTypedDataMock } = vi.hoisted(() => ({
   useSignTypedDataMock: vi.fn(),
-}));
-
-const { useSWRConfigMock } = vi.hoisted(() => ({
-  useSWRConfigMock: vi.fn(),
-}));
-
-const { refreshMock } = vi.hoisted(() => ({
-  refreshMock: vi.fn(),
 }));
 
 const { toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
@@ -42,24 +30,12 @@ vi.mock("@/lib/hooks/use-user", () => ({
   useUser: () => useUserMock(),
 }));
 
-vi.mock("@/lib/hooks/use-linked-accounts", () => ({
-  useLinkedAccounts: () => useLinkedAccountsMock(),
-}));
-
-vi.mock("@/lib/hooks/use-farcaster-signer", () => ({
-  useFarcasterSigner: () => useFarcasterSignerMock(),
+vi.mock("@/lib/domains/auth/use-refresh-linked-account-state", () => ({
+  useRefreshLinkedAccountState: () => useRefreshLinkedAccountStateMock(),
 }));
 
 vi.mock("wagmi", () => ({
   useSignTypedData: () => useSignTypedDataMock(),
-}));
-
-vi.mock("swr", () => ({
-  useSWRConfig: () => useSWRConfigMock(),
-}));
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: refreshMock }),
 }));
 
 vi.mock("sonner", () => ({
@@ -116,13 +92,10 @@ const mockAvailability = (available: boolean, reason?: string) => {
 describe("useFarcasterSignup", () => {
   beforeEach(() => {
     useUserMock.mockReturnValue({ address: "0x0000000000000000000000000000000000000001" });
-    useLinkedAccountsMock.mockReturnValue({ mutate: vi.fn() });
-    useFarcasterSignerMock.mockReturnValue({ mutate: vi.fn() });
+    useRefreshLinkedAccountStateMock.mockReturnValue({ refreshLinkedAccountState: vi.fn() });
     useSignTypedDataMock.mockReturnValue({
       signTypedDataAsync: vi.fn().mockResolvedValue("0xsig"),
     });
-    useSWRConfigMock.mockReturnValue({ mutate: vi.fn() });
-    refreshMock.mockReset();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
     registerInitMock.mockReset();
@@ -276,12 +249,8 @@ describe("useFarcasterSignup", () => {
     vi.useFakeTimers();
     const signTypedDataAsync = vi.fn().mockResolvedValue("0xsig");
     useSignTypedDataMock.mockReturnValue({ signTypedDataAsync });
-    const mutateLinkedAccounts = vi.fn();
-    useLinkedAccountsMock.mockReturnValue({ mutate: mutateLinkedAccounts });
-    const mutateSigner = vi.fn();
-    useFarcasterSignerMock.mockReturnValue({ mutate: mutateSigner });
-    const mutateConfig = vi.fn();
-    useSWRConfigMock.mockReturnValue({ mutate: mutateConfig });
+    const refreshLinkedAccountState = vi.fn();
+    useRefreshLinkedAccountStateMock.mockReturnValue({ refreshLinkedAccountState });
     const onComplete = vi.fn();
 
     mockAvailability(true);
@@ -304,10 +273,7 @@ describe("useFarcasterSignup", () => {
     });
 
     expect(signTypedDataAsync).toHaveBeenCalled();
-    expect(mutateLinkedAccounts).toHaveBeenCalled();
-    expect(mutateSigner).toHaveBeenCalled();
-    expect(mutateConfig).toHaveBeenCalledWith("user");
-    expect(refreshMock).toHaveBeenCalled();
+    expect(refreshLinkedAccountState).toHaveBeenCalledWith({ includeSigner: true });
     expect(toastSuccessMock).toHaveBeenCalledWith("Farcaster account created.");
     expect(onComplete).toHaveBeenCalled();
   });

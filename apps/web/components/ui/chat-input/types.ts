@@ -1,5 +1,6 @@
 import type { ChatInputMessage } from "@/lib/domains/chat/input-message";
 import type { ReplyContextItem } from "@/lib/domains/chat/reply-context";
+import type { ImageAttachmentState } from "@/lib/integrations/images/upload-flow";
 
 export type ChatInputProps = {
   onSubmit: (message: ChatInputMessage) => boolean | void | Promise<boolean | void>;
@@ -17,13 +18,4 @@ export type ChatInputProps = {
   onClearReplyContext?: () => void;
 };
 
-export type AttachmentState = {
-  id: string;
-  url: string;
-  mediaType: string;
-  filename: string;
-  status: "uploading" | "ready";
-  isLocal: boolean;
-  progress: number;
-  size: number;
-};
+export type AttachmentState = ImageAttachmentState;

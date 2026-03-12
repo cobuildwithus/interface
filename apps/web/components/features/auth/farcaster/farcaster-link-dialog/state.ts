@@ -1,20 +1,37 @@
 import { useLinkAccount } from "@/lib/domains/auth/use-link-account";
-import { useFarcasterLinkActions } from "@/components/features/auth/farcaster-link-actions";
+import { useFarcasterLinkActionsCore } from "@/components/features/auth/farcaster-link-actions";
 import { useFarcasterSigner } from "@/lib/hooks/use-farcaster-signer";
 import { useFarcasterSignup } from "@/lib/hooks/use-farcaster-signup";
+import { useUser } from "@/lib/hooks/use-user";
 import { getCastPermissionState } from "./permissions";
 import type { FarcasterLinkDialogStateOptions } from "./types";
 
 export function useFarcasterLinkDialogState(options: FarcasterLinkDialogStateOptions = {}) {
   const onComplete = options.onComplete ?? (() => {});
-  const { linkFarcaster, isLinking, isLinkingType, linkedAccounts, isLinked } = useLinkAccount();
+  const { address } = useUser();
+  const { linkFarcaster, linkTwitter, isLinking, isLinkingType, linkedAccounts, isLinked } =
+    useLinkAccount({
+      initialLinkedAccounts: options.initialLinkedAccounts,
+      initialLinkedAccountsResponse: options.initialLinkedAccountsResponse,
+    });
   const { connectSigner, disconnectSigner, linkReadOnly, isConnecting, isDisconnecting } =
-    useFarcasterLinkActions(linkFarcaster);
-  const { status: signerStatus, isLoading: signerLoading } = useFarcasterSigner();
-  const signup = useFarcasterSignup({ onComplete });
+    useFarcasterLinkActionsCore({
+      address: options.address ?? address,
+      linkFarcaster,
+    });
+  const { status: signerStatus, isLoading: signerLoading } = useFarcasterSigner({
+    initialStatus: options.initialSignerStatus,
+    initialIdentityKey: options.initialSignerIdentityKey,
+  });
+  const signup = useFarcasterSignup({
+    onComplete,
+  });
   const linked = isLinked("farcaster");
   const accountInfo = linkedAccounts.farcaster;
+  const twitterAccount = linkedAccounts.twitter;
+  const twitterLinked = isLinked("twitter");
   const isCurrentlyLinking = isLinkingType("farcaster");
+  const isLinkingTwitter = isLinkingType("twitter");
   const { hasSigner, signerPermissions, neynarPermissions, neynarStatus, neynarError } =
     signerStatus;
   const { missingCastPermission } = getCastPermissionState({
@@ -37,6 +54,9 @@ export function useFarcasterLinkDialogState(options: FarcasterLinkDialogStateOpt
   return {
     linked,
     accountInfo,
+    linkedAccounts,
+    twitterAccount,
+    twitterLinked,
     hasSigner,
     missingCastPermission,
     signerPermissions,
@@ -49,10 +69,12 @@ export function useFarcasterLinkDialogState(options: FarcasterLinkDialogStateOpt
     isDisconnecting,
     isLinking,
     isCurrentlyLinking,
+    isLinkingTwitter,
     signup,
     dialogTitle,
     dialogDescription,
     connectSigner,
+    linkTwitter,
     linkReadOnly,
     disconnectSigner,
   };

@@ -38,7 +38,8 @@ High-level map of shared libraries/utilities in `apps/web/lib`, focused on commo
 - `apps/web/lib/integrations/farcaster/*`: Farcaster API clients + parsing helpers.
 - `apps/web/lib/integrations/twitter/*`: X/Twitter parsing helpers.
 - `apps/web/lib/integrations/whisk/*`: Whisk API client.
-- `apps/web/lib/integrations/images/*`: upload client helpers.
+- `apps/web/lib/integrations/images/upload-flow.ts`: shared upload auth/limit/error handling primitives used by create-post, inline reply, chat input, and settings/profile flows.
+- `apps/web/lib/integrations/images/use-image-attachments.ts` + `use-single-image-upload.ts`: shared client upload state machines for multi-image and single-image entry points.
 
 ## Domain Modules
 
@@ -63,9 +64,14 @@ Token + onchain
 Goals + chat
 
 - `apps/web/lib/domains/goals/*`: goal scopes + raise-1m helpers.
+- `apps/web/lib/domains/goals/create/*`: goal-create form parsing, defaults, deployment-parameter builders, and section-level contracts.
 - `apps/web/lib/domains/goals/action-card-read.ts`: per-wallet goal action card read-state persistence (KV).
 - `apps/web/lib/domains/goals/ai-context/*`: AI context build + prompt helpers.
 - `apps/web/lib/domains/chat/*`: chat client + messages + intent helpers.
+
+Rounds creation
+
+- `apps/web/lib/domains/rounds/create-round.ts`: shared round-create validation, normalization, and server/client payload shaping.
 
 Social + profiles
 

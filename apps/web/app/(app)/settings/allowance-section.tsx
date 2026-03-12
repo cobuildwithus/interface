@@ -1,11 +1,11 @@
 import { AllowanceStepper } from "@/components/features/funding/allowance-stepper";
-import { getSession } from "@/lib/domains/auth/session";
 import { getUsdcBalance } from "@/lib/domains/token/onchain/usdc-balance";
 
-export async function AllowanceSection() {
-  const session = await getSession();
-  const address = session.address ?? null;
+type AllowanceSectionProps = {
+  address: `0x${string}` | null;
+};
 
+export async function AllowanceSection({ address }: AllowanceSectionProps) {
   if (!address) {
     return null;
   }

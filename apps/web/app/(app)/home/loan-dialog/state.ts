@@ -2,7 +2,7 @@
 
 import { getRevnetPrepaidFeePercent, isSameEvmAddress } from "@cobuild/wire";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { erc20Abi, formatUnits, parseUnits } from "viem";
 import { usePublicClient, useReadContract } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
@@ -58,7 +58,7 @@ export function useLoanDialogState(position: RevnetPosition) {
   const revLoansAddress = position.revLoansAddress as `0x${string}`;
   const permissionsAddress = position.permissionsAddress as `0x${string}`;
 
-  const { data: loanSources } = useReadContract({
+  const { data: loanSources, isFetching: isLoanSourcesFetching } = useReadContract({
     address: revLoansAddress,
     abi: revLoansAbi,
     functionName: "loanSourcesOf",
@@ -66,10 +66,31 @@ export function useLoanDialogState(position: RevnetPosition) {
     chainId: REVNET_CHAIN_ID,
     query: { enabled: !!revLoansAddress },
   });
+  const loanSourcesCacheKey = `${revLoansAddress}:${position.projectId.toString()}`;
+  const lastResolvedLoanSourcesRef = useRef<{
+    key: string;
+    value: typeof loanSources | null;
+  }>({
+    key: loanSourcesCacheKey,
+    value: null,
+  });
+  if (lastResolvedLoanSourcesRef.current.key !== loanSourcesCacheKey) {
+    lastResolvedLoanSourcesRef.current = {
+      key: loanSourcesCacheKey,
+      value: null,
+    };
+  }
+  if (loanSources !== undefined) {
+    lastResolvedLoanSourcesRef.current = {
+      key: loanSourcesCacheKey,
+      value: loanSources,
+    };
+  }
+  const effectiveLoanSources = loanSources ?? lastResolvedLoanSourcesRef.current.value;
 
   const { selectedLoanSource, loanSourceToken, loanSourceTerminal } = useMemo(
-    () => resolveLoanDialogLoanSource(loanSources ?? [], position.baseTokenContext?.token),
-    [loanSources, position.baseTokenContext?.token]
+    () => resolveLoanDialogLoanSource(effectiveLoanSources ?? [], position.baseTokenContext?.token),
+    [effectiveLoanSources, position.baseTokenContext?.token]
   );
   const isNativeLoanToken = !!loanSourceToken && isSameEvmAddress(loanSourceToken, NATIVE_TOKEN);
 
@@ -210,8 +231,10 @@ export function useLoanDialogState(position: RevnetPosition) {
   const isBorrowProcessing = submitStep === "loan" || borrowTx.isLoading;
   const isPermissionProcessing =
     submitStep === "permission" || (permissionTx.isLoading && !borrowTx.isLoading);
+  const hasResolvedLoanSources = effectiveLoanSources !== null || !isLoanSourcesFetching;
   const isLoanAvailable = !!selectedLoanSource;
-  const buttonLabel = !isLoanAvailable
+  const isLoanUnavailable = hasResolvedLoanSources && !isLoanAvailable;
+  const buttonLabel = isLoanUnavailable
     ? "Loan unavailable"
     : isProcessing
       ? isBorrowProcessing

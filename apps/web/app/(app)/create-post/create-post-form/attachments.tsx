@@ -19,7 +19,6 @@ export function PostAttachmentsGrid({
   return (
     <div className="flex flex-wrap gap-3">
       {attachments.map((attachment, index) => {
-        const previewSrc = attachment.url ?? attachment.previewUrl;
         return (
           <div
             key={attachment.id}
@@ -28,18 +27,18 @@ export function PostAttachmentsGrid({
             <button
               type="button"
               onClick={() => onPreview(index)}
-              disabled={attachment.isUploading}
+              disabled={attachment.status === "uploading"}
               className="block w-full cursor-zoom-in"
               aria-label={`Preview attached image ${index + 1}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={previewSrc}
+                src={attachment.url}
                 alt={`Attached image ${index + 1} preview`}
                 className="h-24 w-full object-cover"
               />
             </button>
-            {attachment.isUploading && (
+            {attachment.status === "uploading" && (
               <div className="absolute inset-0 grid place-items-center bg-black/40">
                 <Loader2 className="size-5 animate-spin text-white" />
               </div>
@@ -50,7 +49,7 @@ export function PostAttachmentsGrid({
                 event.stopPropagation();
                 onRemove(attachment);
               }}
-              disabled={attachment.isUploading || isPosting}
+              disabled={attachment.status === "uploading" || isPosting}
               className="bg-background/90 text-foreground hover:bg-background absolute top-2 right-2 rounded-full p-1 shadow disabled:opacity-60"
               aria-label={`Remove attached image ${index + 1}`}
             >

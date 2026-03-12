@@ -90,7 +90,10 @@ export function isLinkedFarcasterAccountServerView(
 export function getPreferredLinkedFarcasterAccount(
   accounts: readonly LinkedAccountServerView[]
 ): LinkedFarcasterAccountServerView | null {
-  const farcasterAccounts = accounts.filter(isLinkedFarcasterAccountServerView);
+  const farcasterAccounts = accounts.filter(
+    (account): account is LinkedFarcasterAccountServerView =>
+      isLinkedFarcasterAccountServerView(account) && account.fid !== null
+  );
   return (
     farcasterAccounts.find((account) => account.source === "neynar_signer" || account.canPost) ??
     farcasterAccounts[0] ??

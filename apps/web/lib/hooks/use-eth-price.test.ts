@@ -5,37 +5,34 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { DEFAULT_ETH_PRICE_USDC } from "@/lib/domains/token/onchain/addresses";
 
-const swrMock = vi.hoisted(() => vi.fn());
+const useQueryMock = vi.hoisted(() => vi.fn());
 const fetchMock = vi.hoisted(() => vi.fn());
 
-vi.mock("swr", () => ({
-  default: (...args: unknown[]) => swrMock(...args),
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: (args: Parameters<typeof useQueryMock>[0]) => useQueryMock(args),
 }));
 
+import { ETH_PRICE_QUERY_KEY } from "@/lib/hooks/query-keys";
 import { useEthPrice } from "@/lib/hooks/use-eth-price";
 
 describe("useEthPrice", () => {
   beforeEach(() => {
-    swrMock.mockReset();
+    useQueryMock.mockReset();
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
   });
 
-  it("configures SWR and fetches ETH price from the API when response is OK", async () => {
-    swrMock.mockReturnValue({ data: { priceUsdc: DEFAULT_ETH_PRICE_USDC }, isLoading: false });
+  it("configures React Query and fetches ETH price from the API when response is OK", async () => {
+    useQueryMock.mockReturnValue({ data: { priceUsdc: DEFAULT_ETH_PRICE_USDC }, isLoading: false });
 
     renderHook(() => useEthPrice());
 
-    const [key, fetcher, options] = swrMock.mock.calls[0] as [
-      string,
-      () => Promise<{ priceUsdc: number }>,
-      { refreshInterval: number; fallbackData: { priceUsdc: number } },
-    ];
+    const call = useQueryMock.mock.calls[0]?.[0];
 
-    expect(key).toBe("eth-price");
-    expect(options).toEqual({
-      refreshInterval: 5 * 60 * 1000,
-      fallbackData: { priceUsdc: DEFAULT_ETH_PRICE_USDC },
+    expect(call.queryKey).toEqual(ETH_PRICE_QUERY_KEY);
+    expect(call).toMatchObject({
+      refetchInterval: 5 * 60 * 1000,
+      initialData: { priceUsdc: DEFAULT_ETH_PRICE_USDC },
     });
 
     fetchMock.mockResolvedValueOnce({
@@ -43,23 +40,23 @@ describe("useEthPrice", () => {
       json: vi.fn().mockResolvedValue({ priceUsdc: 3210 }),
     });
 
-    await expect(fetcher()).resolves.toEqual({ priceUsdc: 3210 });
+    await expect(call.queryFn()).resolves.toEqual({ priceUsdc: 3210 });
     expect(fetchMock).toHaveBeenCalledWith("/api/eth-price");
   });
 
   it("falls back to default price when the API response is not OK", async () => {
-    swrMock.mockReturnValue({ data: { priceUsdc: DEFAULT_ETH_PRICE_USDC }, isLoading: false });
+    useQueryMock.mockReturnValue({ data: { priceUsdc: DEFAULT_ETH_PRICE_USDC }, isLoading: false });
 
     renderHook(() => useEthPrice());
 
-    const [, fetcher] = swrMock.mock.calls[0] as [string, () => Promise<{ priceUsdc: number }>];
     fetchMock.mockResolvedValueOnce({ ok: false });
 
-    await expect(fetcher()).resolves.toEqual({ priceUsdc: DEFAULT_ETH_PRICE_USDC });
+    const call = useQueryMock.mock.calls[0]?.[0];
+    await expect(call.queryFn()).resolves.toEqual({ priceUsdc: DEFAULT_ETH_PRICE_USDC });
   });
 
-  it("returns SWR data and converts USD to ETH with 8 decimal precision", () => {
-    swrMock.mockReturnValue({ data: { priceUsdc: 2500 }, isLoading: true });
+  it("returns query data and converts USD to ETH with 8 decimal precision", () => {
+    useQueryMock.mockReturnValue({ data: { priceUsdc: 2500 }, isLoading: true });
 
     const { result } = renderHook(() => useEthPrice());
 
@@ -69,8 +66,8 @@ describe("useEthPrice", () => {
     expect(result.current.usdToEth(1250)).toBe("0.50000000");
   });
 
-  it("uses default price when SWR data is missing", () => {
-    swrMock.mockReturnValue({ data: undefined, isLoading: false });
+  it("uses default price when query data is missing", () => {
+    useQueryMock.mockReturnValue({ data: undefined, isLoading: false });
 
     const { result } = renderHook(() => useEthPrice());
 

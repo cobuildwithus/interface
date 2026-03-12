@@ -10,13 +10,8 @@ import { QuotedCastPreview } from "@/components/features/social/cast-composer/qu
 import { ImageDialog, useImageDialog } from "@/components/common/image-dialog";
 import { FarcasterSignerDialog } from "@/components/features/auth/farcaster/farcaster-link-dialog";
 import { cn } from "@/lib/shared/utils";
-import type { ErrorLike } from "@/lib/shared/errors";
-import {
-  isUploadImageAuthError,
-  uploadImage,
-  validateImageFile,
-} from "@/lib/integrations/images/upload-client";
 import { useCommandEnter } from "@/lib/hooks/use-command-enter";
+import { useSingleImageUpload } from "@/lib/integrations/images/use-single-image-upload";
 import { InlineReplyAttachmentPreview } from "./inline-reply-composer/attachment-preview";
 import { InlineReplyFooter } from "./inline-reply-composer/footer";
 import { CHARACTER_LIMIT } from "./inline-reply-composer/constants";
@@ -32,30 +27,29 @@ export function InlineReplyComposer({
 }: InlineReplyComposerProps) {
   const [text, setText] = useState("");
   const [isPosting, setIsPosting] = useState(false);
-  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
-  const [localPreview, setLocalPreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
   const [isSignerDialogOpen, setSignerDialogOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const imageDialog = useImageDialog();
+  const {
+    clearImage,
+    imageUrl: attachmentUrl,
+    isUploading,
+    previewSrc,
+    uploadFile,
+  } = useSingleImageUpload({
+    uploadSuccessMessage: "Image attached.",
+    onAuthError: () => setSignerDialogOpen(true),
+    authErrorMessage: null,
+  });
   const isOverLimit = text.length > CHARACTER_LIMIT;
   const canPost = text.trim().length > 0 && !isOverLimit && !isPosting && !isUploading;
   const isReplyingToRoot = targetCast.hash === rootCast.hash;
-  const previewSrc = localPreview || attachmentUrl;
 
   useEffect(() => {
     containerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     textareaRef.current?.focus();
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (localPreview) {
-        URL.revokeObjectURL(localPreview);
-      }
-    };
-  }, [localPreview]);
 
   const handlePost = async () => {
     if (!canPost) return;
@@ -73,8 +67,7 @@ export function InlineReplyComposer({
     setIsPosting(false);
     if (result.ok) {
       setText("");
-      setAttachmentUrl(null);
-      setLocalPreview(null);
+      clearImage();
       return;
     }
     if (result.status === 401 || result.status === 403) {
@@ -88,46 +81,15 @@ export function InlineReplyComposer({
 
   const handleRemoveAttachment = () => {
     if (isUploading) return;
-    setAttachmentUrl(null);
-    setLocalPreview(null);
+    clearImage();
   };
 
   const handleUpload = useCallback(
     async (file: File) => {
       if (isPosting || isUploading) return;
-
-      const validation = validateImageFile(file);
-      if (!validation.ok) {
-        toast.error(validation.message);
-        return;
-      }
-
-      const previousAttachment = attachmentUrl;
-      const previewUrl = URL.createObjectURL(file);
-      setLocalPreview(previewUrl);
-      setIsUploading(true);
-
-      try {
-        const url = await uploadImage(file);
-        setAttachmentUrl(url);
-        setLocalPreview(null);
-        toast.success("Image attached.");
-      } catch (error) {
-        if (isUploadImageAuthError(error as ErrorLike)) {
-          setSignerDialogOpen(true);
-          setAttachmentUrl(previousAttachment);
-          setLocalPreview(null);
-          return;
-        }
-        const message = error instanceof Error ? error.message : "Upload failed.";
-        toast.error(message);
-        setAttachmentUrl(previousAttachment);
-        setLocalPreview(null);
-      } finally {
-        setIsUploading(false);
-      }
+      await uploadFile(file);
     },
-    [attachmentUrl, isPosting, isUploading]
+    [isPosting, isUploading, uploadFile]
   );
 
   const handlePaste = createImagePasteHandler(handleUpload);

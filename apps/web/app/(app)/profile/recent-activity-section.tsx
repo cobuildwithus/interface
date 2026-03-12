@@ -2,13 +2,13 @@ import Link from "next/link";
 import { ArrowRightLeft, Wallet } from "lucide-react";
 import { RecentActivityTable } from "@/components/features/token/recent-activity-table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getSession } from "@/lib/domains/auth/session";
 import { getRecentActivityByWallet } from "@/lib/domains/token/recent-activity";
 
-export async function RecentActivitySection() {
-  const session = await getSession();
-  const address = session.address ?? null;
+type RecentActivitySectionProps = {
+  address: string | null;
+};
 
+export async function RecentActivitySection({ address }: RecentActivitySectionProps) {
   if (!address) {
     return (
       <div className="border-border bg-card/50 overflow-hidden rounded-xl border">

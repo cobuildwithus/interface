@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
 import { RankBadges } from "@/components/common/rank-badges";
-import { getSession } from "@/lib/domains/auth/session";
 import { computeRankTier } from "@/lib/domains/profile/rank";
 import { getCobuildActivityByFid } from "@/lib/integrations/farcaster/activity";
 import { getFarcasterProfileUrl } from "@/lib/integrations/farcaster/urls";
+import type { Session } from "@/lib/server/session-types";
 
-export async function ProfileHeader() {
-  const session = await getSession();
+type ProfileHeaderProps = {
+  session: Session;
+};
 
+export async function ProfileHeader({ session }: ProfileHeaderProps) {
   const fid = session.farcaster?.fid;
   const neynarScore = session.farcaster?.neynarScore ?? 0;
   const activityStats = fid ? await getCobuildActivityByFid(fid) : { activity: 0, posts: 0 };

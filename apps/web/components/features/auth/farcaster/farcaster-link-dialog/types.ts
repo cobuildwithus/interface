@@ -1,10 +1,12 @@
+import type {
+  ResolvedFarcasterAccount,
+  ResolvedXAccount,
+} from "@/lib/domains/auth/linked-accounts/server-view";
+import type { LinkedAccountsResponse } from "@/lib/domains/auth/linked-accounts/types";
+import type { FarcasterSignerStatus } from "@/lib/integrations/farcaster/signer-types";
 import type { FarcasterSignupState } from "@/lib/hooks/use-farcaster-signup";
 
-export type FarcasterAccountInfo = {
-  fid: number;
-  username?: string;
-  displayName?: string;
-};
+export type FarcasterAccountInfo = ResolvedFarcasterAccount;
 
 export type FarcasterLinkDialogProps = {
   open: boolean;
@@ -23,11 +25,19 @@ export type FarcasterLinkDialogProps = {
   neynarError: string | null;
   isDisconnecting: boolean;
   onDisconnect: () => void;
-  accountInfo?: FarcasterAccountInfo;
+  accountInfo?: FarcasterAccountInfo | null;
   title: string;
   description: string;
 };
 
 export type FarcasterLinkDialogStateOptions = {
+  address?: `0x${string}` | null;
+  initialLinkedAccounts?: {
+    farcaster?: FarcasterAccountInfo | null;
+    twitter?: ResolvedXAccount | null;
+  };
+  initialLinkedAccountsResponse?: LinkedAccountsResponse;
+  initialSignerStatus?: FarcasterSignerStatus;
+  initialSignerIdentityKey?: string;
   onComplete?: () => void;
 };

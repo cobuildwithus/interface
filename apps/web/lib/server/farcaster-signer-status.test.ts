@@ -11,6 +11,10 @@ const { getCachedNeynarSignerStatus } = vi.hoisted(() => ({
   getCachedNeynarSignerStatus: vi.fn(),
 }));
 
+const { getLinkedAccountsServerView } = vi.hoisted(() => ({
+  getLinkedAccountsServerView: vi.fn(),
+}));
+
 vi.mock("@/lib/integrations/farcaster/signer-store", () => ({
   getSignerRecord,
   setSignerRecord,
@@ -20,12 +24,17 @@ vi.mock("@/lib/integrations/farcaster/signer-status", () => ({
   getCachedNeynarSignerStatus,
 }));
 
+vi.mock("./linked-accounts-response", () => ({
+  getLinkedAccountsServerView,
+}));
+
 import type { Session } from "./session-types";
 import { getFarcasterSignerStatus } from "./farcaster-signer-status";
 
 describe("getFarcasterSignerStatus", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getLinkedAccountsServerView.mockResolvedValue({ address: null, accounts: [] });
   });
 
   it("returns empty status when fid missing", async () => {
@@ -113,5 +122,53 @@ describe("getFarcasterSignerStatus", () => {
       signerPermissions: ["cast"],
     });
     expect(result.signerPermissions).toBeNull();
+  });
+
+  it("prefers signer-capable linked farcaster accounts over the session fallback", async () => {
+    getSignerRecord.mockResolvedValueOnce({
+      fid: 222,
+      signerUuid: "uuid-222",
+      signerPermissions: ["cast"],
+      updatedAt: "2025-01-02T00:00:00.000Z",
+    });
+    getCachedNeynarSignerStatus.mockResolvedValueOnce({
+      ok: true,
+      permissions: ["cast"],
+      status: "approved",
+    });
+
+    const session = {
+      address: `0x${"a".repeat(40)}`,
+      farcaster: { fid: 111, source: "privy" },
+    } as Session;
+    const result = await getFarcasterSignerStatus(session, {
+      linkedAccounts: [
+        {
+          platform: "farcaster",
+          platformId: "111",
+          fid: 111,
+          username: "session-user",
+          displayName: "Session User",
+          avatarUrl: null,
+          source: "verified_address",
+          canPost: false,
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+        {
+          platform: "farcaster",
+          platformId: "222",
+          fid: 222,
+          username: "preferred-user",
+          displayName: "Preferred User",
+          avatarUrl: null,
+          source: "neynar_signer",
+          canPost: true,
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(getSignerRecord).toHaveBeenCalledWith(222);
+    expect(result.fid).toBe(222);
   });
 });

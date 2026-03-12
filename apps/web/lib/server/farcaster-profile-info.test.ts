@@ -21,6 +21,7 @@ vi.mock("@/lib/domains/auth/linked-accounts/store", () => ({
 }));
 
 import type { LinkedAccountRecord } from "@/lib/domains/auth/linked-accounts/types";
+import { toLinkedAccountServerView } from "@/lib/domains/auth/linked-accounts/server-view";
 import { getFarcasterProfileInfo } from "./farcaster-profile-info";
 import type { Session } from "./session-types";
 
@@ -45,8 +46,12 @@ const makeLinkedAccount = (overrides: Partial<LinkedAccountRecord> = {}): Linked
 
 describe("getFarcasterProfileInfo", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    prismaMock.farcasterProfile.findUnique.mockReset();
+    prismaMock.$primary.mockReset();
+    getLinkedAccountsByAddress.mockReset();
     prismaMock.$primary.mockReturnValue(prismaMock);
+    prismaMock.farcasterProfile.findUnique.mockResolvedValue(null);
+    getLinkedAccountsByAddress.mockResolvedValue([]);
   });
 
   it("returns session farcaster data when present", async () => {
@@ -153,12 +158,14 @@ describe("getFarcasterProfileInfo", () => {
     const session = makeSession({ address: "0xabc" });
     const result = await getFarcasterProfileInfo(session, {
       linkedAccounts: [
-        makeLinkedAccount({
-          platformId: "9",
-          username: "provided",
-          displayName: "Provided",
-          avatarUrl: "https://provided",
-        }),
+        toLinkedAccountServerView(
+          makeLinkedAccount({
+            platformId: "9",
+            username: "provided",
+            displayName: "Provided",
+            avatarUrl: "https://provided",
+          })
+        ),
       ],
     });
 
@@ -168,6 +175,50 @@ describe("getFarcasterProfileInfo", () => {
       username: "provided",
       displayName: "Provided",
       pfp: "https://provided",
+    });
+  });
+
+  it("prefers the linked farcaster identity over a stale session fid", async () => {
+    prismaMock.farcasterProfile.findUnique.mockResolvedValueOnce({
+      fname: "preferred",
+      displayName: "Preferred",
+      avatarUrl: "https://preferred",
+    });
+
+    const session = makeSession({
+      address: "0xabc",
+      farcaster: {
+        fid: 5,
+        username: "session",
+        displayName: "Session",
+        pfp: "https://session",
+      },
+    });
+
+    const result = await getFarcasterProfileInfo(session, {
+      linkedAccounts: [
+        toLinkedAccountServerView(
+          makeLinkedAccount({
+            platformId: "9",
+            username: "linked",
+            displayName: "Linked",
+            avatarUrl: "https://linked",
+            source: "neynar_signer",
+            canPost: true,
+          })
+        ),
+      ],
+    });
+
+    expect(prismaMock.farcasterProfile.findUnique).toHaveBeenCalledWith({
+      where: { fid: BigInt(9) },
+      select: { fname: true, displayName: true, avatarUrl: true },
+    });
+    expect(result).toEqual({
+      fid: 9,
+      username: "preferred",
+      displayName: "Preferred",
+      pfp: "https://preferred",
     });
   });
 

@@ -100,6 +100,43 @@ export async function upsertLinkedAccount(params: UpsertLinkedAccountParams) {
   return toRecord(record);
 }
 
+export async function clearLinkedAccountPostingAccess(params: {
+  ownerAddress: string;
+  platform: LinkedAccountPlatform;
+  platformId: string;
+  source: LinkedAccountSource;
+}) {
+  const ownerAddress = normalizeAddress(params.ownerAddress, "ownerAddress");
+  const platformId = params.platformId.trim();
+
+  const existing = await prisma.linkedSocialAccount.findUnique({
+    where: {
+      ownerAddress_platform_platformId: {
+        ownerAddress,
+        platform: params.platform,
+        platformId,
+      },
+    },
+  });
+
+  if (!existing) {
+    return null;
+  }
+
+  const record = await prisma.linkedSocialAccount.update({
+    where: { id: existing.id },
+    data: {
+      canPost: false,
+      source: params.source,
+      revokedAt: null,
+    },
+  });
+
+  revalidateTag(getLinkedAccountsCacheTag(ownerAddress), "default");
+
+  return toRecord(record);
+}
+
 export async function getLinkedAccountsByAddress(
   address: string,
   options?: { usePrimary?: boolean }

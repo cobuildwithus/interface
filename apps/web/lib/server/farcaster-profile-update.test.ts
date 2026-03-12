@@ -12,6 +12,7 @@ const { prismaMock } = vi.hoisted(() => ({
 
 const {
   getSession,
+  getActiveFarcasterIdentity,
   neynarUpdateUserProfile,
   getSignerRecord,
   getCachedNeynarSignerStatus,
@@ -19,6 +20,7 @@ const {
   revalidateTag,
 } = vi.hoisted(() => ({
   getSession: vi.fn(),
+  getActiveFarcasterIdentity: vi.fn(),
   neynarUpdateUserProfile: vi.fn(),
   getSignerRecord: vi.fn(),
   getCachedNeynarSignerStatus: vi.fn(),
@@ -28,6 +30,7 @@ const {
 
 vi.mock("@/lib/server/db/cobuild-db-client", () => ({ default: prismaMock }));
 vi.mock("@/lib/domains/auth/session", () => ({ getSession }));
+vi.mock("@/lib/server/active-farcaster-identity", () => ({ getActiveFarcasterIdentity }));
 vi.mock("@/lib/integrations/farcaster/neynar-client", () => ({ neynarUpdateUserProfile }));
 vi.mock("@/lib/integrations/farcaster/signer-store", () => ({ getSignerRecord }));
 vi.mock("@/lib/integrations/farcaster/signer-status", () => ({
@@ -41,6 +44,21 @@ import { updateFarcasterProfile } from "./farcaster-profile-update";
 describe("updateFarcasterProfile", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getActiveFarcasterIdentity.mockImplementation(
+      async (session: {
+        farcaster?: {
+          fid?: number;
+          username?: string;
+          displayName?: string;
+          pfp?: string;
+        };
+      }) => ({
+        fid: session.farcaster?.fid ?? null,
+        username: session.farcaster?.username ?? null,
+        displayName: session.farcaster?.displayName ?? null,
+        pfp: session.farcaster?.pfp ?? null,
+      })
+    );
   });
 
   it("requires update payload", async () => {
@@ -96,6 +114,12 @@ describe("updateFarcasterProfile", () => {
 
   it("requires farcaster connection", async () => {
     getSession.mockResolvedValueOnce({ address: "0xabc" });
+    getActiveFarcasterIdentity.mockResolvedValueOnce({
+      fid: null,
+      username: null,
+      displayName: null,
+      pfp: null,
+    });
     const result = await updateFarcasterProfile({ displayName: "Name" });
     expect(result).toEqual({
       ok: false,
@@ -227,5 +251,41 @@ describe("updateFarcasterProfile", () => {
         displayName: "Solo Name",
       })
     );
+  });
+
+  it("uses the active farcaster identity when a signer-capable linked account is preferred", async () => {
+    getSession.mockResolvedValueOnce({
+      address: "0xabc",
+      farcaster: { fid: 1, username: "session-user" },
+    });
+    getActiveFarcasterIdentity.mockResolvedValueOnce({
+      fid: 9,
+      username: "preferred-user",
+      displayName: "Preferred User",
+      pfp: null,
+    });
+    getSignerRecord.mockResolvedValueOnce({
+      signerUuid: "uuid-9",
+      signerPermissions: ["write_all"],
+    });
+    getCachedNeynarSignerStatus.mockResolvedValueOnce({
+      ok: true,
+      status: "approved",
+      permissions: ["write_all"],
+    });
+    neynarUpdateUserProfile.mockResolvedValueOnce({ ok: true });
+
+    const result = await updateFarcasterProfile({ displayName: "Preferred Name" });
+
+    expect(getSignerRecord).toHaveBeenCalledWith(9);
+    expect(upsertLinkedAccount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerAddress: "0xabc",
+        platformId: "9",
+        username: "preferred-user",
+        displayName: "Preferred Name",
+      })
+    );
+    expect(result).toEqual({ ok: true, displayName: "Preferred Name" });
   });
 });

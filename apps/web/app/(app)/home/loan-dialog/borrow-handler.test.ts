@@ -152,6 +152,8 @@ describe("createBorrowHandler", () => {
     expect(permissionTx.writeContractAsync).toHaveBeenCalledTimes(1);
     expect(borrowTx.prepareWallet).toHaveBeenCalledTimes(1);
     expect(borrowTx.writeContractAsync).toHaveBeenCalledTimes(1);
+    expect(borrowTx.markErrorHandled).toHaveBeenCalledTimes(1);
+    expect(permissionTx.markErrorHandled).not.toHaveBeenCalled();
     expect(toastMock.error).toHaveBeenCalledWith(
       "Permission granted, but creating the loan failed: Borrow reverted",
       {
@@ -197,6 +199,8 @@ describe("createBorrowHandler", () => {
 
     expect(permissionTx.prepareWallet).toHaveBeenCalledTimes(1);
     expect(permissionTx.writeContractAsync).toHaveBeenCalledTimes(1);
+    expect(permissionTx.markErrorHandled).toHaveBeenCalledTimes(1);
+    expect(borrowTx.markErrorHandled).not.toHaveBeenCalled();
     expect(borrowTx.prepareWallet).not.toHaveBeenCalled();
     expect(borrowTx.writeContractAsync).not.toHaveBeenCalled();
     expect(refetchPermission).not.toHaveBeenCalled();

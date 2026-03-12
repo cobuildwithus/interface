@@ -5,8 +5,8 @@ docs_related_staged() {
   git diff --cached --name-only | grep -Eq '^(AGENTS\.md|ARCHITECTURE\.md|agent-docs/|\.husky/pre-commit$|scripts/(check-agent-docs-drift|doc-gardening)\.sh$)'
 }
 
-bash apps/web/scripts/wire-ensure-published.sh
-git add apps/web/package.json package.json pnpm-lock.yaml
+bash scripts/wire-ensure-published.sh
+git add apps/contracts/package.json apps/web/package.json package.json pnpm-lock.yaml
 if docs_related_staged; then
   bash scripts/doc-gardening.sh --fail-on-issues
   git add agent-docs/generated/doc-inventory.md agent-docs/generated/doc-gardening-report.md

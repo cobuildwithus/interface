@@ -20,6 +20,8 @@
 - `lib/domains/**`: domain behavior and data transformations.
 - `lib/integrations/**`: external API adapters and transport wrappers.
 - `lib/shared/**`: pure helpers and common formatting/utilities.
+- Multi-step form routes such as goal creation and round creation should keep validation, normalization, and deploy-parameter assembly in `lib/domains/**` so route/components stay focused on composition and presentation.
+- Shared image-upload behavior belongs in `lib/integrations/images/**`; UI entry points should reuse those hooks/helpers instead of re-implementing auth-error handling, object-URL cleanup, or attachment byte/limit checks.
 
 ### Server layer (`apps/web/lib/server/**`)
 
@@ -36,6 +38,7 @@
 - When multiple server leaves need the same auth state, resolve `getSession()` once per request and prefer passing session/address props from the parent route or section instead of re-reading auth in each leaf.
 - App-owned client fetch hooks should use the shared React Query data layer installed in `app/providers.tsx`; when server data already exists for the current render, seed the matching client query from that server result instead of immediately refetching on mount.
 - Auth-scoped React Query entries (for example linked accounts, signer status, wallet-owned profile data) must key off the active identity and remove the previous identity's entries on logout, wallet switch, or other auth-boundary transitions.
+- Settings/profile/account-linking client islands should prefer server-seeded account/signer/profile data plus targeted React Query invalidation over broad `router.refresh()` calls after every mutation.
 
 ## Auth + Wallet Constraints
 

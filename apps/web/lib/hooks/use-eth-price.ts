@@ -1,13 +1,14 @@
 "use client";
 
-import useSWR from "swr";
+import { useQuery } from "@tanstack/react-query";
 import { DEFAULT_ETH_PRICE_USDC } from "@/lib/domains/token/onchain/addresses";
+import { ETH_PRICE_QUERY_KEY } from "@/lib/hooks/query-keys";
 
 interface EthPriceResponse {
   priceUsdc: number;
 }
 
-async function fetchEthPrice(): Promise<EthPriceResponse> {
+export async function fetchEthPrice(): Promise<EthPriceResponse> {
   const res = await fetch("/api/eth-price");
   if (!res.ok) {
     return { priceUsdc: DEFAULT_ETH_PRICE_USDC };
@@ -24,12 +25,14 @@ async function fetchEthPrice(): Promise<EthPriceResponse> {
  * - Falls back to $3000 if price unavailable
  */
 export function useEthPrice() {
-  const { data, isLoading } = useSWR("eth-price", fetchEthPrice, {
-    refreshInterval: 5 * 60 * 1000, // Refresh every 5 minutes
-    fallbackData: { priceUsdc: DEFAULT_ETH_PRICE_USDC },
+  const query = useQuery({
+    queryKey: ETH_PRICE_QUERY_KEY,
+    queryFn: fetchEthPrice,
+    initialData: { priceUsdc: DEFAULT_ETH_PRICE_USDC },
+    refetchInterval: 5 * 60 * 1000,
   });
 
-  const ethPriceUsdc = data?.priceUsdc ?? DEFAULT_ETH_PRICE_USDC;
+  const ethPriceUsdc = query.data?.priceUsdc ?? DEFAULT_ETH_PRICE_USDC;
 
   /**
    * Convert USD amount to ETH
@@ -45,6 +48,6 @@ export function useEthPrice() {
   return {
     ethPriceUsdc,
     usdToEth,
-    isLoading,
+    isLoading: query.isLoading,
   };
 }

@@ -8,8 +8,8 @@ import {
   type ChangeEvent,
   type ClipboardEvent,
 } from "react";
-import type { AttachmentState } from "./types";
-import { handleFilesQueued, uploadSelectedFile } from "./attachment-helpers";
+import { useImageAttachments } from "@/lib/integrations/images/use-image-attachments";
+import { getChatAttachmentDropLimit, getChatAttachmentPasteFiles } from "./attachment-helpers";
 
 export function useChatAttachments({
   attachmentsEnabled,
@@ -22,91 +22,47 @@ export function useChatAttachments({
   maxAttachments?: number;
   isLoading?: boolean;
 }) {
-  const [attachments, setAttachments] = useState<AttachmentState[]>([]);
   const [isDragActive, setIsDragActive] = useState(false);
-  const attachmentsRef = useRef<AttachmentState[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
-  const attachmentLimit = typeof maxAttachments === "number" ? maxAttachments : null;
   const isDropEnabled = globalDrop && attachmentsEnabled;
-
-  const revokeAttachmentUrl = useCallback((attachment: AttachmentState) => {
-    if (attachment.isLocal && attachment.url.startsWith("blob:")) {
-      URL.revokeObjectURL(attachment.url);
-    }
-  }, []);
-
-  const clearAttachments = useCallback(() => {
-    setAttachments((prev) => {
-      prev.forEach(revokeAttachmentUrl);
-      return [];
-    });
-  }, [revokeAttachmentUrl]);
-
-  useEffect(() => {
-    attachmentsRef.current = attachments;
-  }, [attachments]);
-
-  useEffect(() => {
-    return () => {
-      attachmentsRef.current.forEach(revokeAttachmentUrl);
-    };
-  }, [revokeAttachmentUrl]);
-
-  const uploadFile = useCallback(
-    async (file: File) => {
-      await uploadSelectedFile({ file, setAttachments, revokeAttachmentUrl });
-    },
-    [revokeAttachmentUrl]
-  );
-
-  const queueFiles = useCallback(
-    (files: File[]) => {
-      handleFilesQueued({
-        files,
-        attachmentsEnabled,
-        attachmentLimit,
-        attachmentsRef,
-        uploadFile,
-      });
-    },
-    [attachmentLimit, attachmentsEnabled, uploadFile]
-  );
+  const {
+    attachments,
+    clearAttachments,
+    isAtAttachmentLimit,
+    isUploading,
+    queueFiles,
+    removeAttachment,
+  } = useImageAttachments({
+    attachmentsEnabled,
+    maxAttachments,
+    disabled: Boolean(isLoading),
+    authErrorMessage: "Connect a wallet to upload images.",
+  });
+  const dropLimit = getChatAttachmentDropLimit(maxAttachments);
 
   const handleFileChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.currentTarget.files ?? []);
       if (!files.length) return;
       event.currentTarget.value = "";
-      queueFiles(files);
+      void queueFiles(files);
     },
     [queueFiles]
   );
 
-  const isUploading = attachments.some((attachment) => attachment.status === "uploading");
-  const isAtAttachmentLimit = attachmentLimit ? attachments.length >= attachmentLimit : false;
-  const dropLimit = attachmentLimit ?? 2;
-
   const handlePaste = useCallback(
     (event: ClipboardEvent<HTMLTextAreaElement>) => {
       if (!attachmentsEnabled) return;
-      const items = event.clipboardData?.items;
-      if (!items) return;
-
-      const files: File[] = [];
-      for (const item of items) {
-        if (item.kind === "file" && item.type.startsWith("image/")) {
-          const file = item.getAsFile();
-          if (file) files.push(file);
-        }
-      }
-
+      const files = getChatAttachmentPasteFiles({
+        items: event.clipboardData?.items,
+        maxAttachments,
+      });
       if (files.length === 0) return;
       if (isLoading || isUploading) return;
-      const pasteLimit = Math.min(2, attachmentLimit ?? 2);
-      queueFiles(files.slice(0, pasteLimit));
+      void queueFiles(files);
     },
-    [attachmentLimit, attachmentsEnabled, isLoading, isUploading, queueFiles]
+    [attachmentsEnabled, isLoading, isUploading, maxAttachments, queueFiles]
   );
 
   useEffect(() => {
@@ -138,7 +94,7 @@ export function useChatAttachments({
       setIsDragActive(false);
       if (isLoading || isUploading) return;
       const files = Array.from(event.dataTransfer?.files ?? []);
-      queueFiles(files);
+      void queueFiles(files);
     };
 
     document.addEventListener("dragenter", handleDragEnter);
@@ -156,15 +112,9 @@ export function useChatAttachments({
 
   const handleRemoveAttachment = useCallback(
     (id: string) => {
-      setAttachments((prev) => {
-        const found = prev.find((file) => file.id === id);
-        if (found) {
-          revokeAttachmentUrl(found);
-        }
-        return prev.filter((file) => file.id !== id);
-      });
+      removeAttachment(id);
     },
-    [revokeAttachmentUrl]
+    [removeAttachment]
   );
 
   const openFilePicker = useCallback(() => {
