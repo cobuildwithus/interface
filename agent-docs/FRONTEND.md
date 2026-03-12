@@ -33,6 +33,9 @@
 - Use client components for interaction-heavy UI and wallet-connected behavior.
 - Use `"use server"` modules only for async server action exports.
 - Keep auth-gated UI actions using `AuthButton` and auth hooks.
+- When multiple server leaves need the same auth state, resolve `getSession()` once per request and prefer passing session/address props from the parent route or section instead of re-reading auth in each leaf.
+- App-owned client fetch hooks should use the shared React Query data layer installed in `app/providers.tsx`; when server data already exists for the current render, seed the matching client query from that server result instead of immediately refetching on mount.
+- Auth-scoped React Query entries (for example linked accounts, signer status, wallet-owned profile data) must key off the active identity and remove the previous identity's entries on logout, wallet switch, or other auth-boundary transitions.
 
 ## Auth + Wallet Constraints
 

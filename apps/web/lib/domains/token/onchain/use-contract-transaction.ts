@@ -64,6 +64,7 @@ function explorerUrl(hash: string, chainId: number) {
 export const useContractTransaction = (args: {
   chainId: ChainId;
   onSuccess?: (hash: string) => void;
+  refreshOnSuccess?: boolean;
   loading?: string;
   success?: string;
   defaultToastId?: string;
@@ -73,7 +74,8 @@ export const useContractTransaction = (args: {
     chainId,
     loading = "Transaction in progress…",
     success,
-    onSuccess = () => router.refresh(),
+    onSuccess,
+    refreshOnSuccess = false,
     defaultToastId,
   } = args;
   const [toastId, setToastId] = useState<number | string>(defaultToastId || "");
@@ -158,11 +160,26 @@ export const useContractTransaction = (args: {
         duration: 3000,
       });
       onSuccess?.(hash);
+      if (refreshOnSuccess) {
+        router.refresh();
+      }
       setCallbackHandled(true);
       return;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, error, isSuccess]);
+  }, [
+    chainId,
+    error,
+    hash,
+    isLoading,
+    isSuccess,
+    loading,
+    onSuccess,
+    refreshOnSuccess,
+    router,
+    success,
+    toastId,
+  ]);
 
   return {
     isPending,

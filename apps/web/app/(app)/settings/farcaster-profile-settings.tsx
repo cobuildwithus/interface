@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { SettingsCard, SettingsCardHeader } from "@/components/features/settings/settings-card";
 import { FarcasterSignerDialog } from "@/components/features/auth/farcaster/farcaster-link-dialog";
 import {
-  IMAGE_ACCEPT_ATTRIBUTE,
-  uploadImage,
-  validateImageFile,
-} from "@/lib/integrations/images/upload-client";
+  getPreferredLinkedFarcasterAccount,
+  toLinkedAccountsServerView,
+} from "@/lib/domains/auth/linked-accounts/server-view";
+import type { LinkedAccountsResponse } from "@/lib/domains/auth/linked-accounts/types";
+import type { FarcasterSignerStatus } from "@/lib/integrations/farcaster/signer-types";
+import { IMAGE_ACCEPT_ATTRIBUTE } from "@/lib/integrations/images/upload-client";
+import { useSingleImageUpload } from "@/lib/integrations/images/use-single-image-upload";
+import { useFarcasterSigner } from "@/lib/hooks/use-farcaster-signer";
 import { useFarcasterSignup } from "@/lib/hooks/use-farcaster-signup";
+import { useLinkedAccounts } from "@/lib/hooks/use-linked-accounts";
 import { updateFarcasterProfileAction } from "./actions";
 import { SignupPrompt } from "./farcaster-profile-settings/signup-panel";
 import { ProfilePhotoSection } from "./farcaster-profile-settings/profile-photo";
@@ -20,66 +24,94 @@ type FarcasterProfileSettingsProps = {
   resolvedUsername: string | null;
   resolvedDisplayName: string;
   resolvedPfpUrl: string;
-  canEdit: boolean;
   hasFarcasterAccount: boolean;
+  initialLinkedAccounts: LinkedAccountsResponse;
+  initialSignerStatus: FarcasterSignerStatus;
+  initialSignerIdentityKey: string;
 };
 
 export function FarcasterProfileSettings({
   resolvedUsername,
   resolvedDisplayName,
   resolvedPfpUrl,
-  canEdit,
   hasFarcasterAccount,
+  initialLinkedAccounts,
+  initialSignerStatus,
+  initialSignerIdentityKey,
 }: FarcasterProfileSettingsProps) {
-  const router = useRouter();
-  const signup = useFarcasterSignup({ onComplete: () => {} });
+  const signup = useFarcasterSignup({
+    onComplete: () => {},
+  });
+  const { data: linkedAccountsData } = useLinkedAccounts({
+    initialData: initialLinkedAccounts,
+    initialIdentityKey: initialSignerIdentityKey,
+  });
+  const { status: currentSignerStatus } = useFarcasterSigner({
+    initialStatus: initialSignerStatus,
+    initialIdentityKey: initialSignerIdentityKey,
+  });
   const { availability, reset } = signup;
+  const linkedAccountsServerView = toLinkedAccountsServerView(linkedAccountsData);
+  const linkedFarcasterAccount = getPreferredLinkedFarcasterAccount(
+    linkedAccountsServerView.accounts
+  );
   const [displayName, setDisplayName] = useState(resolvedDisplayName);
-  const [pfpUrl, setPfpUrl] = useState(resolvedPfpUrl);
-  const [localPreview, setLocalPreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [savedDisplayName, setSavedDisplayName] = useState(resolvedDisplayName);
+  const [savedPfpUrl, setSavedPfpUrl] = useState(resolvedPfpUrl);
   const [isSaving, setIsSaving] = useState(false);
   const [isSignerDialogOpen, setSignerDialogOpen] = useState(false);
+  const {
+    imageUrl: pfpUrl,
+    isUploading,
+    previewSrc,
+    setImageUrl: setPfpUrl,
+    uploadFile,
+  } = useSingleImageUpload({
+    initialImageUrl: resolvedPfpUrl,
+    uploadSuccessMessage: "Profile photo uploaded.",
+  });
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const hasUserEditedRef = useRef(false);
 
   const trimmedDisplayName = displayName.trim();
-  const initialDisplayNameTrimmed = resolvedDisplayName.trim();
-  const isDisplayNameDirty = trimmedDisplayName !== initialDisplayNameTrimmed;
+  const savedDisplayNameTrimmed = savedDisplayName.trim();
+  const isDisplayNameDirty = trimmedDisplayName !== savedDisplayNameTrimmed;
   const isDisplayNameInvalid = isDisplayNameDirty && trimmedDisplayName.length === 0;
-  const isPfpDirty = pfpUrl !== resolvedPfpUrl;
+  const isPfpDirty = pfpUrl !== savedPfpUrl;
   const isDirty = isDisplayNameDirty || isPfpDirty;
   const isBusy = isUploading || isSaving;
-  const showSignupPrompt = !hasFarcasterAccount;
+  const currentHasFarcasterAccount = Boolean(
+    hasFarcasterAccount || linkedFarcasterAccount || currentSignerStatus.fid
+  );
+  const currentCanEdit = currentSignerStatus.hasSigner;
+  const currentResolvedUsername =
+    getResolvedAccountUsername(linkedFarcasterAccount) || resolvedUsername;
+  const syncedDisplayName = linkedFarcasterAccount?.displayName?.trim() || resolvedDisplayName;
+  const syncedPfpUrl = linkedFarcasterAccount?.avatarUrl?.trim() || resolvedPfpUrl;
+  const showSignupPrompt = !currentHasFarcasterAccount;
   const isSignupReady = availability.status === "available";
-  const headerDescription = hasFarcasterAccount
+  const headerDescription = currentHasFarcasterAccount
     ? "Edit your display name and photo."
     : "Connect a Farcaster account to update your profile.";
 
   useEffect(() => {
     if (!hasUserEditedRef.current) {
-      setDisplayName(resolvedDisplayName);
-      setPfpUrl(resolvedPfpUrl);
+      setDisplayName(syncedDisplayName);
+      setPfpUrl(syncedPfpUrl);
+      setSavedDisplayName(syncedDisplayName);
+      setSavedPfpUrl(syncedPfpUrl);
     }
-  }, [resolvedDisplayName, resolvedPfpUrl]);
+  }, [setPfpUrl, syncedDisplayName, syncedPfpUrl]);
 
   useEffect(() => {
-    if (hasFarcasterAccount) {
+    if (currentHasFarcasterAccount) {
       reset();
     }
-  }, [hasFarcasterAccount, reset]);
-
-  useEffect(() => {
-    return () => {
-      if (localPreview) {
-        URL.revokeObjectURL(localPreview);
-      }
-    };
-  }, [localPreview]);
+  }, [currentHasFarcasterAccount, reset]);
 
   const handleUploadClick = () => {
-    if (!canEdit || isUploading) return;
+    if (!currentCanEdit || isUploading) return;
     fileInputRef.current?.click();
   };
 
@@ -87,33 +119,12 @@ export function FarcasterProfileSettings({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-
-    const validation = validateImageFile(file);
-    if (!validation.ok) {
-      toast.error(validation.message);
-      return;
-    }
-
-    const previewUrl = URL.createObjectURL(file);
-    setLocalPreview(previewUrl);
-    setIsUploading(true);
     hasUserEditedRef.current = true;
-
-    try {
-      const url = await uploadImage(file);
-      setPfpUrl(url);
-      setLocalPreview(null);
-      toast.success("Profile photo uploaded.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Upload failed.";
-      toast.error(message);
-    } finally {
-      setIsUploading(false);
-    }
+    await uploadFile(file);
   };
 
   const handleSave = async () => {
-    if (!isDirty || isBusy || !canEdit) return;
+    if (!isDirty || isBusy || !currentCanEdit) return;
     if (isDisplayNameInvalid) {
       toast.error("Display name cannot be empty.");
       return;
@@ -121,7 +132,7 @@ export function FarcasterProfileSettings({
 
     const payload: { displayName?: string; pfpUrl?: string } = {
       ...(isDisplayNameDirty ? { displayName: trimmedDisplayName } : {}),
-      ...(isPfpDirty ? { pfpUrl } : {}),
+      ...(isPfpDirty && pfpUrl ? { pfpUrl } : {}),
     };
 
     if (Object.keys(payload).length === 0) return;
@@ -134,10 +145,16 @@ export function FarcasterProfileSettings({
         throw new Error(result.error ?? "Failed to update Farcaster profile.");
       }
 
-      setDisplayName(trimmedDisplayName);
+      const nextDisplayName = result.displayName ?? trimmedDisplayName;
+      const nextPfpUrl = result.pfpUrl ?? pfpUrl;
+      setDisplayName(nextDisplayName);
+      setSavedDisplayName(nextDisplayName);
+      if (nextPfpUrl) {
+        setPfpUrl(nextPfpUrl);
+        setSavedPfpUrl(nextPfpUrl);
+      }
       hasUserEditedRef.current = false;
       toast.success("Farcaster profile updated.");
-      router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Update failed.";
       toast.error(message);
@@ -146,7 +163,6 @@ export function FarcasterProfileSettings({
     }
   };
 
-  const previewSrc = localPreview || pfpUrl || null;
   const showProfileEditor = !showSignupPrompt;
 
   return (
@@ -155,8 +171,10 @@ export function FarcasterProfileSettings({
         <FarcasterSignerDialog open={isSignerDialogOpen} onOpenChange={setSignerDialogOpen} />
         <div className="flex items-start justify-between gap-4">
           <SettingsCardHeader title="Farcaster profile" description={headerDescription} />
-          {resolvedUsername && (
-            <span className="text-muted-foreground shrink-0 text-sm">@{resolvedUsername}</span>
+          {currentResolvedUsername && (
+            <span className="text-muted-foreground shrink-0 text-sm">
+              @{currentResolvedUsername}
+            </span>
           )}
         </div>
 
@@ -166,8 +184,8 @@ export function FarcasterProfileSettings({
           <ProfilePhotoSection
             previewSrc={previewSrc}
             displayName={displayName}
-            resolvedUsername={resolvedUsername}
-            canEdit={canEdit}
+            resolvedUsername={currentResolvedUsername}
+            canEdit={currentCanEdit}
             isUploading={isUploading}
             onUploadClick={handleUploadClick}
             onFileChange={handleFileChange}
@@ -180,13 +198,14 @@ export function FarcasterProfileSettings({
           <DisplayNameEditor
             displayName={displayName}
             onChange={(value) => {
+              hasUserEditedRef.current = true;
               setDisplayName(value);
             }}
-            canEdit={canEdit}
+            canEdit={currentCanEdit}
             isDirty={isDirty}
             isBusy={isBusy}
             isDisplayNameInvalid={isDisplayNameInvalid}
-            hasFarcasterAccount={hasFarcasterAccount}
+            hasFarcasterAccount={currentHasFarcasterAccount}
             onSave={handleSave}
             onLinkAccount={() => setSignerDialogOpen(true)}
           />
@@ -194,4 +213,8 @@ export function FarcasterProfileSettings({
       </div>
     </SettingsCard>
   );
+}
+
+function getResolvedAccountUsername(account: { username?: string | null } | null) {
+  return account?.username?.trim().replace(/^@/, "") || undefined;
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { formatUnits } from "viem";
+import { useSettingsPersistence } from "@/lib/domains/settings/use-settings-persistence";
 import { updateReactionRulesAction } from "./actions";
 import { DEFAULT_RULE_AMOUNTS_USD, type ReactionType, ALLOWED_REACTIONS } from "./rules-types";
 
@@ -34,41 +35,48 @@ export function useRulesConfig({
   initialRules,
   initialError,
 }: UseRulesConfigParams): UseRulesConfigResult {
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(initialError ?? null);
-  const [baselineRules, setBaselineRules] = useState<RuleStateMap>(() =>
-    buildBaselineState(initialRules)
-  );
-  const [ruleDraft, setRuleDraft] = useState<RuleStateMap>(() => buildBaselineState(initialRules));
+  const initialState = useMemo(() => buildBaselineState(initialRules), [initialRules]);
 
-  const lastSubmittedSignatureRef = useRef<string | null>(null);
-  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const resetFromInitial = useCallback(() => {
-    const nextBaseline = buildBaselineState(initialRules);
-    setBaselineRules(nextBaseline);
-    setRuleDraft(nextBaseline);
-    lastSubmittedSignatureRef.current = null;
-  }, [initialRules]);
-
-  useEffect(() => {
-    if (!enabled || saving) return;
-    resetFromInitial();
-  }, [enabled, resetFromInitial, saving]);
-
-  useEffect(() => {
-    setError(initialError ?? null);
-  }, [initialError]);
-
-  useEffect(
-    () => () => {
-      if (successTimerRef.current) {
-        clearTimeout(successTimerRef.current);
-      }
+  const getPayload = useCallback(
+    ({ baseline, draft }: { baseline: RuleStateMap; draft: RuleStateMap }) => {
+      const diff = diffFromBaseline(draft, baseline);
+      return Object.keys(diff).length > 0 ? diff : null;
     },
     []
   );
+
+  const {
+    draft: ruleDraft,
+    setDraft: setRuleDraft,
+    saving,
+    success,
+    error,
+  } = useSettingsPersistence<
+    RuleStateMap,
+    Partial<Record<ReactionType, RuleState>>,
+    { ok: true } | { ok: false; error?: string }
+  >({
+    enabled,
+    initialState,
+    initialError,
+    getPayload,
+    debounceMs: 600,
+    successDurationMs: 1500,
+    resetWhileDisabled: false,
+    save: async (nextRules) => {
+      const result = await updateReactionRulesAction(nextRules);
+      if (!result.ok) {
+        throw new Error(result.error ?? "Failed to save rules");
+      }
+
+      return result;
+    },
+    applySuccess: (_response, context) => ({
+      baseline: applyRuleDiff(context.baseline, context.payload),
+      draft: context.draft,
+      success: true,
+    }),
+  });
 
   const handleReactionToggle = (type: ReactionType) => (checked: boolean) => {
     setRuleDraft((prev) => ({
@@ -85,56 +93,6 @@ export function useRulesConfig({
       [type]: { amount: safe, enabled: Number.isFinite(numeric) && numeric >= MIN_AMOUNT },
     }));
   };
-
-  const diff = useMemo(
-    () => diffFromBaseline(ruleDraft, baselineRules),
-    [ruleDraft, baselineRules]
-  );
-  const hasDiff = Object.keys(diff).length > 0;
-
-  const updateRules = useCallback(
-    async (next: Partial<Record<ReactionType, RuleState>>) => {
-      if (!enabled) return;
-      setSaving(true);
-      setError(null);
-
-      try {
-        const result = await updateReactionRulesAction(next);
-        if (!result.ok) {
-          throw new Error(result.error ?? "Failed to save rules");
-        }
-
-        setBaselineRules((prev) => applyRuleDiff(prev, next));
-        setSuccess(true);
-        if (successTimerRef.current) {
-          clearTimeout(successTimerRef.current);
-        }
-        successTimerRef.current = setTimeout(() => setSuccess(false), 1500);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        setError(message);
-      } finally {
-        setSaving(false);
-      }
-    },
-    [enabled]
-  );
-
-  useEffect(() => {
-    if (!enabled || saving || !hasDiff) return;
-
-    const signature = JSON.stringify(diff);
-    if (lastSubmittedSignatureRef.current === signature) {
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      lastSubmittedSignatureRef.current = signature;
-      void updateRules(diff);
-    }, 600);
-
-    return () => clearTimeout(timeoutId);
-  }, [diff, enabled, hasDiff, saving, updateRules]);
 
   return {
     saving,

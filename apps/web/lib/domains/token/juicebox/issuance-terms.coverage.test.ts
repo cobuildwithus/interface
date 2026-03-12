@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { unstable_cache as unstableCache } from "next/cache";
 import { base } from "viem/chains";
+import { PROJECT_ID } from "@/lib/domains/token/juicebox/issuance-terms/constants";
 
 vi.mock("server-only", () => ({}));
 
@@ -70,7 +71,7 @@ describe("issuance-terms", () => {
     rulesetMock.mockResolvedValue([
       {
         chainId: base.id,
-        projectId: 6,
+        projectId: PROJECT_ID,
         rulesetId: 1n,
         start: 0n,
         duration: 10n,
@@ -81,7 +82,7 @@ describe("issuance-terms", () => {
       },
       {
         chainId: base.id,
-        projectId: 6,
+        projectId: PROJECT_ID,
         rulesetId: 2n,
         start: 100n,
         duration: 0n,
@@ -115,7 +116,7 @@ describe("issuance-terms", () => {
     rulesetMock.mockResolvedValue([
       {
         chainId: base.id,
-        projectId: 6,
+        projectId: PROJECT_ID,
         rulesetId: 1n,
         start: 100n,
         duration: 0n,
@@ -147,7 +148,7 @@ describe("issuance-terms", () => {
     rulesetMock.mockResolvedValue([
       {
         chainId: base.id,
-        projectId: 6,
+        projectId: PROJECT_ID,
         rulesetId: 1n,
         start: 0n,
         duration: 0n,
@@ -158,7 +159,7 @@ describe("issuance-terms", () => {
       },
       {
         chainId: base.id,
-        projectId: 6,
+        projectId: PROJECT_ID,
         rulesetId: 2n,
         start: 300n,
         duration: 0n,
@@ -190,7 +191,7 @@ describe("issuance-terms", () => {
     rulesetMock.mockResolvedValue([
       {
         chainId: base.id,
-        projectId: 6,
+        projectId: PROJECT_ID,
         rulesetId: 1n,
         start: 0n,
         duration: 100n,
@@ -201,7 +202,7 @@ describe("issuance-terms", () => {
       },
       {
         chainId: base.id,
-        projectId: 6,
+        projectId: PROJECT_ID,
         rulesetId: 2n,
         start: 50n,
         duration: 0n,
@@ -218,7 +219,7 @@ describe("issuance-terms", () => {
     vi.useRealTimers();
   });
 
-  it("uses non-base rulesets when no primary rulesets exist", async () => {
+  it("ignores non-primary rulesets when the primary project has no matching timeline", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("1970-01-01T00:00:10Z"));
 
@@ -231,7 +232,7 @@ describe("issuance-terms", () => {
     rulesetMock.mockResolvedValue([
       {
         chainId: 10,
-        projectId: 6,
+        projectId: PROJECT_ID,
         rulesetId: 1n,
         start: 0n,
         duration: 0n,
@@ -243,7 +244,8 @@ describe("issuance-terms", () => {
     ]);
 
     const result = await getIssuanceTerms();
-    expect(result.stages.length).toBe(1);
+    expect(result.stages).toEqual([]);
+    expect(result.summary.nextChangeType).toBeNull();
 
     vi.useRealTimers();
   });

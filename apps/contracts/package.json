@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Generate contract ABIs for web",
   "scripts": {
+    "wire:ensure-published": "bash scripts/wire-ensure-published.sh",
     "generate": "wagmi generate",
     "postgenerate": "cp src/generated.ts ../web/lib/domains/token/onchain/abis.ts && cp addresses.ts ../web/lib/domains/token/onchain/addresses.ts"
   },

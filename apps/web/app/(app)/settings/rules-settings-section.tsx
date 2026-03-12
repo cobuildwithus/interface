@@ -1,13 +1,14 @@
 import type { TokenCategory } from "@/generated/prisma/enums";
 import type { ReactionType } from "@/lib/domains/rules/rules/reaction-types";
-import { getSession } from "@/lib/domains/auth/session";
 import { getReactionRulesForAddress } from "@/lib/server/reaction-rules";
 import { getTokenCategoryPreferencesForAddress } from "@/lib/server/token-category-preferences";
 import { RulesSettings } from "./rules-settings";
 
-export async function RulesSettingsSection() {
-  const session = await getSession();
-  const address = session.address ?? null;
+type RulesSettingsSectionProps = {
+  address: `0x${string}` | null;
+};
+
+export async function RulesSettingsSection({ address }: RulesSettingsSectionProps) {
   const enabled = Boolean(address);
 
   const [rulesResult, preferencesResult] = await Promise.all([

@@ -3,6 +3,7 @@
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import { toast } from "sonner";
 
 const useWriteContractMock = vi.fn();
 const useWaitMock = vi.fn();
@@ -103,30 +104,65 @@ describe("useContractTransaction", () => {
     expect(toastMock.dismiss).toHaveBeenCalled();
   });
 
-  it("lets callers suppress hook-level error toasts", () => {
+  it("suppresses hook-level error toasts when callers handle write rejections in catch", async () => {
     let currentError: { message: string; shortMessage?: string } | null = null;
+    const writeError = { message: "Something broke", shortMessage: "Short failure" };
+    const writeContractAsync = vi.fn().mockImplementation(async () => {
+      currentError = writeError;
+      throw writeError;
+    });
     useWriteContractMock.mockImplementation(() => ({
-      data: "0xhash",
+      data: undefined,
       isPending: false,
       error: currentError,
+      writeContractAsync,
     }));
     useWaitMock.mockReturnValue({ isLoading: false, isSuccess: false });
     useAccountMock.mockReturnValue({ chainId: 1, isConnected: true, address: ACCOUNT });
     useSwitchChainMock.mockReturnValue({ switchChainAsync: vi.fn() });
     useLoginMock.mockReturnValue({ login: vi.fn(), connectWallet: vi.fn() });
 
-    const { result, rerender } = renderHook(() =>
-      useContractTransaction({ chainId: 1, defaultToastId: "toast" })
-    );
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { result } = renderHook(() => useContractTransaction({ chainId: 1 }));
 
-    act(() => {
-      result.current.markErrorHandled();
-      currentError = { message: "Something broke", shortMessage: "Short failure" };
-    });
-    rerender();
+      let toastId: string | number | undefined;
+      await act(async () => {
+        toastId = await result.current.prepareWallet("borrow-toast");
+      });
 
-    expect(toastMock.error).not.toHaveBeenCalled();
-    expect(toastMock.dismiss).not.toHaveBeenCalled();
+      await act(async () => {
+        try {
+          const writeContractAsyncWithBuilderCode = result.current.writeContractAsync;
+          if (!writeContractAsyncWithBuilderCode) {
+            throw new Error("writeContractAsync should be available");
+          }
+
+          await writeContractAsyncWithBuilderCode({
+            address: ACCOUNT,
+            abi: [],
+            functionName: "borrowFrom",
+          });
+        } catch {
+          result.current.markErrorHandled();
+          toast.error("Borrow flow handled failure", {
+            id: toastId,
+            duration: 3000,
+          });
+        }
+      });
+
+      expect(writeContractAsync).toHaveBeenCalledTimes(1);
+      expect(toastMock.error).toHaveBeenCalledTimes(1);
+      expect(toastMock.error).toHaveBeenCalledWith("Borrow flow handled failure", {
+        id: toastId,
+        duration: 3000,
+      });
+      expect(toastMock.dismiss).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 
   it("surfaces non-user errors", () => {
@@ -157,7 +193,7 @@ describe("useContractTransaction", () => {
     expect(onSuccess).toHaveBeenCalledWith("0xhash");
   });
 
-  it("uses default onSuccess to refresh", () => {
+  it("does not refresh by default on success", () => {
     useWriteContractMock.mockReturnValue({ data: "0xhash", isPending: false, error: null });
     useWaitMock.mockReturnValue({ isLoading: false, isSuccess: true });
     useAccountMock.mockReturnValue({ chainId: 1, isConnected: true, address: ACCOUNT });
@@ -165,6 +201,19 @@ describe("useContractTransaction", () => {
     useLoginMock.mockReturnValue({ login: vi.fn(), connectWallet: vi.fn() });
 
     renderHook(() => useContractTransaction({ chainId: 1, defaultToastId: "toast" }));
+    expect(routerRefresh).not.toHaveBeenCalled();
+  });
+
+  it("refreshes when explicitly requested on success", () => {
+    useWriteContractMock.mockReturnValue({ data: "0xhash", isPending: false, error: null });
+    useWaitMock.mockReturnValue({ isLoading: false, isSuccess: true });
+    useAccountMock.mockReturnValue({ chainId: 1, isConnected: true, address: ACCOUNT });
+    useSwitchChainMock.mockReturnValue({ switchChainAsync: vi.fn() });
+    useLoginMock.mockReturnValue({ login: vi.fn(), connectWallet: vi.fn() });
+
+    renderHook(() =>
+      useContractTransaction({ chainId: 1, defaultToastId: "toast", refreshOnSuccess: true })
+    );
     expect(routerRefresh).toHaveBeenCalled();
   });
 

@@ -16,7 +16,7 @@
     "test": "pnpm -r --filter \"./apps/*\" test --if-present",
     "test:coverage": "pnpm --filter web test:coverage",
     "typecheck": "pnpm --filter web typecheck",
-    "wire:ensure-published": "pnpm --filter web wire:ensure-published",
+    "wire:ensure-published": "bash scripts/wire-ensure-published.sh",
     "review:gpt": "cobuild-review-gpt --config scripts/review-gpt.config.sh",
     "zip:src": "bash scripts/package-audit-context.sh --zip",
     "setup:skills": "pnpm dlx skills add vercel-labs/agent-skills --skill vercel-react-best-practices --skill web-design-guidelines --agent codex --yes",

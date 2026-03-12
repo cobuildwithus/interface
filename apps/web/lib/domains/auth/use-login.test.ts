@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const routerRefresh = vi.hoisted(() => vi.fn());
 const usePrivyMock = vi.hoisted(() => vi.fn());
 const useAccountMock = vi.hoisted(() => vi.fn());
+const removeQueriesMock = vi.hoisted(() => vi.fn());
+const useUserContextMock = vi.hoisted(() => vi.fn());
 const refreshUserMock = vi.hoisted(() => vi.fn());
 const privyLoginMock = vi.hoisted(() => vi.fn());
 const privyLogoutMock = vi.hoisted(() => vi.fn());
@@ -33,7 +35,13 @@ vi.mock("@privy-io/react-auth", () => ({
     connectWallet: () => privyConnectWalletMock(opts),
   }),
   usePrivy: () => usePrivyMock(),
-  useUser: () => ({ refreshUser: refreshUserMock }),
+  useUser: () => ({ user: null, refreshUser: refreshUserMock }),
+}));
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ removeQueries: removeQueriesMock }),
+}));
+vi.mock("@/lib/domains/auth/user-context", () => ({
+  useUserContext: () => useUserContextMock(),
 }));
 
 import { useLogin } from "./use-login";
@@ -45,6 +53,8 @@ describe("useLogin", () => {
     routerRefresh.mockReset();
     usePrivyMock.mockReset();
     useAccountMock.mockReset();
+    removeQueriesMock.mockReset();
+    useUserContextMock.mockReset();
     refreshUserMock.mockReset();
     privyLoginMock.mockReset();
     privyLogoutMock.mockReset();
@@ -52,6 +62,7 @@ describe("useLogin", () => {
 
     usePrivyMock.mockReturnValue({ ready: true, authenticated: false });
     useAccountMock.mockReturnValue({ isConnected: false, address: null });
+    useUserContextMock.mockReturnValue(null);
     refreshUserMock.mockResolvedValue(undefined);
   });
 
@@ -170,5 +181,34 @@ describe("useLogin", () => {
     expect(privyConnectWalletMock).not.toHaveBeenCalled();
     expect(privyLoginMock).not.toHaveBeenCalled();
     expect(result.current.error).toBe("logout failed");
+  });
+
+  it("clears auth-scoped queries using the session identity instead of a mismatched wallet address", async () => {
+    useAccountMock.mockReturnValue({ isConnected: true, address: "0x" + "b".repeat(40) });
+    useUserContextMock.mockReturnValue({
+      address: "0x" + "a".repeat(40),
+      farcaster: null,
+      twitter: null,
+    });
+    privyLogoutMock.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useLogin());
+
+    await act(async () => {
+      await result.current.logout();
+    });
+
+    expect(removeQueriesMock).toHaveBeenCalledWith({
+      queryKey: ["linked-accounts", "address:0x" + "a".repeat(40)],
+      exact: true,
+    });
+    expect(removeQueriesMock).toHaveBeenCalledWith({
+      queryKey: ["farcaster-signer", "address:0x" + "a".repeat(40)],
+      exact: true,
+    });
+    expect(removeQueriesMock).toHaveBeenCalledWith({
+      queryKey: ["profile", "0x" + "a".repeat(40)],
+      exact: true,
+    });
   });
 });

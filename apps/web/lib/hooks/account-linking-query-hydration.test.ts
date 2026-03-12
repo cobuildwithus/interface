@@ -5,18 +5,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 
 const { useQueryMock } = vi.hoisted(() => ({ useQueryMock: vi.fn() }));
+const { useUserContextMock } = vi.hoisted(() => ({ useUserContextMock: vi.fn() }));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (args: Parameters<typeof useQueryMock>[0]) => useQueryMock(args),
 }));
 
-import { FARCASTER_SIGNER_QUERY_KEY, LINKED_ACCOUNTS_QUERY_KEY } from "@/lib/hooks/query-keys";
+vi.mock("@/lib/domains/auth/user-context", () => ({
+  useUserContext: () => useUserContextMock(),
+}));
+
+import {
+  getAuthIdentityKey,
+  getFarcasterSignerQueryKey,
+  getLinkedAccountsQueryKey,
+} from "@/lib/hooks/query-keys";
 import { useFarcasterSigner } from "./use-farcaster-signer";
 import { useLinkedAccounts } from "./use-linked-accounts";
 
 describe("account-linking query hydration", () => {
   beforeEach(() => {
     useQueryMock.mockReset();
+    useUserContextMock.mockReset();
+    useUserContextMock.mockReturnValue(null);
   });
 
   it("passes initial linked-account data through to react-query", () => {
@@ -40,17 +51,65 @@ describe("account-linking query hydration", () => {
       isLoading: false,
       refetch: vi.fn(),
     });
+    useUserContextMock.mockReturnValue({
+      address: initialData.address,
+      farcaster: null,
+      twitter: null,
+    });
 
     const { result } = renderHook(() => useLinkedAccounts({ initialData }));
 
     expect(result.current.data).toEqual(initialData);
     expect(useQueryMock.mock.calls[0]?.[0]).toMatchObject({
-      queryKey: LINKED_ACCOUNTS_QUERY_KEY,
+      queryKey: getLinkedAccountsQueryKey(
+        getAuthIdentityKey({ address: initialData.address, farcasterFid: null })
+      ),
       initialData,
     });
   });
 
+  it("drops farcaster-only linked-account seeds when the identity key does not match", () => {
+    const initialData = {
+      address: null,
+      accounts: [
+        {
+          platform: "farcaster" as const,
+          platformId: "7",
+          username: "seeded_fc",
+          displayName: "Seeded FC",
+          avatarUrl: null,
+          source: "verified_address" as const,
+          canPost: false,
+          updatedAt: "now",
+        },
+      ],
+    };
+    useQueryMock.mockReturnValueOnce({
+      data: initialData,
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    useUserContextMock.mockReturnValue({
+      address: null,
+      farcaster: { fid: 11 },
+      twitter: null,
+    });
+
+    renderHook(() =>
+      useLinkedAccounts({
+        initialData,
+        initialIdentityKey: getAuthIdentityKey({ address: null, farcasterFid: 7 }),
+      })
+    );
+
+    expect(useQueryMock.mock.calls[0]?.[0]).toMatchObject({
+      queryKey: getLinkedAccountsQueryKey(getAuthIdentityKey({ address: null, farcasterFid: 11 })),
+      initialData: undefined,
+    });
+  });
+
   it("passes initial signer status through to react-query", () => {
+    const address = `0x${"c".repeat(40)}`;
     const initialStatus = {
       fid: 7,
       hasSigner: true,
@@ -65,12 +124,22 @@ describe("account-linking query hydration", () => {
       isLoading: false,
       refetch: vi.fn(),
     });
+    useUserContextMock.mockReturnValue({
+      address,
+      farcaster: { fid: 99 },
+      twitter: null,
+    });
 
-    const { result } = renderHook(() => useFarcasterSigner({ initialStatus }));
+    const { result } = renderHook(() =>
+      useFarcasterSigner({
+        initialStatus,
+        initialIdentityKey: getAuthIdentityKey({ address, farcasterFid: initialStatus.fid }),
+      })
+    );
 
     expect(result.current.status).toEqual(initialStatus);
     expect(useQueryMock.mock.calls[0]?.[0]).toMatchObject({
-      queryKey: FARCASTER_SIGNER_QUERY_KEY,
+      queryKey: getFarcasterSignerQueryKey(getAuthIdentityKey({ address, farcasterFid: 99 })),
       initialData: initialStatus,
     });
   });

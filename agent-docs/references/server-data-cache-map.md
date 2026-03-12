@@ -43,6 +43,7 @@ Examples:
 - project stats cache: `lib/domains/token/onchain/project-stats.ts`
 - ETH price fallback cache: `lib/domains/token/onchain/eth-price.ts`
 - goal page data cache: `lib/domains/goals/goal-data.ts` (`goal_treasury`, `goal_treasury_series`, and related project/activity reads)
+- auth session cache: `lib/domains/auth/session.ts` uses request-scoped React caching so repeated `getSession()` calls during one server render do not re-verify the Privy token or re-run linked-account enrichment work.
 
 CLI note:
 
@@ -56,6 +57,8 @@ CLI note:
 - Use primary-safe reads where read-after-write correctness is required.
 - Keep cache fallback behavior explicit and safe when upstream data is unavailable.
 - Avoid cache keys that mix canonical and non-canonical address casing.
+- When the server already resolved linked-account or signer state for the current request, pass that data into the matching client React Query hooks as initial data instead of immediately issuing a second request.
+- Settings social surfaces should reuse one server-side social-state helper per request so linked-account reads, signer status, and the derived Farcaster profile view stay consistent across the page.
 
 ## Failure Modes and Handling
 

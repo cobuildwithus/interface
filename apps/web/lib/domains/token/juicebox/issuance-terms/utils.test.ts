@@ -139,7 +139,7 @@ describe("issuance terms utils", () => {
     const upcoming = buildSummary(upcomingStages, null, 1);
     expect(upcoming.nextChangeType).toBe("stage");
     expect(upcoming.activeStage).toBeNull();
-    expect(upcoming.reservedPercent).toBe(2500);
+    expect(upcoming.reservedPercent).toBeNull();
 
     const activeStages: IssuanceStage[] = [
       {

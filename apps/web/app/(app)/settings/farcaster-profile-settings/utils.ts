@@ -1,5 +1,3 @@
-import type { LinkedAccountRecord } from "@/lib/domains/auth/linked-accounts/types";
-
 export type ProfileSource = {
   fid: number;
   username: string | null;
@@ -23,18 +21,6 @@ export function toProfileSource(value: {
     username: normalizeText(value.username),
     displayName: normalizeText(value.displayName),
     pfp: normalizeText(value.pfp),
-  };
-}
-
-export function toLinkedAccountSource(account: LinkedAccountRecord | null): ProfileSource | null {
-  if (!account) return null;
-  const fid = Number.parseInt(account.platformId, 10);
-  if (!Number.isFinite(fid) || fid <= 0) return null;
-  return {
-    fid,
-    username: normalizeText(account.username),
-    displayName: normalizeText(account.displayName),
-    pfp: normalizeText(account.avatarUrl),
   };
 }
 

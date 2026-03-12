@@ -3,7 +3,7 @@
 ## Server Session Model
 
 - Session source is Privy token cookie parsing in `lib/domains/auth/session.ts`.
-- `getSession()` projects wallet + linked account identity (Farcaster/Twitter when available).
+- `getSession()` projects wallet + linked account identity (Farcaster/Twitter when available) and is request-scoped via React `cache()` so repeated reads within one server render dedupe safely.
 - App shell converts session into UI-safe user response in `lib/server/user-response.ts`.
 
 ## Key Files
@@ -49,6 +49,10 @@
 
 - Linked account state types/parsing: `lib/domains/auth/linked-accounts/**`.
 - API surface for linked accounts: `app/api/linked-accounts/route.ts`.
+- Server components that need a normalized Farcaster/Twitter view should use the linked-account server-view helpers instead of re-parsing `platformId` at each consumer.
+- Client linked-account and signer hooks are seeded from server-fetched settings/profile data where available and refresh via React Query after mutations instead of relying on broad `router.refresh()` calls.
+- Client social-account state carries an explicit `linked` / `session` / `detected` source so detected fallback identities do not masquerade as user-linked accounts in auth UI.
+- Auth-scoped client queries for linked accounts, signer status, and wallet-owned profile data are removed when the active identity changes so session-owned state does not leak across logout or wallet-switch boundaries.
 
 ## CLI Token Model
 

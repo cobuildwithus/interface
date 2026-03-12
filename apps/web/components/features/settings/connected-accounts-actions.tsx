@@ -1,80 +1,29 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useLinkAccount as usePrivyLinkAccount } from "@privy-io/react-auth";
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import type { ErrorLike } from "@/lib/shared/errors";
 import { FarcasterLinkDialog } from "@/components/features/auth/farcaster/farcaster-link-dialog";
+import { useFarcasterLinkDialogState } from "@/components/features/auth/farcaster/farcaster-link-dialog/state";
 import { AuthButton } from "@/components/ui/auth-button";
-import { getCastPermissionState } from "@/components/features/auth/farcaster/farcaster-link-dialog/permissions";
+import type {
+  ResolvedFarcasterAccount,
+  ResolvedXAccount,
+} from "@/lib/domains/auth/linked-accounts/server-view";
+import type { LinkedAccountsResponse } from "@/lib/domains/auth/linked-accounts/types";
 import type { FarcasterSignerStatus } from "@/lib/integrations/farcaster/signer-types";
 import { ACCOUNT_CONFIG } from "@/components/features/auth/link-account-button/config";
-import { useFarcasterSignup } from "@/lib/hooks/use-farcaster-signup";
-import { syncLinkedAccountsFromSession } from "@/lib/domains/auth/linked-accounts/sync-linked-accounts";
-import { parseLinkErrorMessage } from "@/lib/domains/auth/link-account-utils";
 import { cn } from "@/lib/shared/utils";
-import { useFarcasterLinkActionsCore } from "@/components/features/auth/farcaster-link-actions";
 
 type ConnectedAccountsActionsProps = {
   address: `0x${string}` | null;
-  farcasterAccount: { fid: number; username?: string; displayName?: string } | null;
-  twitterAccount: { username?: string; name?: string } | null;
+  farcasterAccount: ResolvedFarcasterAccount | null;
+  twitterAccount: ResolvedXAccount | null;
   signerStatus: FarcasterSignerStatus;
+  initialLinkedAccountsResponse: LinkedAccountsResponse;
+  initialSignerIdentityKey: string;
 };
 
 type LinkAccountType = "farcaster" | "twitter";
-
-function useLinkAccountActions() {
-  const router = useRouter();
-  const [linkingType, setLinkingType] = useState<LinkAccountType | null>(null);
-
-  const { linkFarcaster, linkTwitter } = usePrivyLinkAccount({
-    onSuccess: () => {
-      setLinkingType(null);
-      void syncLinkedAccountsFromSession()
-        .then((result) => {
-          if (!result.ok && result.reason === "missing_address") {
-            toast.error("Connect a wallet to save linked accounts.");
-          }
-        })
-        .catch(() => {
-          toast.error("Failed to sync linked accounts.");
-        })
-        .finally(() => {
-          router.refresh();
-        });
-    },
-    onError: () => {
-      setLinkingType(null);
-    },
-  });
-
-  const link = useCallback(
-    async (type: LinkAccountType) => {
-      setLinkingType(type);
-      try {
-        if (type === "farcaster") {
-          await linkFarcaster();
-        } else {
-          await linkTwitter();
-        }
-      } catch (err) {
-        const message = parseLinkErrorMessage(err as ErrorLike) || "Failed to link account";
-        toast.error(message);
-        setLinkingType(null);
-      }
-    },
-    [linkFarcaster, linkTwitter]
-  );
-
-  return {
-    linkFarcaster: () => link("farcaster"),
-    linkTwitter: () => link("twitter"),
-    isLinkingType: (type: LinkAccountType) => linkingType === type,
-  };
-}
 
 function CompactButton({
   linked,
@@ -160,43 +109,45 @@ export function ConnectedAccountsActions({
   farcasterAccount,
   twitterAccount,
   signerStatus,
+  initialLinkedAccountsResponse,
+  initialSignerIdentityKey,
 }: ConnectedAccountsActionsProps) {
-  const router = useRouter();
   const [isDialogOpen, setDialogOpen] = useState(false);
-  const signup = useFarcasterSignup({ onComplete: () => setDialogOpen(false) });
-  const { linkFarcaster, linkTwitter, isLinkingType } = useLinkAccountActions();
-  const { connectSigner, disconnectSigner, linkReadOnly, isConnecting, isDisconnecting } =
-    useFarcasterLinkActionsCore({
-      address,
-      linkFarcaster,
-      onLinked: () => router.refresh(),
-      onDisconnected: () => router.refresh(),
-    });
-
-  const linked = Boolean(farcasterAccount);
-  const accountInfo = farcasterAccount ?? undefined;
-  const hasSigner = signerStatus.hasSigner;
-  const signerPermissions = signerStatus.signerPermissions;
-  const neynarPermissions = signerStatus.neynarPermissions;
-  const neynarStatus = signerStatus.neynarStatus;
-  const neynarError = signerStatus.neynarError;
-  const { missingCastPermission } = getCastPermissionState({
+  const initialLinkedAccounts = {
+    ...(farcasterAccount ? { farcaster: farcasterAccount } : {}),
+    ...(twitterAccount ? { twitter: twitterAccount } : {}),
+  };
+  const {
+    linked,
+    accountInfo,
+    twitterAccount: linkedTwitterAccount,
+    twitterLinked,
     hasSigner,
+    missingCastPermission,
+    isSignerLoading,
     signerPermissions,
     neynarPermissions,
+    neynarStatus,
+    neynarError,
+    isBusy,
+    isDisconnecting,
+    isCurrentlyLinking,
+    isLinkingTwitter,
+    signup,
+    dialogTitle,
+    dialogDescription,
+    connectSigner,
+    linkTwitter,
+    linkReadOnly,
+    disconnectSigner,
+  } = useFarcasterLinkDialogState({
+    address,
+    initialLinkedAccounts,
+    initialLinkedAccountsResponse,
+    initialSignerStatus: signerStatus,
+    initialSignerIdentityKey,
+    onComplete: () => setDialogOpen(false),
   });
-
-  const dialogTitle = linked ? "Farcaster connection" : "Link Farcaster";
-  const dialogDescription = linked
-    ? hasSigner
-      ? missingCastPermission
-        ? "Posting is disabled for this account."
-        : "Posting is enabled for this account."
-      : "Enable posting to publish from Cobuild."
-    : "Choose how to connect or create your account.";
-
-  const isLinkingFarcaster = isLinkingType("farcaster");
-  const isBusy = isConnecting || isDisconnecting || isLinkingFarcaster || signup.isSubmitting;
 
   const handleReadOnly = useCallback(async () => {
     setDialogOpen(false);
@@ -217,24 +168,23 @@ export function ConnectedAccountsActions({
     setDialogOpen(true);
   }, []);
 
-  const twitterUsername = twitterAccount?.username;
-  const twitterLinked = Boolean(twitterAccount);
+  const twitterUsername = linkedTwitterAccount?.username;
 
   return (
     <div className="mt-4 flex flex-wrap gap-2">
       <CompactButton
         type="farcaster"
         linked={linked}
-        username={farcasterAccount?.username}
+        username={accountInfo?.username}
         isBusy={isBusy}
-        isCurrentlyLinking={isLinkingFarcaster}
+        isCurrentlyLinking={isCurrentlyLinking}
         onClick={handleOpenDialog}
       />
       <CompactButton
         type="twitter"
         linked={twitterLinked}
         username={twitterUsername}
-        isCurrentlyLinking={isLinkingType("twitter")}
+        isCurrentlyLinking={isLinkingTwitter}
         onClick={() => linkTwitter()}
         asLink
       />
@@ -248,7 +198,7 @@ export function ConnectedAccountsActions({
         isBusy={isBusy}
         linked={linked}
         hasSigner={hasSigner}
-        isSignerLoading={false}
+        isSignerLoading={isSignerLoading}
         missingCastPermission={missingCastPermission}
         signerPermissions={signerPermissions}
         neynarPermissions={neynarPermissions}

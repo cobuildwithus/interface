@@ -12,6 +12,8 @@
 2. `AppProviders` hydrates wagmi state from cookies (`app/app-providers.tsx`).
 3. `Providers` creates Privy/Wagmi/React Query context (`app/providers.tsx`).
 4. `(app)` layout resolves server session/profile and injects user context (`app/(app)/layout.tsx`).
+5. Settings/profile server shells pass resolved session/address data down to their leaf sections so repeated auth reads stay request-scoped and client islands can be seeded from server-fetched account/signer data.
+6. The settings route resolves linked-account state, signer status, and the derived Farcaster profile view once in a shared server helper before handing that state to the profile section and sidebar.
 
 ## Key Files
 
@@ -26,7 +28,8 @@
 1. Route component requests domain/server data.
 2. Domain modules in `lib/domains/**` normalize/shape data.
 3. Server utilities in `lib/server/**` execute DB/KV/external side effects.
-4. UI components render via `components/features/**` and `components/ui/**`.
+4. When a client island also needs the same request-bound data, the route/section passes that data as initial props so the client query cache can be seeded without an immediate duplicate fetch.
+5. UI components render via `components/features/**` and `components/ui/**`.
 
 ## API Route Boundary Map
 

@@ -13,6 +13,7 @@ export function getUserResponse(session: Session): UserResponse {
           displayName: session.farcaster.displayName ?? null,
           pfp: session.farcaster.pfp ?? null,
           neynarScore: session.farcaster.neynarScore ?? null,
+          source: session.farcaster.source,
         }
       : null,
     twitter: session.twitter

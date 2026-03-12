@@ -23,8 +23,9 @@ vi.mock("@/lib/hooks/use-farcaster-signer", () => ({
 }));
 
 import {
-  FARCASTER_SIGNER_QUERY_KEY,
-  LINKED_ACCOUNTS_QUERY_KEY,
+  getAuthIdentityKey,
+  getFarcasterSignerQueryKey,
+  getLinkedAccountsQueryKey,
   getProfileQueryKey,
 } from "@/lib/hooks/query-keys";
 import { useRefreshLinkedAccountState } from "./use-refresh-linked-account-state";
@@ -52,7 +53,9 @@ describe("useRefreshLinkedAccountState", () => {
 
     expect(fetchQuery).toHaveBeenCalledTimes(1);
     expect(fetchQuery).toHaveBeenCalledWith({
-      queryKey: LINKED_ACCOUNTS_QUERY_KEY,
+      queryKey: getLinkedAccountsQueryKey(
+        getAuthIdentityKey({ address: ADDRESS, farcasterFid: null })
+      ),
       queryFn: fetchLinkedAccountsMock,
       staleTime: 0,
     });
@@ -75,12 +78,16 @@ describe("useRefreshLinkedAccountState", () => {
 
     expect(fetchQuery).toHaveBeenCalledTimes(2);
     expect(fetchQuery).toHaveBeenNthCalledWith(1, {
-      queryKey: LINKED_ACCOUNTS_QUERY_KEY,
+      queryKey: getLinkedAccountsQueryKey(
+        getAuthIdentityKey({ address: ADDRESS, farcasterFid: null })
+      ),
       queryFn: fetchLinkedAccountsMock,
       staleTime: 0,
     });
     expect(fetchQuery).toHaveBeenNthCalledWith(2, {
-      queryKey: FARCASTER_SIGNER_QUERY_KEY,
+      queryKey: getFarcasterSignerQueryKey(
+        getAuthIdentityKey({ address: ADDRESS, farcasterFid: null })
+      ),
       queryFn: fetchSignerStatusMock,
       staleTime: 0,
     });
@@ -100,5 +107,23 @@ describe("useRefreshLinkedAccountState", () => {
 
     expect(fetchQuery).toHaveBeenCalledTimes(2);
     expect(invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("normalizes profile invalidation keys for mixed-case wallet addresses", async () => {
+    const fetchQuery = vi.fn().mockResolvedValue(undefined);
+    const invalidateQueries = vi.fn().mockResolvedValue(undefined);
+    useQueryClientMock.mockReturnValue({ fetchQuery, invalidateQueries });
+    const mixedCaseAddress = `0x${"Ab".repeat(20)}`;
+
+    const { result } = renderHook(() => useRefreshLinkedAccountState(mixedCaseAddress));
+
+    await act(async () => {
+      await result.current.refreshLinkedAccountState();
+    });
+
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: getProfileQueryKey(mixedCaseAddress),
+      exact: true,
+    });
   });
 });

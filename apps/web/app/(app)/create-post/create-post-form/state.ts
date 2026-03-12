@@ -1,18 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ClipboardEventHandler } from "react";
+import { useCallback, useState, type ClipboardEventHandler } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import type { ErrorLike } from "@/lib/shared/errors";
 import type { GoalScope } from "@/lib/domains/goals/goal-scopes";
 import { useCommandEnter } from "@/lib/hooks/use-command-enter";
-import {
-  isUploadImageAuthError,
-  uploadImage,
-  validateImageFile,
-} from "@/lib/integrations/images/upload-client";
-import { CONTENT_LIMIT, MAX_TOTAL_IMAGE_BYTES } from "./constants";
-import { createAttachmentId } from "./utils";
+import { getClipboardImageFiles } from "@/lib/integrations/images/upload-flow";
+import { useImageAttachments } from "@/lib/integrations/images/use-image-attachments";
+import { CONTENT_LIMIT } from "./constants";
 import { createPostAction } from "../actions";
 import type { PostAttachment } from "./types";
 
@@ -27,43 +22,34 @@ export function useCreatePostFormState({
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isPosting, setIsPosting] = useState(false);
-  const [attachments, setAttachments] = useState<PostAttachment[]>([]);
   const [isSignerDialogOpen, setSignerDialogOpen] = useState(false);
   const goalEmbedUrl = goalScope?.url ?? null;
-  const objectUrlsRef = useRef(new Set<string>());
+  const maxAttachments = goalEmbedUrl ? 1 : 2;
+  const { attachments, isAtAttachmentLimit, isUploading, queueFiles, removeAttachment } =
+    useImageAttachments({
+      maxAttachments,
+      disabled: isPosting,
+      uploadSuccessMessage: "Image attached.",
+      onAuthError: () => setSignerDialogOpen(true),
+      uploadMode: "sequential",
+      stopOnAuthError: true,
+    });
 
   const trimmedTitle = title.trim();
   const trimmedContent = content.trim();
   const combinedText = `${trimmedTitle}\n\n${trimmedContent}`;
   const combinedLength = combinedText.trim().length > 0 ? combinedText.length : 0;
   const isOverLimit = combinedLength > CONTENT_LIMIT;
-  const isUploading = attachments.some((attachment) => attachment.isUploading);
-  const totalAttachmentBytes = attachments.reduce((sum, attachment) => sum + attachment.size, 0);
-  const attachmentImages = attachments.map((attachment) => attachment.url ?? attachment.previewUrl);
+  const attachmentImages = attachments.map((attachment) => attachment.url);
   const attachmentUrls = attachments.flatMap((attachment) =>
-    attachment.url ? [attachment.url] : []
+    attachment.status === "ready" && !attachment.isLocal ? [attachment.url] : []
   );
-  const maxAttachments = goalEmbedUrl ? 1 : 2;
-  const isAtAttachmentLimit = attachments.length >= maxAttachments;
-  const attachmentLimitMessage = `You can attach up to ${maxAttachments} ${
-    maxAttachments === 1 ? "image" : "images"
-  }.`;
   const canSubmit =
     trimmedTitle.length > 0 &&
     trimmedContent.length > 0 &&
     !isOverLimit &&
     !isPosting &&
     !isUploading;
-
-  useEffect(() => {
-    const objectUrls = objectUrlsRef.current;
-    return () => {
-      for (const url of objectUrls) {
-        URL.revokeObjectURL(url);
-      }
-      objectUrls.clear();
-    };
-  }, []);
 
   const submitPost = async () => {
     if (!canSubmit) return;
@@ -117,106 +103,26 @@ export function useCreatePostFormState({
     void submitPost();
   }, canSubmit);
 
-  const revokeObjectUrl = useCallback((url: string) => {
-    if (url.startsWith("blob:") && objectUrlsRef.current.has(url)) {
-      URL.revokeObjectURL(url);
-      objectUrlsRef.current.delete(url);
-    }
-  }, []);
-
   const handleUpload = useCallback(
     async (files: File[]) => {
       if (isPosting || isUploading) return;
-
-      const availableSlots = maxAttachments - attachments.length;
-      if (availableSlots <= 0) {
-        toast.error(attachmentLimitMessage);
-        return;
-      }
-
-      const filesToUpload = files.slice(0, availableSlots);
-      if (files.length > availableSlots) {
-        toast.error(attachmentLimitMessage);
-      }
-
-      let totalBytes = totalAttachmentBytes;
-
-      for (const file of filesToUpload) {
-        const validation = validateImageFile(file);
-        if (!validation.ok) {
-          toast.error(validation.message);
-          continue;
-        }
-
-        if (totalBytes + file.size > MAX_TOTAL_IMAGE_BYTES) {
-          toast.error("Images exceed 10MB total.");
-          continue;
-        }
-
-        totalBytes += file.size;
-
-        const previewUrl = URL.createObjectURL(file);
-        objectUrlsRef.current.add(previewUrl);
-        const id = createAttachmentId();
-        setAttachments((prev) => [
-          ...prev,
-          { id, url: null, previewUrl, isUploading: true, size: file.size },
-        ]);
-
-        try {
-          const url = await uploadImage(file);
-          setAttachments((prev) =>
-            prev.map((attachment) =>
-              attachment.id === id ? { ...attachment, url, isUploading: false } : attachment
-            )
-          );
-          revokeObjectUrl(previewUrl);
-          toast.success("Image attached.");
-        } catch (error) {
-          setAttachments((prev) => prev.filter((attachment) => attachment.id !== id));
-          revokeObjectUrl(previewUrl);
-          if (isUploadImageAuthError(error as ErrorLike)) {
-            setSignerDialogOpen(true);
-            break;
-          }
-          const message = error instanceof Error ? error.message : "Upload failed.";
-          toast.error(message);
-        }
-      }
+      await queueFiles(files);
     },
-    [
-      attachments.length,
-      attachmentLimitMessage,
-      isPosting,
-      isUploading,
-      maxAttachments,
-      revokeObjectUrl,
-      totalAttachmentBytes,
-    ]
+    [isPosting, isUploading, queueFiles]
   );
 
   const handlePaste: ClipboardEventHandler<HTMLTextAreaElement> = (event) => {
-    const items = event.clipboardData?.items;
-    if (!items) return;
-
-    const files: File[] = [];
-    for (const item of items) {
-      if (item.kind !== "file" || !item.type.startsWith("image/")) continue;
-      const file = item.getAsFile();
-      if (file) files.push(file);
-    }
-
+    const files = getClipboardImageFiles(event.clipboardData?.items);
     if (files.length === 0) return;
     void handleUpload(files.slice(0, 2));
   };
 
   const handleRemoveAttachment = useCallback(
     (attachment: PostAttachment) => {
-      if (attachment.isUploading) return;
-      setAttachments((prev) => prev.filter((item) => item.id !== attachment.id));
-      revokeObjectUrl(attachment.previewUrl);
+      if (attachment.status === "uploading") return;
+      removeAttachment(attachment.id);
     },
-    [revokeObjectUrl]
+    [removeAttachment]
   );
 
   const handleCancel = useCallback(() => {
@@ -245,6 +151,5 @@ export function useCreatePostFormState({
     handleCancel,
     isSignerDialogOpen,
     setSignerDialogOpen,
-    attachmentLimitMessage,
   };
 }

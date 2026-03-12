@@ -6,6 +6,7 @@ import { getUnreadNotificationsState } from "@/lib/domains/notifications/queries
 import { NotificationsUnreadProvider } from "@/lib/domains/notifications/unread-context";
 import { getProfile } from "@/lib/domains/profile/get-profile";
 import { getUserResponse } from "@/lib/server/user-response";
+import { AuthQueryBoundary } from "@/lib/domains/auth/auth-query-boundary";
 import { UserProvider } from "@/lib/domains/auth/user-context";
 import { WalletIdentityGuard } from "@/components/features/auth/wallet-identity-guard";
 
@@ -14,10 +15,13 @@ type LayoutProps = {
 };
 
 export default async function AppLayout({ children }: LayoutProps) {
-  const cookieStore = await cookies();
+  const cookieStorePromise = cookies();
+  const sessionPromise = getSession();
+
+  const cookieStore = await cookieStorePromise;
   const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
-  const session = await getSession();
+  const session = await sessionPromise;
   const address = session.address ?? null;
 
   const [profile, unreadNotificationsState] = await Promise.all([
@@ -29,6 +33,7 @@ export default async function AppLayout({ children }: LayoutProps) {
   return (
     <div className="mx-auto min-h-screen">
       <UserProvider value={user}>
+        <AuthQueryBoundary />
         <WalletIdentityGuard />
         <NotificationsUnreadProvider
           key={`notifications:${address ?? "anon"}`}
