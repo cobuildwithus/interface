@@ -1,35 +1,30 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import {
-  applyJbDaoCashOutFee,
-  applyRevnetCashOutFee,
+  getRevnetCashOutContext,
   parseEvmAddress,
+  quoteRevnetCashOut,
   REVNET_NATIVE_TOKEN,
-  selectPreferredRevnetAccountingContext,
 } from "@cobuild/wire";
-import { useMemo } from "react";
-import { erc20Abi, formatUnits, zeroAddress } from "viem";
-import { useAccount, useReadContract } from "wagmi";
-import {
-  jbControllerAbi,
-  jbDirectoryAbi,
-  jbMultiTerminalAbi,
-  jbTerminalStoreAbi,
-  jbTokensAbi,
-  revDeployerAbi,
-} from "@/lib/domains/token/onchain/abis";
+import { formatUnits } from "viem";
+import { useAccount, usePublicClient } from "wagmi";
 import { contracts, WETH_ADDRESS } from "@/lib/domains/token/onchain/addresses";
 import { REVNET_CHAIN_ID } from "@/lib/domains/token/onchain/revnet";
-import {
-  COBUILD_JUICEBOX_PROJECT_ID,
-  COBUILD_JUICEBOX_PROJECT_ID_BIGINT,
-} from "@/lib/domains/token/juicebox/constants";
+import { COBUILD_JUICEBOX_PROJECT_ID_BIGINT } from "@/lib/domains/token/juicebox/constants";
 
 const TOKEN_SYMBOL_BY_ADDRESS: Record<string, string> = {
   [contracts.USDCBase.toLowerCase()]: "USDC",
   [WETH_ADDRESS.toLowerCase()]: "WETH",
   [REVNET_NATIVE_TOKEN.toLowerCase()]: "ETH",
 };
+
+export const REVNET_POSITION_QUERY_KEY = "revnet-position";
+export const REVNET_CASH_OUT_QUOTE_QUERY_KEY = "revnet-cash-out-quote";
+
+export function getRevnetPositionQueryKey(account?: `0x${string}`) {
+  return [REVNET_POSITION_QUERY_KEY, account ?? null, contracts.USDCBase] as const;
+}
 
 function getBaseTokenSymbol(address?: string) {
   const normalized = parseEvmAddress(address);
@@ -39,140 +34,87 @@ function getBaseTokenSymbol(address?: string) {
 
 export function useRevnetPosition() {
   const { address } = useAccount();
-
-  const { data: tokensAddress } = useReadContract({
-    address: contracts.JBController as `0x${string}`,
-    abi: jbControllerAbi,
-    functionName: "TOKENS",
-    chainId: REVNET_CHAIN_ID,
+  const publicClient = usePublicClient({ chainId: REVNET_CHAIN_ID });
+  const contextQuery = useQuery({
+    queryKey: getRevnetPositionQueryKey(address),
+    enabled: publicClient != null,
+    staleTime: 30_000,
+    queryFn: async () => {
+      if (!publicClient) {
+        throw new Error("REVNET public client unavailable.");
+      }
+      return getRevnetCashOutContext(publicClient, {
+        ...(address !== undefined ? { account: address } : {}),
+        preferredBaseToken: contracts.USDCBase,
+      });
+    },
   });
 
-  const { data: projectTokenAddress } = useReadContract({
-    address: tokensAddress as `0x${string}` | undefined,
-    abi: jbTokensAbi,
-    functionName: "tokenOf",
-    args: [COBUILD_JUICEBOX_PROJECT_ID_BIGINT],
-    chainId: REVNET_CHAIN_ID,
-    query: { enabled: !!tokensAddress },
+  const context = contextQuery.data;
+  const quoteQuery = useQuery({
+    queryKey: [
+      REVNET_CASH_OUT_QUOTE_QUERY_KEY,
+      "position",
+      context?.projectId.toString() ?? null,
+      context?.quoteTerminal ?? null,
+      context?.quoteAccountingContext?.token ?? null,
+      context?.quoteAccountingContext?.decimals ?? null,
+      context?.quoteAccountingContext?.currency ?? null,
+      context ? context.token.balance.toString() : null,
+    ],
+    enabled:
+      publicClient != null &&
+      !!context?.quoteTerminal &&
+      !!context?.quoteAccountingContext &&
+      context.token.balance > 0n,
+    staleTime: 30_000,
+    queryFn: async () => {
+      if (
+        !publicClient ||
+        !context?.quoteTerminal ||
+        !context.quoteAccountingContext ||
+        context.token.balance <= 0n
+      ) {
+        return null;
+      }
+      try {
+        return await quoteRevnetCashOut(publicClient, {
+          projectId: context.projectId,
+          rawCashOutCount: context.token.balance,
+          terminal: context.quoteTerminal,
+          accountingContext: context.quoteAccountingContext,
+        });
+      } catch {
+        return null;
+      }
+    },
   });
 
-  const tokenAddress =
-    projectTokenAddress && projectTokenAddress !== zeroAddress
-      ? (projectTokenAddress as `0x${string}`)
-      : undefined;
-
-  const { data: tokenDecimals } = useReadContract({
-    address: tokenAddress ?? zeroAddress,
-    abi: erc20Abi,
-    functionName: "decimals",
-    chainId: REVNET_CHAIN_ID,
-    query: { enabled: !!tokenAddress },
-  });
-
-  const { data: tokenSymbol } = useReadContract({
-    address: tokenAddress ?? zeroAddress,
-    abi: erc20Abi,
-    functionName: "symbol",
-    chainId: REVNET_CHAIN_ID,
-    query: { enabled: !!tokenAddress },
-  });
-
-  const { data: tokenBalance } = useReadContract({
-    address: tokensAddress as `0x${string}` | undefined,
-    abi: jbTokensAbi,
-    functionName: "totalBalanceOf",
-    args: address ? [address, COBUILD_JUICEBOX_PROJECT_ID_BIGINT] : undefined,
-    chainId: REVNET_CHAIN_ID,
-    query: { enabled: !!address && !!tokensAddress },
-  });
-
-  const { data: accountingContexts } = useReadContract({
-    address: contracts.JBMultiTerminal as `0x${string}`,
-    abi: jbMultiTerminalAbi,
-    functionName: "accountingContextsOf",
-    args: [COBUILD_JUICEBOX_PROJECT_ID_BIGINT],
-    chainId: REVNET_CHAIN_ID,
-  });
-
-  const baseTokenContext = useMemo(() => {
-    return (
-      selectPreferredRevnetAccountingContext(accountingContexts ?? [], contracts.USDCBase) ??
-      undefined
-    );
-  }, [accountingContexts]);
-
-  const { data: terminalAddress } = useReadContract({
-    address: contracts.JBDirectory as `0x${string}`,
-    abi: jbDirectoryAbi,
-    functionName: "primaryTerminalOf",
-    args: baseTokenContext
-      ? [COBUILD_JUICEBOX_PROJECT_ID_BIGINT, baseTokenContext.token]
-      : undefined,
-    chainId: REVNET_CHAIN_ID,
-    query: { enabled: !!baseTokenContext },
-  });
-
-  const { data: permissionsAddress } = useReadContract({
-    address: contracts.REVDeployer as `0x${string}`,
-    abi: revDeployerAbi,
-    functionName: "PERMISSIONS",
-    chainId: REVNET_CHAIN_ID,
-  });
-
-  const { data: revLoansAddress } = useReadContract({
-    address: contracts.REVDeployer as `0x${string}`,
-    abi: revDeployerAbi,
-    functionName: "loansOf",
-    args: [COBUILD_JUICEBOX_PROJECT_ID_BIGINT],
-    chainId: REVNET_CHAIN_ID,
-  });
-
-  const { data: cashOutValue } = useReadContract({
-    address: contracts.JBTerminalStore as `0x${string}`,
-    abi: jbTerminalStoreAbi,
-    functionName: "currentReclaimableSurplusOf",
-    args:
-      baseTokenContext && terminalAddress
-        ? [
-            COBUILD_JUICEBOX_PROJECT_ID_BIGINT,
-            applyRevnetCashOutFee(tokenBalance ?? 0n),
-            [terminalAddress],
-            [baseTokenContext],
-            BigInt(baseTokenContext.decimals),
-            BigInt(baseTokenContext.currency),
-          ]
-        : undefined,
-    chainId: REVNET_CHAIN_ID,
-    query: { enabled: !!baseTokenContext && !!terminalAddress },
-  });
-
-  const formattedBalance = formatUnits(tokenBalance ?? 0n, tokenDecimals ?? 18);
-
-  const netCashOutValue = applyJbDaoCashOutFee(cashOutValue ?? 0n);
-
-  const formattedCashOutValue =
-    baseTokenContext && cashOutValue != null
-      ? formatUnits(netCashOutValue, baseTokenContext.decimals)
-      : "0";
+  const quote = quoteQuery.data ?? null;
+  const projectId = context?.projectId ?? COBUILD_JUICEBOX_PROJECT_ID_BIGINT;
+  const tokenDecimals = context?.token.decimals ?? 18;
+  const tokenBalance = context?.token.balance ?? 0n;
+  const baseTokenContext = context?.selectedAccountingContext ?? undefined;
+  const cashOutValue = quote?.netReclaimAmount ?? 0n;
 
   return {
-    projectId: COBUILD_JUICEBOX_PROJECT_ID_BIGINT,
-    projectIdNumber: COBUILD_JUICEBOX_PROJECT_ID,
-    tokenAddress,
-    tokenSymbol: tokenSymbol || "Token",
-    tokenDecimals: tokenDecimals ?? 18,
-    tokenBalance: tokenBalance ?? 0n,
-    formattedBalance,
+    projectId,
+    projectIdNumber: Number(projectId),
+    tokenAddress: context?.token.address ?? undefined,
+    tokenSymbol: context?.token.symbol || "Token",
+    tokenDecimals,
+    tokenBalance,
+    formattedBalance: formatUnits(tokenBalance, tokenDecimals),
     baseTokenContext,
     baseTokenAddress: baseTokenContext?.token,
     baseTokenSymbol: getBaseTokenSymbol(baseTokenContext?.token),
-    terminalAddress,
-    permissionsAddress:
-      (permissionsAddress as `0x${string}` | undefined) ?? contracts.JBPermissions,
-    revLoansAddress: (revLoansAddress as `0x${string}` | undefined) ?? contracts.REVLoans,
-    cashOutValue: netCashOutValue,
-    formattedCashOutValue,
+    terminalAddress: context?.terminal ?? undefined,
+    permissionsAddress: context?.permissionsAddress ?? contracts.JBPermissions,
+    revLoansAddress: context?.revLoansAddress ?? contracts.REVLoans,
+    cashOutValue,
+    formattedCashOutValue:
+      baseTokenContext && quote ? formatUnits(cashOutValue, baseTokenContext.decimals) : "0",
     isConnected: !!address,
-    account: address,
+    account: context?.account ?? parseEvmAddress(address) ?? undefined,
   };
 }

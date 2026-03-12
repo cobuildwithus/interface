@@ -1,10 +1,12 @@
 "use client";
 
-import { buildRevnetCashOutIntent } from "@cobuild/wire";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { buildRevnetCashOutIntent, quoteRevnetCashOut } from "@cobuild/wire";
+import { useRouter } from "next/navigation";
 import { PropsWithChildren, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { formatUnits, parseUnits } from "viem";
-import { useReadContract } from "wagmi";
+import { usePublicClient } from "wagmi";
 import { AuthButton } from "@/components/ui/auth-button";
 import { Currency } from "@/components/ui/currency";
 import {
@@ -15,11 +17,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useRevnetPosition } from "@/lib/hooks/use-revnet-position";
-import { jbTerminalStoreAbi } from "@/lib/domains/token/onchain/abis";
-import { contracts } from "@/lib/domains/token/onchain/addresses";
+import {
+  REVNET_CASH_OUT_QUOTE_QUERY_KEY,
+  REVNET_POSITION_QUERY_KEY,
+  useRevnetPosition,
+} from "@/lib/hooks/use-revnet-position";
 import { REVNET_CHAIN_ID } from "@/lib/domains/token/onchain/revnet";
-import { applyJbDaoCashoutFee, applyRevnetCashoutFee } from "@/lib/domains/token/juicebox/fees";
 import { useContractTransaction } from "@/lib/domains/token/onchain/use-contract-transaction";
 
 type RevnetPosition = ReturnType<typeof useRevnetPosition>;
@@ -62,6 +65,8 @@ export function CashOutDialog({
   children,
 }: PropsWithChildren<{ position: RevnetPosition; tokenLogoUrl?: string | null }>) {
   const [amount, setAmount] = useState("");
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
   const maxAmount = useMemo(() => {
     return formatUnits(position.tokenBalance, position.tokenDecimals);
@@ -77,32 +82,39 @@ export function CashOutDialog({
     [amount, position.tokenDecimals]
   );
 
-  const netCashOutCount = useMemo(() => applyRevnetCashoutFee(cashOutCount), [cashOutCount]);
-
   const hasEnoughBalance = cashOutCount > 0n && cashOutCount <= position.tokenBalance;
 
-  const { data: cashOutQuote } = useReadContract({
-    address: contracts.JBTerminalStore as `0x${string}`,
-    abi: jbTerminalStoreAbi,
-    functionName: "currentReclaimableSurplusOf",
-    args:
-      position.baseTokenContext && position.terminalAddress && cashOutCount > 0n
-        ? [
-            position.projectId,
-            netCashOutCount,
-            [position.terminalAddress],
-            [position.baseTokenContext],
-            BigInt(position.baseTokenContext.decimals),
-            BigInt(position.baseTokenContext.currency),
-          ]
-        : undefined,
-    chainId: REVNET_CHAIN_ID,
-    query: {
-      enabled: !!position.baseTokenContext && !!position.terminalAddress && cashOutCount > 0n,
+  const publicClient = usePublicClient({ chainId: REVNET_CHAIN_ID });
+  const { data: cashOutQuote } = useQuery({
+    queryKey: [
+      REVNET_CASH_OUT_QUOTE_QUERY_KEY,
+      "dialog",
+      position.projectId.toString(),
+      position.terminalAddress ?? null,
+      position.baseTokenContext?.token ?? null,
+      position.baseTokenContext?.decimals ?? null,
+      position.baseTokenContext?.currency ?? null,
+      cashOutCount.toString(),
+    ],
+    enabled:
+      publicClient != null &&
+      !!position.baseTokenContext &&
+      !!position.terminalAddress &&
+      cashOutCount > 0n,
+    queryFn: async () => {
+      if (!publicClient || !position.baseTokenContext || !position.terminalAddress) {
+        return null;
+      }
+      return quoteRevnetCashOut(publicClient, {
+        projectId: position.projectId,
+        rawCashOutCount: cashOutCount,
+        terminal: position.terminalAddress,
+        accountingContext: position.baseTokenContext,
+      });
     },
   });
 
-  const netQuote = applyJbDaoCashoutFee(cashOutQuote ?? 0n);
+  const netQuote = cashOutQuote?.netReclaimAmount ?? 0n;
   const quoteValue = position.baseTokenContext
     ? Number(formatUnits(netQuote, position.baseTokenContext.decimals))
     : 0;
@@ -111,6 +123,15 @@ export function CashOutDialog({
     chainId: REVNET_CHAIN_ID,
     loading: "Cash out in progress...",
     success: "Cash out confirmed",
+    onSuccess: () => {
+      router.refresh();
+      void queryClient.invalidateQueries({
+        queryKey: [REVNET_POSITION_QUERY_KEY],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [REVNET_CASH_OUT_QUOTE_QUERY_KEY],
+      });
+    },
   });
 
   const handleCashOut = async () => {

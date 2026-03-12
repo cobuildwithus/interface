@@ -14,6 +14,10 @@ import {
 import { NATIVE_TOKEN, REVNET_CHAIN_ID } from "@/lib/domains/token/onchain/revnet";
 import { useContractTransaction } from "@/lib/domains/token/onchain/use-contract-transaction";
 import {
+  REVNET_CASH_OUT_QUOTE_QUERY_KEY,
+  REVNET_POSITION_QUERY_KEY,
+} from "@/lib/hooks/use-revnet-position";
+import {
   LOAN_LIQUIDATION_YEARS,
   MAX_PREPAID_FEE_PERCENT,
   MIN_PREPAID_FEE_PERCENT,
@@ -142,7 +146,13 @@ export function useLoanDialogState(position: RevnetPosition) {
     success: "Loan created",
     onSuccess: () => {
       router.refresh();
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
+        queryKey: [REVNET_POSITION_QUERY_KEY],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [REVNET_CASH_OUT_QUOTE_QUERY_KEY],
+      });
+      void queryClient.invalidateQueries({
         predicate: (query) => {
           const [key, params] = query.queryKey as [string, { functionName?: string }?];
           if (key !== "readContract" || !params?.functionName) return false;
