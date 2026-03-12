@@ -227,6 +227,35 @@ describe("onchain project stats", () => {
 });
 
 describe("onchain revnet data", () => {
+  const makeCurrentRulesetResult = (
+    weight: bigint,
+    metadata?: Partial<{
+      reservedPercent: number;
+      cashOutTaxRate: number;
+      baseCurrency: number;
+      pausePay: boolean;
+    }>
+  ) =>
+    [
+      {
+        cycleNumber: 1n,
+        id: 1n,
+        basedOnId: 0n,
+        start: 0n,
+        duration: 0n,
+        weight,
+        weightCutPercent: 0n,
+        approvalHook: "0x" + "0".repeat(40),
+        metadata: 0n,
+      },
+      {
+        reservedPercent: metadata?.reservedPercent ?? 0,
+        cashOutTaxRate: metadata?.cashOutTaxRate ?? 0,
+        baseCurrency: metadata?.baseCurrency ?? 1,
+        pausePay: metadata?.pausePay ?? false,
+      },
+    ] as const;
+
   beforeEach(() => {
     vi.resetModules();
   });
@@ -235,7 +264,7 @@ describe("onchain revnet data", () => {
     const client = {
       readContract: vi
         .fn()
-        .mockResolvedValueOnce([{ weight: 123n }, { reservedPercent: 42, pausePay: false }])
+        .mockResolvedValueOnce(makeCurrentRulesetResult(123n, { reservedPercent: 42 }))
         .mockResolvedValueOnce("0x" + "1".repeat(40))
         .mockResolvedValueOnce(["0x" + "2".repeat(40)]),
     };
@@ -260,7 +289,9 @@ describe("onchain revnet data", () => {
     const client = {
       readContract: vi
         .fn()
-        .mockResolvedValueOnce([{ weight: 777n }, { reservedPercent: 12, pausePay: true }])
+        .mockResolvedValueOnce(
+          makeCurrentRulesetResult(777n, { reservedPercent: 12, pausePay: true })
+        )
         .mockResolvedValueOnce("0x" + "0".repeat(40))
         .mockResolvedValueOnce(["0x" + "3".repeat(40), jbContracts.multiTerminal])
         .mockResolvedValueOnce([{ token: NATIVE_TOKEN }]),
@@ -286,7 +317,7 @@ describe("onchain revnet data", () => {
     const client = {
       readContract: vi
         .fn()
-        .mockResolvedValueOnce([{ weight: 88n }, { reservedPercent: 7, pausePay: false }])
+        .mockResolvedValueOnce(makeCurrentRulesetResult(88n, { reservedPercent: 7 }))
         .mockResolvedValueOnce("0x" + "0".repeat(40))
         .mockResolvedValueOnce([jbContracts.multiTerminal])
         .mockResolvedValueOnce([{ token: "0x" + "9".repeat(40) }]),
@@ -306,7 +337,7 @@ describe("onchain revnet data", () => {
     const client = {
       readContract: vi
         .fn()
-        .mockResolvedValueOnce([{ weight: 5n }, { reservedPercent: 1, pausePay: false }])
+        .mockResolvedValueOnce(makeCurrentRulesetResult(5n, { reservedPercent: 1 }))
         .mockResolvedValueOnce("0x" + "0".repeat(40))
         .mockResolvedValueOnce(["0x" + "4".repeat(40)]),
     };
@@ -325,9 +356,9 @@ describe("onchain revnet data", () => {
     const client = {
       readContract: vi
         .fn()
-        .mockResolvedValueOnce([{ weight: 9n }, { reservedPercent: 0, pausePay: false }])
+        .mockResolvedValueOnce(makeCurrentRulesetResult(9n))
         .mockResolvedValueOnce("0x" + "0".repeat(40))
-        .mockResolvedValueOnce(undefined),
+        .mockResolvedValueOnce([]),
     };
 
     vi.doMock("next/cache", () => ({ unstable_cache: passthroughCache }));
@@ -345,7 +376,7 @@ describe("onchain revnet data", () => {
     const client = {
       readContract: vi
         .fn()
-        .mockResolvedValueOnce([{ weight: 10n }, { reservedPercent: 3, pausePay: false }])
+        .mockResolvedValueOnce(makeCurrentRulesetResult(10n, { reservedPercent: 3 }))
         .mockResolvedValueOnce("0x" + "1".repeat(40))
         .mockResolvedValueOnce(["0x" + "1".repeat(40)]),
     };
