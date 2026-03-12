@@ -10,6 +10,18 @@ const useReadContractMock = vi.fn();
 const usePublicClientMock = vi.fn();
 const useContractTransactionMock = vi.fn();
 const createBorrowHandlerMock = vi.fn();
+let permissionTxState: {
+  isLoading: boolean;
+  prepareWallet: ReturnType<typeof vi.fn>;
+  writeContractAsync: ReturnType<typeof vi.fn>;
+  markErrorHandled: ReturnType<typeof vi.fn>;
+};
+let borrowTxState: {
+  isLoading: boolean;
+  prepareWallet: ReturnType<typeof vi.fn>;
+  writeContractAsync: ReturnType<typeof vi.fn>;
+  markErrorHandled: ReturnType<typeof vi.fn>;
+};
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: routerRefreshMock }),
@@ -113,6 +125,18 @@ describe("useLoanDialogState", () => {
     usePublicClientMock.mockReset();
     useContractTransactionMock.mockReset();
     createBorrowHandlerMock.mockReset();
+    permissionTxState = {
+      isLoading: false,
+      prepareWallet: vi.fn(),
+      writeContractAsync: vi.fn(),
+      markErrorHandled: vi.fn(),
+    };
+    borrowTxState = {
+      isLoading: false,
+      prepareWallet: vi.fn(),
+      writeContractAsync: vi.fn(),
+      markErrorHandled: vi.fn(),
+    };
 
     useReadContractMock.mockImplementation(
       (args: { functionName?: string; query?: { enabled?: boolean } }) => {
@@ -141,11 +165,9 @@ describe("useLoanDialogState", () => {
       }
     );
     usePublicClientMock.mockReturnValue({ readContract: vi.fn() });
-    useContractTransactionMock.mockReturnValue({
-      isLoading: false,
-      prepareWallet: vi.fn(),
-      writeContractAsync: vi.fn(),
-    });
+    useContractTransactionMock.mockImplementation((args: { success?: string }) =>
+      args.success === "Permission granted" ? permissionTxState : borrowTxState
+    );
     createBorrowHandlerMock.mockReturnValue(vi.fn());
   });
 
@@ -165,5 +187,40 @@ describe("useLoanDialogState", () => {
     expect(invalidateQueriesMock).toHaveBeenCalledWith({
       queryKey: [REVNET_CASH_OUT_QUOTE_QUERY_KEY],
     });
+  });
+
+  it("keeps the permission step visible while permission is still pending after a borrow failure", () => {
+    useReadContractMock.mockImplementation(
+      (args: { functionName?: string; query?: { enabled?: boolean } }) => {
+        switch (args.functionName) {
+          case "loanSourcesOf":
+            return {
+              data: [{ token: address("2"), terminal: address("5") }],
+            };
+          case "symbol":
+            return { data: "USDC" };
+          case "accountingContextForTokenOf":
+            return {
+              data: {
+                token: address("2"),
+                decimals: 6,
+                currency: 1,
+              },
+            };
+          case "borrowableAmountFrom":
+            return { data: 1_000_000n };
+          case "hasPermission":
+            return { data: false, refetch: vi.fn() };
+          default:
+            return { data: undefined, query: args.query };
+        }
+      }
+    );
+    permissionTxState.isLoading = true;
+
+    const { result } = renderHook(() => useLoanDialogState(POSITION));
+
+    expect(result.current.isProcessing).toBe(true);
+    expect(result.current.buttonLabel).toBe("Granting permission...");
   });
 });

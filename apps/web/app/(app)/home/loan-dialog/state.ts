@@ -207,13 +207,18 @@ export function useLoanDialogState(position: RevnetPosition) {
   });
 
   const isProcessing = isSubmitting || borrowTx.isLoading || permissionTx.isLoading;
+  const isBorrowProcessing = submitStep === "loan" || borrowTx.isLoading;
+  const isPermissionProcessing =
+    submitStep === "permission" || (permissionTx.isLoading && !borrowTx.isLoading);
   const isLoanAvailable = !!selectedLoanSource;
   const buttonLabel = !isLoanAvailable
     ? "Loan unavailable"
     : isProcessing
-      ? needsPermission && submitStep === "permission"
-        ? "Granting permission..."
-        : "Creating loan..."
+      ? isBorrowProcessing
+        ? "Creating loan..."
+        : isPermissionProcessing
+          ? "Granting permission..."
+          : "Creating loan..."
       : "Take loan";
 
   const handleBorrow = createBorrowHandler({

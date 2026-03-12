@@ -7,7 +7,7 @@ import type { RevnetPosition } from "./types";
 
 type ContractTx = Pick<
   ReturnType<typeof useContractTransaction>,
-  "prepareWallet" | "writeContractAsync" | "isLoading"
+  "prepareWallet" | "writeContractAsync" | "isLoading" | "markErrorHandled"
 >;
 
 type PublicClient = NonNullable<ReturnType<typeof usePublicClient>>;
@@ -29,6 +29,53 @@ type BorrowHandlerInput = {
   setIsSubmitting: (value: boolean) => void;
   setSubmitStep: (value: "permission" | "loan" | null) => void;
 };
+
+type PermissionProgress = "not-started" | "submitted" | "confirmed";
+type BorrowStep = "permission" | "borrow" | null;
+
+function normalizeBorrowFlowError(error: unknown) {
+  if (error && typeof error === "object") {
+    const shortMessage =
+      "shortMessage" in error && typeof error.shortMessage === "string"
+        ? error.shortMessage.trim()
+        : "";
+    if (shortMessage.length > 0) {
+      return shortMessage.replace(/^User /, "You ");
+    }
+    const message = "message" in error && typeof error.message === "string" ? error.message : "";
+    if (message.trim().length > 0) {
+      return message.replace(/^User /, "You ");
+    }
+  }
+  return "Failed to create loan.";
+}
+
+function isUserRejectionError(message: string) {
+  const lowerMessage = message.toLowerCase();
+  return (
+    lowerMessage.includes("user rejected") ||
+    lowerMessage.includes("user denied") ||
+    lowerMessage.includes("you rejected") ||
+    lowerMessage.includes("you denied")
+  );
+}
+
+function buildBorrowFlowFailureMessage(
+  message: string,
+  activeStep: BorrowStep,
+  permissionProgress: PermissionProgress
+) {
+  if (activeStep !== "borrow") {
+    return message;
+  }
+  if (permissionProgress === "confirmed") {
+    return `Permission granted, but creating the loan failed: ${message}`;
+  }
+  if (permissionProgress === "submitted") {
+    return `Permission transaction submitted, but creating the loan failed: ${message}`;
+  }
+  return message;
+}
 
 export const createBorrowHandler =
   ({
@@ -54,9 +101,9 @@ export const createBorrowHandler =
     setIsSubmitting(true);
     let borrowToastId: string | number | undefined;
     let permissionToastId: string | number | undefined;
+    let permissionProgress: PermissionProgress = "not-started";
+    let activeStep: BorrowStep = null;
     try {
-      borrowToastId = await borrowTx.prepareWallet();
-
       if (!position.account) {
         throw new Error("Wallet not connected");
       }
@@ -99,6 +146,7 @@ export const createBorrowHandler =
       });
 
       for (const step of plan.steps) {
+        activeStep = step.key;
         setSubmitStep(step.key === "borrow" ? "loan" : step.key);
         if (step.key === "permission") {
           permissionToastId = await permissionTx.prepareWallet();
@@ -106,9 +154,16 @@ export const createBorrowHandler =
             ...(step.intent as PermissionWriteRequest),
             chainId: REVNET_CHAIN_ID,
           } as PermissionWriteRequest);
+          permissionProgress = "submitted";
 
           if (permissionHash && publicClient) {
-            await publicClient.waitForTransactionReceipt({ hash: permissionHash });
+            const permissionReceipt = await publicClient.waitForTransactionReceipt({
+              hash: permissionHash,
+            });
+            if (permissionReceipt.status !== "success") {
+              throw new Error("Permission transaction reverted.");
+            }
+            permissionProgress = "confirmed";
           }
 
           refetchPermission?.();
@@ -116,14 +171,43 @@ export const createBorrowHandler =
           continue;
         }
 
+        borrowToastId = await borrowTx.prepareWallet();
         await borrowTx.writeContractAsync({
           ...(step.intent as BorrowWriteRequest),
           chainId: REVNET_CHAIN_ID,
         } as BorrowWriteRequest);
       }
-    } catch {
-      if (borrowToastId) toast.dismiss(borrowToastId);
-      if (permissionToastId) toast.dismiss(permissionToastId);
+    } catch (error) {
+      const targetToastId =
+        activeStep === "permission"
+          ? permissionToastId
+          : activeStep === "borrow"
+            ? borrowToastId
+            : undefined;
+      const activeTx =
+        activeStep === "permission" ? permissionTx : activeStep === "borrow" ? borrowTx : null;
+      const normalizedError = normalizeBorrowFlowError(error);
+      const failureMessage = buildBorrowFlowFailureMessage(
+        normalizedError,
+        activeStep,
+        permissionProgress
+      );
+
+      activeTx?.markErrorHandled();
+      if (isUserRejectionError(normalizedError)) {
+        if (targetToastId) {
+          toast.dismiss(targetToastId);
+        }
+      } else if (targetToastId) {
+        toast.error(failureMessage, {
+          id: targetToastId,
+          duration: 3000,
+        });
+      } else {
+        toast.error(failureMessage, {
+          duration: 3000,
+        });
+      }
     } finally {
       setIsSubmitting(false);
       setSubmitStep(null);

@@ -20,6 +20,21 @@ type ChainId = (typeof chains)[number]["id"];
 type WriteContractFn = NonNullable<ReturnType<typeof useWriteContract>["writeContract"]>;
 type WriteContractAsyncFn = NonNullable<ReturnType<typeof useWriteContract>["writeContractAsync"]>;
 
+function normalizeTransactionErrorMessage(error: BaseError | Error) {
+  const message = (error as BaseError).shortMessage || error.message;
+  return message.replace(/^User /, "You ");
+}
+
+function isUserRejectionMessage(message: string) {
+  const lowerMessage = message.toLowerCase();
+  return (
+    lowerMessage.includes("user rejected") ||
+    lowerMessage.includes("user denied") ||
+    lowerMessage.includes("you rejected") ||
+    lowerMessage.includes("you denied")
+  );
+}
+
 function withBuilderCodeDataSuffix<T extends { dataSuffix?: Hex }>(
   variables: T,
   suffix: Hex | undefined
@@ -122,16 +137,13 @@ export const useContractTransaction = (args: {
     }
 
     if (error) {
-      const message = (error as BaseError).shortMessage || error.message;
-      const isUserRejection =
-        message.toLowerCase().includes("user rejected") ||
-        message.toLowerCase().includes("user denied");
+      const message = normalizeTransactionErrorMessage(error as BaseError | Error);
 
-      if (isUserRejection) {
+      if (isUserRejectionMessage(message)) {
         toast.dismiss(toastId);
       } else {
         console.error(error);
-        toast.error(message.replace("User ", "You "), {
+        toast.error(message, {
           id: toastId,
           duration: 3000,
         });
@@ -159,6 +171,7 @@ export const useContractTransaction = (args: {
     isLoading: isLoading || isPending,
     hash,
     error,
+    markErrorHandled: () => setCallbackHandled(true),
     account: address,
     prepareWallet: async (customToastId?: number | string) => {
       setCallbackHandled(false);

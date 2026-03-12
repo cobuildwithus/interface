@@ -92,7 +92,7 @@ describe("useContractTransaction", () => {
     useWriteContractMock.mockReturnValue({
       data: "0xhash",
       isPending: false,
-      error: { message: "User rejected" },
+      error: { message: "MetaMask Tx Signature: User denied transaction signature" },
     });
     useWaitMock.mockReturnValue({ isLoading: false, isSuccess: false });
     useAccountMock.mockReturnValue({ chainId: 1, isConnected: true, address: ACCOUNT });
@@ -101,6 +101,32 @@ describe("useContractTransaction", () => {
 
     renderHook(() => useContractTransaction({ chainId: 1, defaultToastId: "toast" }));
     expect(toastMock.dismiss).toHaveBeenCalled();
+  });
+
+  it("lets callers suppress hook-level error toasts", () => {
+    let currentError: { message: string; shortMessage?: string } | null = null;
+    useWriteContractMock.mockImplementation(() => ({
+      data: "0xhash",
+      isPending: false,
+      error: currentError,
+    }));
+    useWaitMock.mockReturnValue({ isLoading: false, isSuccess: false });
+    useAccountMock.mockReturnValue({ chainId: 1, isConnected: true, address: ACCOUNT });
+    useSwitchChainMock.mockReturnValue({ switchChainAsync: vi.fn() });
+    useLoginMock.mockReturnValue({ login: vi.fn(), connectWallet: vi.fn() });
+
+    const { result, rerender } = renderHook(() =>
+      useContractTransaction({ chainId: 1, defaultToastId: "toast" })
+    );
+
+    act(() => {
+      result.current.markErrorHandled();
+      currentError = { message: "Something broke", shortMessage: "Short failure" };
+    });
+    rerender();
+
+    expect(toastMock.error).not.toHaveBeenCalled();
+    expect(toastMock.dismiss).not.toHaveBeenCalled();
   });
 
   it("surfaces non-user errors", () => {
