@@ -38,6 +38,7 @@ If instructions still conflict after applying this order, ask the user before ac
 - Use `AuthButton` for settings and user-triggered account actions.
 - Never introduce `any` or lazy type bypasses (for example `unknown as T`); use concrete types or runtime validation.
 - Use a hard cutover approach and never implement backward compatibility unless explicitly asked.
+- Never commit or hand off a local-link `@cobuild/wire` spec; `pnpm wire:ensure-published` must leave both `apps/web` and `apps/contracts` on published versions before commit.
 - Historical plan docs under `agent-docs/exec-plans/completed/` are immutable snapshots.
 - COORDINATION_LEDGER hard gate for every coding task (single-agent and multi-agent): before any code change, add or update your active entry in `agent-docs/exec-plans/active/COORDINATION_LEDGER.md` with scope and planned symbol add/rename/delete work; do not edit code, generate code, or apply patches until that entry exists; if you cannot update the ledger first, stop and escalate; keep the entry current as scope changes, and remove your entry when done.
 - Any spawned subagent that may review or edit code must read `COORDINATION_LEDGER.md`, follow the same hard gate before making code changes, and must not touch files or symbols owned by another active entry.
@@ -72,7 +73,8 @@ If instructions still conflict after applying this order, ask the user before ac
 ### Commit and Handoff
 
 - Same-turn task completion = acceptance, unless the user explicitly says `review first` or `do not commit`.
-- If you changed files and required checks are green, you MUST run `scripts/committer "type(scope): summary" path/to/file1 path/to/file2` before sending final handoff.
+- If you changed files, run the required checks defined below before handoff. If they pass, you MUST run `scripts/committer "type(scope): summary" path/to/file1 path/to/file2` before sending final handoff.
+- If a required check fails for a credibly unrelated pre-existing reason, do not leave your scoped work uncommitted solely because the repo is red. Commit your exact touched files after recording the failing command, the failing target, and why your diff did not cause it. If you cannot defend that causal separation, treat the failure as blocking.
 - Do not end with "ready to commit" or "commit pending"; perform the commit in the same turn.
 - Use `scripts/committer` only (no manual `git commit`).
 - Agent-authored commit messages should use Conventional Commits (`feat|fix|refactor|build|ci|chore|docs|style|perf|test`).
@@ -85,6 +87,7 @@ If instructions still conflict after applying this order, ask the user before ac
 
 ### Required Checks
 
+- Before handoff, always run `pnpm wire:ensure-published`.
 - Before handoff, always run `pnpm typecheck`, `pnpm lint`, and `pnpm test`.
 - For any non-doc change that touches production code or tests, also run `pnpm test:coverage`.
 - If this turn touched runtime-sensitive app paths (`apps/web/**`, `apps/contracts/**`, `.github/workflows/**`, `package.json`, `pnpm-workspace.yaml`), also run `pnpm --filter web build:ci`.
@@ -100,7 +103,8 @@ If instructions still conflict after applying this order, ask the user before ac
 - The test-coverage audit subagent should implement the highest-impact missing tests it identifies (especially edge cases, failure modes, and invariants) before handoff.
 - Re-run required checks after the simplify + test-coverage sequence (even if no new tests were added).
 - Then run a completion audit using `agent-docs/prompts/task-finish-review.md` with full change context.
-- Final handoff remains gated on green required checks; completing audits does not waive verification requirements.
+- Final handoff must report required-check results; green required checks remain the default completion bar.
+- If a required check fails for a credibly unrelated pre-existing reason, commit your exact touched files and hand off with the failing command, failing target, and why your diff did not cause it. If you cannot defend that separation, treat the failure as blocking.
 - Do not skip these audit passes unless the user explicitly instructs skipping them for that turn.
 - Do not rush or interrupt these subagent passes: wait for each `simplify`, `test-coverage-audit`, and `task-finish-review` pass to return, review the result, and resolve or explicitly hand off any follow-up before final handoff.
 - When using a fresh subagent for coverage or completion audits, provide an audit handoff packet that includes:
