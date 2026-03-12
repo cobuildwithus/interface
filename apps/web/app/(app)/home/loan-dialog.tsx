@@ -42,6 +42,7 @@ export function LoanDialog({
     revFeePercentLabel,
     feeWindowNote,
     hasFullPrepayCoverage,
+    isLoanAvailable,
     isProcessing,
     buttonLabel,
     handleBorrow,
@@ -97,7 +98,7 @@ export function LoanDialog({
 
           <AuthButton
             onClick={handleBorrow}
-            disabled={!isCollateralValid || isProcessing}
+            disabled={!isCollateralValid || !isLoanAvailable || isProcessing}
             className="bg-foreground text-background h-auto w-full rounded-lg py-4 text-lg font-bold shadow-sm transition-all hover:opacity-90 active:scale-[0.99]"
             connectLabel="Connect wallet"
           >

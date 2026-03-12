@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  getRevnetPrepaidFeePercent,
-  isSameEvmAddress,
-  selectPreferredRevnetLoanSource,
-} from "@cobuild/wire";
+import { getRevnetPrepaidFeePercent, isSameEvmAddress } from "@cobuild/wire";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { erc20Abi, formatUnits, parseUnits } from "viem";
@@ -26,6 +22,7 @@ import {
 import { createBorrowHandler } from "./borrow-handler";
 import { useLoanFeeParams } from "./loan-fee-queries";
 import { calculateLoanMetrics } from "./loan-metrics";
+import { resolveLoanDialogBorrowableContext, resolveLoanDialogLoanSource } from "./loan-source";
 import { formatDisplay } from "./utils";
 import type { RevnetPosition } from "./types";
 
@@ -66,15 +63,10 @@ export function useLoanDialogState(position: RevnetPosition) {
     query: { enabled: !!revLoansAddress },
   });
 
-  const selectedLoanSource = useMemo(
-    () =>
-      selectPreferredRevnetLoanSource(loanSources ?? [], position.baseTokenContext?.token) ??
-      undefined,
+  const { selectedLoanSource, loanSourceToken, loanSourceTerminal } = useMemo(
+    () => resolveLoanDialogLoanSource(loanSources ?? [], position.baseTokenContext?.token),
     [loanSources, position.baseTokenContext?.token]
   );
-
-  const loanSourceToken = selectedLoanSource?.token ?? position.baseTokenContext?.token;
-  const loanSourceTerminal = selectedLoanSource?.terminal ?? position.terminalAddress;
   const isNativeLoanToken = !!loanSourceToken && isSameEvmAddress(loanSourceToken, NATIVE_TOKEN);
 
   const { data: loanSourceTokenSymbol } = useReadContract({
@@ -97,7 +89,11 @@ export function useLoanDialogState(position: RevnetPosition) {
     query: { enabled: !!loanSourceTerminal && !!loanSourceToken },
   });
 
-  const borrowableContext = loanSourceAccountingContext ?? position.baseTokenContext;
+  const borrowableContext = useMemo(
+    () =>
+      resolveLoanDialogBorrowableContext(selectedLoanSource, loanSourceAccountingContext ?? null),
+    [selectedLoanSource, loanSourceAccountingContext]
+  );
 
   const { revPrepaidFeePercent, minPrepaidFeePercent, maxPrepaidFeePercent } =
     useLoanFeeParams(revLoansAddress);
@@ -201,11 +197,14 @@ export function useLoanDialogState(position: RevnetPosition) {
   });
 
   const isProcessing = isSubmitting || borrowTx.isLoading || permissionTx.isLoading;
-  const buttonLabel = isProcessing
-    ? needsPermission && submitStep === "permission"
-      ? "Granting permission..."
-      : "Creating loan..."
-    : "Take loan";
+  const isLoanAvailable = !!selectedLoanSource;
+  const buttonLabel = !isLoanAvailable
+    ? "Loan unavailable"
+    : isProcessing
+      ? needsPermission && submitStep === "permission"
+        ? "Granting permission..."
+        : "Creating loan..."
+      : "Take loan";
 
   const handleBorrow = createBorrowHandler({
     position,
@@ -245,6 +244,7 @@ export function useLoanDialogState(position: RevnetPosition) {
     revFeePercentLabel,
     feeWindowNote,
     hasFullPrepayCoverage,
+    isLoanAvailable,
     isProcessing,
     buttonLabel,
     handleBorrow,
