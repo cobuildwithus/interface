@@ -167,6 +167,20 @@ describe("getEthForTokens", () => {
       const reversed = getEthForTokens(quote.payerTokens, STANDARD_WEIGHT, 1000);
       expect(reversed).toBe(ethAmount);
     });
+
+    it("rounds up when the desired payer tokens fall between exact reverse-quote divisions", () => {
+      const exactPaymentAmount = ONE_ETH;
+      const exactQuote = getTokenQuote(exactPaymentAmount, STANDARD_WEIGHT, 1000);
+      const desiredPayerTokens = exactQuote.payerTokens + 1n;
+
+      const reversed = getEthForTokens(desiredPayerTokens, STANDARD_WEIGHT, 1000);
+
+      expect(reversed).toBe(exactPaymentAmount + 1n);
+      expect(exactQuote.payerTokens).toBeLessThan(desiredPayerTokens);
+      expect(getTokenQuote(reversed, STANDARD_WEIGHT, 1000).payerTokens).toBeGreaterThanOrEqual(
+        desiredPayerTokens
+      );
+    });
   });
 });
 
