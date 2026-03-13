@@ -12,8 +12,8 @@ importers:
         specifier: ^0.1.13
         version: 0.1.13
       '@cobuild/review-gpt':
-        specifier: ^0.2.15
-        version: 0.2.15
+        specifier: ^0.2.16
+        version: 0.2.16
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -236,9 +236,6 @@ importers:
       streamdown:
         specifier: ^2.3.0
         version: 2.3.0(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
-      swr:
-        specifier: ^2.3.7
-        version: 2.3.7(react@19.2.1)
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.4.0
@@ -547,8 +544,8 @@ packages:
     resolution: {integrity: sha512-GCuA78L5yRf6ajaCgLtHxw6JvMB29vh+I0+0QVLgrhXOutx4m9N0Sl4BnpxDZYSd2++zj/b/yJENYbvGEn1exA==}
     hasBin: true
 
-  '@cobuild/review-gpt@0.2.15':
-    resolution: {integrity: sha512-wxpb5fwLya/DjNlBS1YOzqrccPk73OoEFxViMpMVDmIfI+UjcA16qSzO+hLndwpGAY3Xnzbk2yMvlZvtrlkDbw==}
+  '@cobuild/review-gpt@0.2.16':
+    resolution: {integrity: sha512-aZNKK3LUAR4bnCDAQDGEEmnsCy4cl7etLCF7G5iIqiFsGzZ1hKr+h/mCgT8beNsm8xpYiRCTajI5prlXMQbaPA==}
     hasBin: true
 
   '@cobuild/wire@0.2.0':
@@ -8774,7 +8771,7 @@ snapshots:
 
   '@cobuild/repo-tools@0.1.13': {}
 
-  '@cobuild/review-gpt@0.2.15': {}
+  '@cobuild/review-gpt@0.2.16': {}
 
   '@cobuild/wire@0.2.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.1.13)':
     dependencies:
