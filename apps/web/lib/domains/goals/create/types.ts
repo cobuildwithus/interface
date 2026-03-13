@@ -1,3 +1,4 @@
+import type { GoalFactoryDeployParams } from "@cobuild/wire";
 import type { Address, Hex } from "viem";
 
 export type CreateGoalFormState = {
@@ -90,55 +91,4 @@ export type BudgetTcrConfig = {
   };
 };
 
-export type CreateGoalDeployParams = {
-  revnet: {
-    name: string;
-    ticker: string;
-    uri: string;
-    initialIssuance: bigint;
-    cashOutTaxRate: number;
-    reservedPercent: number;
-    durationSeconds: number;
-  };
-  timing: {
-    minRaise: bigint;
-    minRaiseDurationSeconds: number;
-  };
-  success: {
-    successResolver: Address;
-    successAssertionLiveness: bigint;
-    successAssertionBond: bigint;
-    successOracleSpecHash: Hex;
-    successAssertionPolicyHash: Hex;
-  };
-  flowMetadata: {
-    title: string;
-    description: string;
-    image: string;
-    tagline: string;
-    url: string;
-  };
-  underwriting: {
-    budgetPremiumPpm: number;
-    budgetSlashPpm: number;
-  };
-  budgetTCR: {
-    allocationMechanismAdmin: Address;
-    invalidRoundRewardsSink: Address;
-    submissionDepositStrategy: Address;
-    submissionBaseDeposit: bigint;
-    removalBaseDeposit: bigint;
-    submissionChallengeBaseDeposit: bigint;
-    removalChallengeBaseDeposit: bigint;
-    registrationMetaEvidence: string;
-    clearingMetaEvidence: string;
-    challengePeriodDuration: bigint;
-    arbitratorExtraData: Hex;
-    budgetBounds: BudgetTcrConfig["budgetBounds"];
-    oracleBounds: BudgetTcrConfig["oracleBounds"];
-    budgetSuccessResolver: Address;
-    budgetSpendPolicy: Address;
-    arbitratorParams: BudgetTcrConfig["arbitratorParams"];
-  };
-  goalSpendPolicy: Address;
-};
+export type CreateGoalDeployParams = GoalFactoryDeployParams;

@@ -1,9 +1,11 @@
+import { COBUILD_PROJECT_ID_BIGINT, COBUILD_TOKEN_ADDRESS } from "@cobuild/wire";
 import { keccak256, stringToHex, type Address } from "viem";
 import {
   DEFAULT_CASH_OUT_TAX_BPS,
   DEFAULT_INVALID_ROUND_REWARDS_SINK,
   DEFAULT_RESERVED_PERCENT_BPS,
   DEFAULT_SUBMISSION_DEPOSIT_STRATEGY,
+  ZERO_ADDRESS,
 } from "./constants";
 import type { CreateGoalDeployParams, ParsedCreateGoalForm } from "./types";
 
@@ -15,6 +17,12 @@ export function toDeployParams(
   const successAssertionPolicyHash = keccak256(stringToHex(parsedForm.successPolicy));
 
   return {
+    preset: 0,
+    managedSafe: ZERO_ADDRESS as Address,
+    funding: {
+      paymentToken: COBUILD_TOKEN_ADDRESS as Address,
+      paymentRevnetId: COBUILD_PROJECT_ID_BIGINT,
+    },
     revnet: {
       name: parsedForm.goalName,
       ticker: parsedForm.goalTicker,
