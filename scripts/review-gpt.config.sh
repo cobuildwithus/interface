@@ -21,13 +21,3 @@ review_gpt_register_dir_preset "bad-code" "bad-code-quality.md" \
   "anti-patterns-and-bad-practices" \
   "code-quality" \
   "bad-code-quality"
-review_gpt_register_dir_preset "grief-vectors" "grief-vectors.md" \
-  "Abuse, liveness, and denial-of-service vectors." \
-  "grief" \
-  "dos" \
-  "liveness"
-review_gpt_register_dir_preset "incentives" "incentives.md" \
-  "Product and abuse incentive review." \
-  "economic-security" \
-  "economics" \
-  "economic-security-and-incentives"
