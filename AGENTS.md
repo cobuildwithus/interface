@@ -41,7 +41,8 @@ If instructions still conflict after applying this order, ask the user before ac
 - Never commit or hand off a local-link `@cobuild/wire` spec; `pnpm wire:ensure-published` must leave both `apps/web` and `apps/contracts` on published versions before commit.
 - Historical plan docs under `agent-docs/exec-plans/completed/` are immutable snapshots.
 - COORDINATION_LEDGER hard gate for every coding task (single-agent and multi-agent): before any code change, add or update your active entry in `agent-docs/exec-plans/active/COORDINATION_LEDGER.md` with scope and planned symbol add/rename/delete work; do not edit code, generate code, or apply patches until that entry exists; if you cannot update the ledger first, stop and escalate; keep the entry current as scope changes, and remove your entry when done.
-- Any spawned subagent that may review or edit code must read `COORDINATION_LEDGER.md`, follow the same hard gate before making code changes, and must not touch files or symbols owned by another active entry.
+- Ledger rows are active-work notices by default, not hard file locks. Read overlapping rows first, preserve adjacent edits, and coordinate through scope/symbol notes. Treat a row as exclusive only when it explicitly says overlap is unsafe, the lane is a large refactor, or the user gives a conflicting direction.
+- Any spawned subagent that may review or edit code must read `COORDINATION_LEDGER.md`, follow the same hard gate before making code changes, and honor any explicit exclusive/refactor notes on overlapping rows.
 - Never lower enforced coverage thresholds in CI/test config without explicit user approval in the current chat.
 - Run completion workflow audit passes (`simplify`, `test-coverage-audit`, `task-finish-review`) for every non-doc change that touches production code or tests; skip only when the user explicitly says to skip for that turn.
 - Docs/process-only changes skip completion workflow audit passes unless the user explicitly asks to run them.
@@ -59,6 +60,7 @@ If instructions still conflict after applying this order, ask the user before ac
 - If unrelated breakage appears in files you did not touch, keep working on your scoped changes; only take ownership of fixing it when your edits caused it or the user explicitly asks.
 - Do not introduce "break compile now, fix later" phases during shared work.
 - For coding tasks, follow the COORDINATION_LEDGER hard rule above (including required row fields and lifecycle updates).
+- Prefer narrow ledger rows and symbol claims. If you need temporary exclusive control of a file or symbol cluster, say so explicitly in the row notes and explain why overlap is unsafe.
 - When a change can affect compilation (shared types, signatures, interfaces, schema/import boundaries), update all impacted call sites in the same change set so the tree stays compiling.
 - When architecture-significant code changes, update matching `agent-docs/*` entries.
 - For multi-file or high-risk work, add an execution plan in `agent-docs/exec-plans/active/`.
@@ -113,7 +115,7 @@ If instructions still conflict after applying this order, ask the user before ac
 - links to active execution-plan docs under `agent-docs/exec-plans/active/` (when present)
 - verification evidence already run (commands + pass/fail outcomes)
 - current git worktree context (relevant modified files, known unrelated dirty paths, and review scope boundaries)
-- explicit instruction to read `agent-docs/exec-plans/active/COORDINATION_LEDGER.md` and respect active ownership boundaries
+- explicit instruction to read `agent-docs/exec-plans/active/COORDINATION_LEDGER.md`, honor any explicit exclusive/refactor notes, and otherwise work carefully on top of overlapping rows
 - Instruct the reviewer to use the handoff packet plus current `git diff`/call-path inspection; do not rely on diff-only inference.
 - During simplify/test-coverage/completion-audit passes, never overwrite, discard, or revert existing worktree edits (including unrelated dirty files) and never use reset/checkout-style cleanup commands.
 - If a suggested audit change collides with pre-existing edits, leave the file untouched and escalate in handoff notes.
