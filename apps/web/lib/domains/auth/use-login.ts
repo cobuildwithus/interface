@@ -1,14 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  useLogin as usePrivyLogin,
-  useLogout,
-  useConnectWallet,
-  usePrivy,
-  useUser,
-} from "@privy-io/react-auth";
+import { usePrivy, useUser } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useUserContext } from "@/lib/domains/auth/user-context";
@@ -19,20 +13,21 @@ export function useLogin() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-
-  const { login: privyLogin } = usePrivyLogin({
-    onComplete: router.refresh,
-    onError: (err) => setError(String(err) || "Failed to connect"),
-  });
-  const { logout: privyLogout } = useLogout({ onSuccess: router.refresh });
-  const { connectWallet: privyConnectWallet } = useConnectWallet({
-    onSuccess: router.refresh,
-    onError: (err) => setError(String(err) || "Failed to connect wallet"),
-  });
-  const { ready, authenticated } = usePrivy();
+  const {
+    ready,
+    authenticated,
+    login: privyLogin,
+    logout: privyLogout,
+    connectWallet: privyConnectWallet,
+  } = usePrivy();
   const { user, refreshUser } = useUser();
   const { isConnected, address } = useAccount();
   const sessionUser = useUserContext();
+  const authSnapshotRef = useRef<{
+    authenticated: boolean;
+    address: string | undefined;
+    ready: boolean;
+  } | null>(null);
   const currentIdentity = sessionUser
     ? getAuthIdentitySnapshot({
         address: sessionUser.address,
@@ -46,6 +41,23 @@ export function useLogin() {
   const clearCurrentAuthQueries = useCallback(() => {
     clearAuthIdentityQueries(queryClient, currentIdentity);
   }, [currentIdentity, queryClient]);
+
+  useEffect(() => {
+    const previous = authSnapshotRef.current;
+    authSnapshotRef.current = {
+      authenticated,
+      address,
+      ready,
+    };
+
+    if (!ready || !previous?.ready) {
+      return;
+    }
+
+    if (previous.authenticated !== authenticated || previous.address !== address) {
+      router.refresh();
+    }
+  }, [address, authenticated, ready, router]);
 
   const login = useCallback(() => {
     setError(null);
@@ -62,12 +74,10 @@ export function useLogin() {
         try {
           await privyLogout();
           clearCurrentAuthQueries();
+          privyLogin();
         } catch (err) {
           setError(err instanceof Error ? err.message : "Failed to reconnect");
-          return;
         }
-
-        privyLogin();
       })();
       return;
     }

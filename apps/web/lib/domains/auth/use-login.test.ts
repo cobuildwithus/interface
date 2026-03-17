@@ -14,12 +14,6 @@ const privyLoginMock = vi.hoisted(() => vi.fn());
 const privyLogoutMock = vi.hoisted(() => vi.fn());
 const privyConnectWalletMock = vi.hoisted(() => vi.fn());
 
-type PrivyCallbackOptions = {
-  onComplete?: () => void;
-  onError?: (error?: unknown) => void;
-  onSuccess?: () => void;
-};
-
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: routerRefresh }),
 }));
@@ -29,11 +23,6 @@ vi.mock("wagmi", () => ({
 }));
 
 vi.mock("@privy-io/react-auth", () => ({
-  useLogin: (opts: PrivyCallbackOptions) => ({ login: () => privyLoginMock(opts) }),
-  useLogout: (opts: PrivyCallbackOptions) => ({ logout: () => privyLogoutMock(opts) }),
-  useConnectWallet: (opts: PrivyCallbackOptions) => ({
-    connectWallet: () => privyConnectWalletMock(opts),
-  }),
   usePrivy: () => usePrivyMock(),
   useUser: () => ({ user: null, refreshUser: refreshUserMock }),
 }));
@@ -48,6 +37,23 @@ import { useLogin } from "./use-login";
 
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+function mockPrivyState(
+  overrides: Partial<{
+    ready: boolean;
+    authenticated: boolean;
+  }> = {}
+) {
+  usePrivyMock.mockReturnValue({
+    ready: true,
+    authenticated: false,
+    user: null,
+    login: privyLoginMock,
+    logout: privyLogoutMock,
+    connectWallet: privyConnectWalletMock,
+    ...overrides,
+  });
+}
+
 describe("useLogin", () => {
   beforeEach(() => {
     routerRefresh.mockReset();
@@ -60,14 +66,14 @@ describe("useLogin", () => {
     privyLogoutMock.mockReset();
     privyConnectWalletMock.mockReset();
 
-    usePrivyMock.mockReturnValue({ ready: true, authenticated: false });
+    mockPrivyState();
     useAccountMock.mockReturnValue({ isConnected: false, address: null });
     useUserContextMock.mockReturnValue(null);
     refreshUserMock.mockResolvedValue(undefined);
   });
 
   it("returns auth and wallet state from dependencies", () => {
-    usePrivyMock.mockReturnValue({ ready: false, authenticated: true });
+    mockPrivyState({ ready: false, authenticated: true });
     useAccountMock.mockReturnValue({
       isConnected: true,
       address: "0x" + "a".repeat(40),
@@ -82,7 +88,7 @@ describe("useLogin", () => {
   });
 
   it("calls refreshUser and router refresh when already authenticated", async () => {
-    usePrivyMock.mockReturnValue({ ready: true, authenticated: true });
+    mockPrivyState({ authenticated: true });
     refreshUserMock.mockResolvedValue({ id: "user-1" });
 
     const { result } = renderHook(() => useLogin());
@@ -99,7 +105,7 @@ describe("useLogin", () => {
   });
 
   it("sets reconnect fallback error when refresh fails and logout throws non-Error", async () => {
-    usePrivyMock.mockReturnValue({ ready: true, authenticated: true });
+    mockPrivyState({ authenticated: true });
     refreshUserMock.mockRejectedValue(new Error("session stale"));
     privyLogoutMock.mockRejectedValue("logout failed");
 
@@ -138,9 +144,9 @@ describe("useLogin", () => {
     expect(privyLoginMock).not.toHaveBeenCalled();
   });
 
-  it("uses callback fallback message when connect wallet onError receives empty string", () => {
-    privyConnectWalletMock.mockImplementation((opts: PrivyCallbackOptions) => {
-      opts.onError?.("");
+  it("uses fallback error when connect wallet throws a non-Error value", () => {
+    privyConnectWalletMock.mockImplementation(() => {
+      throw "";
     });
 
     const { result } = renderHook(() => useLogin());
@@ -153,7 +159,7 @@ describe("useLogin", () => {
   });
 
   it("uses fresh login flow instead of wallet linking when already authenticated", async () => {
-    usePrivyMock.mockReturnValue({ ready: true, authenticated: true });
+    mockPrivyState({ authenticated: true });
 
     const { result } = renderHook(() => useLogin());
 
@@ -168,7 +174,7 @@ describe("useLogin", () => {
   });
 
   it("surfaces logout errors when authenticated connectWallet forces relogin", async () => {
-    usePrivyMock.mockReturnValue({ ready: true, authenticated: true });
+    mockPrivyState({ authenticated: true });
     privyLogoutMock.mockRejectedValue(new Error("logout failed"));
 
     const { result } = renderHook(() => useLogin());
@@ -210,5 +216,24 @@ describe("useLogin", () => {
       queryKey: ["profile", "0x" + "a".repeat(40)],
       exact: true,
     });
+  });
+
+  it("refreshes the router when auth state changes after mount", () => {
+    let authenticated = false;
+    usePrivyMock.mockImplementation(() => ({
+      ready: true,
+      authenticated,
+      user: null,
+      login: privyLoginMock,
+      logout: privyLogoutMock,
+      connectWallet: privyConnectWalletMock,
+    }));
+
+    const { rerender } = renderHook(() => useLogin());
+
+    authenticated = true;
+    rerender();
+
+    expect(routerRefresh).toHaveBeenCalledTimes(1);
   });
 });
