@@ -7,6 +7,7 @@ import { renderToString } from "react-dom/server";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RevnetActionButtons } from "./revnet-actions-client";
+import { RevnetActionButtonsClient } from "./revnet-action-buttons-client";
 
 const { useRevnetPositionMock, useLoginMock, cashOutDialogMock, loanDialogMock } = vi.hoisted(
   () => ({
@@ -57,7 +58,7 @@ describe("RevnetActionButtons", () => {
     useRevnetPositionMock.mockReturnValue({ isConnected: false });
     useLoginMock.mockReturnValue({ ready: true, authenticated: false });
 
-    render(<RevnetActionButtons />);
+    render(<RevnetActionButtonsClient />);
 
     const connectButtons = screen.getAllByRole("button", { name: "Connect wallet" });
     expect(connectButtons).toHaveLength(1);
@@ -73,7 +74,7 @@ describe("RevnetActionButtons", () => {
     useRevnetPositionMock.mockReturnValue(position);
     useLoginMock.mockReturnValue({ ready: true, authenticated: true });
 
-    render(<RevnetActionButtons tokenLogoUrl={tokenLogoUrl} />);
+    render(<RevnetActionButtonsClient tokenLogoUrl={tokenLogoUrl} />);
 
     expect(screen.getByRole("button", { name: "Buy" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cash out" })).toBeInTheDocument();
@@ -92,7 +93,7 @@ describe("RevnetActionButtons", () => {
     useRevnetPositionMock.mockReturnValue(position);
     useLoginMock.mockReturnValue({ ready: false, authenticated: false });
 
-    render(<RevnetActionButtons isAuthenticated />);
+    render(<RevnetActionButtonsClient isAuthenticated />);
 
     expect(screen.queryByRole("button", { name: "Connect wallet" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Buy" })).toBeInTheDocument();

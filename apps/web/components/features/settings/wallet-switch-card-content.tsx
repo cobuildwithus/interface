@@ -1,46 +1,24 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
+import { AuthButton } from "@/components/ui/auth-button";
 import { CopyToClipboard } from "@/components/ui/copy-to-clipboard";
 import { WalletQr } from "@/components/features/funding/wallet-qr";
-import { cn, truncateAddress } from "@/lib/shared/utils";
+import { useLogin } from "@/lib/domains/auth/use-login";
+import { truncateAddress } from "@/lib/shared/utils";
 
 type WalletSwitchCardProps = {
-  className?: string;
   initialAddress?: `0x${string}` | null;
 };
 
-export function WalletSwitchCard(props: WalletSwitchCardProps) {
-  const WalletSwitchCardContent = dynamic<WalletSwitchCardProps>(
-    async () =>
-      (await import("@/components/features/settings/wallet-switch-card-content"))
-        .WalletSwitchCardContent,
-    {
-      ssr: false,
-      loading: () => <WalletSwitchCardFallbackContent initialAddress={props.initialAddress} />,
-    }
-  );
+export function WalletSwitchCardContent({ initialAddress = null }: WalletSwitchCardProps) {
+  const { address } = useAccount();
+  const { ready, authenticated, logout, switchWallet } = useLogin();
 
-  return (
-    <section
-      className={cn(
-        "border-border/60 bg-background/80 relative flex flex-col items-center gap-2.5 rounded-2xl border p-4",
-        props.className
-      )}
-    >
-      <WalletSwitchCardContent {...props} />
-    </section>
-  );
-}
-
-function WalletSwitchCardFallbackContent({
-  initialAddress = null,
-}: Pick<WalletSwitchCardProps, "initialAddress">) {
-  const activeAddress = initialAddress ?? null;
+  const activeAddress = address ?? initialAddress ?? null;
   const displayAddress = activeAddress ? truncateAddress(activeAddress) : "Not connected";
   const actionClassName = "bg-muted/50 hover:bg-muted flex-1";
-  const hasSessionAddress = activeAddress !== null;
 
   return (
     <>
@@ -70,17 +48,30 @@ function WalletSwitchCardFallbackContent({
       </div>
 
       <div className="flex w-full gap-2">
-        {hasSessionAddress ? (
-          <Button variant="ghost" className={actionClassName} disabled>
+        {authenticated ? (
+          <Button
+            variant="ghost"
+            className={actionClassName}
+            onClick={() => {
+              void switchWallet();
+            }}
+            disabled={!ready}
+          >
             Switch wallet
           </Button>
         ) : (
-          <Button variant="ghost" className={actionClassName} disabled>
+          <AuthButton variant="ghost" className={actionClassName} disabled={!ready}>
             Connect wallet
-          </Button>
+          </AuthButton>
         )}
-        {hasSessionAddress ? (
-          <Button variant="ghost" className={actionClassName} disabled>
+        {authenticated ? (
+          <Button
+            variant="ghost"
+            className={actionClassName}
+            onClick={() => {
+              void logout();
+            }}
+          >
             Logout
           </Button>
         ) : null}
