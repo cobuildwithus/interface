@@ -13,6 +13,7 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { useLogin } from "@/lib/domains/auth/use-login";
 import { useLinkAccount } from "@/lib/domains/auth/use-link-account";
+import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { LinkAccountButton } from "@/components/features/auth/link-account-button";
 import type { Profile } from "@/lib/domains/profile/types";
 import { truncateAddress } from "@/lib/shared/utils";
@@ -23,6 +24,16 @@ type SidebarUserMenuProps = {
 };
 
 export function SidebarUserMenu({ address, profile }: SidebarUserMenuProps) {
+  const hydrated = useHydrated();
+
+  if (!hydrated) {
+    return <SidebarUserMenuFallback address={address} profile={profile} />;
+  }
+
+  return <MountedSidebarUserMenu address={address} profile={profile} />;
+}
+
+function MountedSidebarUserMenu({ address, profile }: SidebarUserMenuProps) {
   const { ready, authenticated, login, logout } = useLogin();
   const { linkedAccounts } = useLinkAccount();
 
@@ -109,6 +120,50 @@ export function SidebarUserMenu({ address, profile }: SidebarUserMenuProps) {
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+}
+
+function SidebarUserMenuFallback({ address, profile }: SidebarUserMenuProps) {
+  const displayName = profile?.name || (address ? truncateAddress(address) : "");
+  const fallbackChar = (displayName[0] || "?").toUpperCase();
+
+  if (!address) {
+    return (
+      <div className="md:flex md:justify-center lg:block">
+        <Button
+          className="bg-foreground text-background hover:bg-foreground/90 w-full rounded-full md:size-11 lg:h-11 lg:w-full"
+          disabled
+        >
+          <span className="md:hidden lg:inline">Connect</span>
+          <LogIn className="hidden size-5 md:block lg:hidden" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem className="md:flex md:justify-center lg:block">
+        <SidebarMenuButton
+          size="lg"
+          className="h-auto w-full gap-3 rounded-full py-2 pr-3 pl-2 md:w-fit md:p-1 lg:w-full lg:py-2 lg:pr-3 lg:pl-2"
+        >
+          <Avatar
+            src={profile?.avatar}
+            alt={displayName}
+            size={40}
+            fallback={<span className="text-sm">{fallbackChar}</span>}
+          />
+          <div className="grid flex-1 gap-0 text-left leading-none md:hidden lg:grid">
+            <span className="truncate text-base font-bold">{displayName}</span>
+            <span className="text-muted-foreground truncate text-sm">
+              {truncateAddress(address)}
+            </span>
+          </div>
+          <MoreHorizontal className="text-muted-foreground size-6 shrink-0 md:hidden lg:block" />
+        </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
   );

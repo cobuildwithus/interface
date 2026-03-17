@@ -12,12 +12,14 @@ import { contracts } from "@/lib/domains/token/onchain/addresses";
 import { useUsdcBudget } from "@/lib/hooks/use-usdc-budget";
 import { useUsdcBalance } from "@/lib/hooks/use-usdc-balance";
 import { useSignUsdcPermit } from "@/lib/hooks/use-usdc-permit";
+import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { usdc } from "@/lib/domains/token/usdc";
 import { AmountInput } from "@/components/features/funding/amount-input";
 import { FundWithCoinbase } from "@/components/features/funding/fund-with-coinbase";
 import { PRESET_AMOUNTS } from "./allowance-stepper/constants";
 import { parseUsdcAmount } from "./allowance-stepper/utils";
 import { RevokeAllowanceCard } from "./allowance-stepper/revoke-card";
+import { SettingsAllowanceSkeleton } from "@/components/common/skeletons/settings-allowance-skeleton";
 type AllowanceStepperProps = {
   initialAddress?: `0x${string}` | null;
   initialUsdcBalance?: string | null;
@@ -25,6 +27,26 @@ type AllowanceStepperProps = {
 };
 
 export function AllowanceStepper({
+  initialAddress = null,
+  initialUsdcBalance = null,
+  initialBalanceUsd = null,
+}: AllowanceStepperProps) {
+  const hydrated = useHydrated();
+
+  if (!hydrated) {
+    return <SettingsAllowanceSkeleton />;
+  }
+
+  return (
+    <HydratedAllowanceStepper
+      initialAddress={initialAddress}
+      initialUsdcBalance={initialUsdcBalance}
+      initialBalanceUsd={initialBalanceUsd}
+    />
+  );
+}
+
+function HydratedAllowanceStepper({
   initialAddress = null,
   initialUsdcBalance = null,
   initialBalanceUsd = null,

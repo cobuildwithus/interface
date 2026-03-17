@@ -10,20 +10,24 @@ function getTransport(chain: typeof base | typeof mainnet) {
   return key ? http(getRpcUrl(chain, "http")) : http();
 }
 
-export const wagmiConfig = createConfig({
-  chains,
-  ssr: true,
-  storage: createStorage({
-    storage: cookieStorage,
-  }),
-  transports: {
-    [base.id]: getTransport(base),
-    [mainnet.id]: getTransport(mainnet),
-  },
-});
+export function getWagmiConfig() {
+  return createConfig({
+    chains,
+    ssr: true,
+    storage: createStorage({
+      storage: cookieStorage,
+    }),
+    transports: {
+      [base.id]: getTransport(base),
+      [mainnet.id]: getTransport(mainnet),
+    },
+  });
+}
+
+type AppWagmiConfig = ReturnType<typeof getWagmiConfig>;
 
 declare module "wagmi" {
   interface Register {
-    config: typeof wagmiConfig;
+    config: AppWagmiConfig;
   }
 }

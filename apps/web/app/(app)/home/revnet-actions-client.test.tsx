@@ -3,6 +3,7 @@
  */
 import "@testing-library/jest-dom/vitest";
 import { render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RevnetActionButtons } from "./revnet-actions-client";
@@ -97,5 +98,16 @@ describe("RevnetActionButtons", () => {
     expect(screen.getByRole("button", { name: "Buy" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cash out" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Take a loan" })).toBeInTheDocument();
+  });
+
+  it("does not evaluate wallet hooks during server render", () => {
+    useRevnetPositionMock.mockImplementation(() => {
+      throw new Error("server render should not read revnet position");
+    });
+    useLoginMock.mockImplementation(() => {
+      throw new Error("server render should not read login state");
+    });
+
+    expect(() => renderToString(<RevnetActionButtons isAuthenticated />)).not.toThrow();
   });
 });

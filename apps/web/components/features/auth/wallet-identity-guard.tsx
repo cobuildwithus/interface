@@ -4,9 +4,20 @@ import { useEffect, useRef } from "react";
 import { useAccount } from "wagmi";
 import { toast } from "sonner";
 import { useUser } from "@/lib/hooks/use-user";
+import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { useLogin } from "@/lib/domains/auth/use-login";
 
 export function WalletIdentityGuard() {
+  const hydrated = useHydrated();
+
+  if (!hydrated) {
+    return null;
+  }
+
+  return <MountedWalletIdentityGuard />;
+}
+
+function MountedWalletIdentityGuard() {
   const { address: sessionAddress } = useUser();
   const { address: walletAddress } = useAccount();
   const { logout } = useLogin();

@@ -1,11 +1,13 @@
+import { headers } from "next/headers";
 import { JetBrains_Mono, Public_Sans } from "next/font/google";
 import { ThemeProvider } from "next-themes";
-import { Suspense } from "react";
+import { cookieToInitialState } from "wagmi";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { getWagmiConfig } from "@/lib/domains/token/onchain/wagmi-config";
 import { buildPageMetadata } from "@/lib/shared/page-metadata";
-import { AppProviders } from "./app-providers";
+import { Providers } from "./providers";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 import { PropsWithChildren } from "react";
@@ -27,7 +29,10 @@ export const metadata = buildPageMetadata({
   description: "Making capital serve culture",
 });
 
-export default function RootLayout({ children }: Readonly<PropsWithChildren>) {
+export default async function RootLayout({ children }: Readonly<PropsWithChildren>) {
+  const cookieHeader = (await headers()).get("cookie");
+  const initialState = cookieToInitialState(getWagmiConfig(), cookieHeader);
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -37,9 +42,7 @@ export default function RootLayout({ children }: Readonly<PropsWithChildren>) {
         className={`${jetbrainsMono.variable} ${publicSans.variable} bg-background text-foreground selection:bg-foreground selection:text-background font-sans antialiased`}
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <Suspense fallback={null}>
-            <AppProviders>{children}</AppProviders>
-          </Suspense>
+          <Providers initialState={initialState}>{children}</Providers>
           <Toaster />
         </ThemeProvider>
         <Analytics />

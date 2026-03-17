@@ -6,10 +6,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { PropsWithChildren, useState } from "react";
 import { State } from "wagmi";
-import { chains, wagmiConfig } from "@/lib/domains/token/onchain/wagmi-config";
+import { chains, getWagmiConfig } from "@/lib/domains/token/onchain/wagmi-config";
 
 export function Providers({ children, initialState }: PropsWithChildren<{ initialState?: State }>) {
   const [queryClient] = useState(() => new QueryClient());
+  const [wagmiConfig] = useState(() => getWagmiConfig());
   const { resolvedTheme } = useTheme();
 
   const theme = resolvedTheme === "dark" ? "dark" : resolvedTheme === "light" ? "light" : undefined;

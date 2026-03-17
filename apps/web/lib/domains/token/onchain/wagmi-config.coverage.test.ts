@@ -19,6 +19,10 @@ describe("wagmi config", () => {
 
     const mod = await import("@/lib/domains/token/onchain/wagmi-config");
     expect(mod.chains.length).toBeGreaterThan(0);
+    expect(createConfig).not.toHaveBeenCalled();
+
+    mod.getWagmiConfig();
+
     expect(createConfig).toHaveBeenCalled();
     expect(http).toHaveBeenCalledWith("http://rpc");
   });
@@ -35,7 +39,10 @@ describe("wagmi config", () => {
       getRpcUrl: () => "http://rpc",
     }));
 
-    await import("@/lib/domains/token/onchain/wagmi-config");
+    const mod = await import("@/lib/domains/token/onchain/wagmi-config");
+
+    mod.getWagmiConfig();
+
     expect(http).toHaveBeenCalledWith();
   });
 });

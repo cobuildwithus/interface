@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { FarcasterLinkDialog } from "@/components/features/auth/farcaster/farcaster-link-dialog";
 import { useFarcasterLinkDialogState } from "@/components/features/auth/farcaster/farcaster-link-dialog/state";
 import { AuthButton } from "@/components/ui/auth-button";
+import { Button } from "@/components/ui/button";
 import type {
   ResolvedFarcasterAccount,
   ResolvedXAccount,
@@ -12,6 +13,7 @@ import type {
 import type { LinkedAccountsResponse } from "@/lib/domains/auth/linked-accounts/types";
 import type { FarcasterSignerStatus } from "@/lib/integrations/farcaster/signer-types";
 import { ACCOUNT_CONFIG } from "@/components/features/auth/link-account-button/config";
+import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { cn } from "@/lib/shared/utils";
 
 type ConnectedAccountsActionsProps = {
@@ -105,6 +107,37 @@ function CompactButton({
 }
 
 export function ConnectedAccountsActions({
+  address,
+  farcasterAccount,
+  twitterAccount,
+  signerStatus,
+  initialLinkedAccountsResponse,
+  initialSignerIdentityKey,
+}: ConnectedAccountsActionsProps) {
+  const hydrated = useHydrated();
+
+  if (!hydrated) {
+    return (
+      <ConnectedAccountsActionsFallback
+        farcasterAccount={farcasterAccount}
+        twitterAccount={twitterAccount}
+      />
+    );
+  }
+
+  return (
+    <HydratedConnectedAccountsActions
+      address={address}
+      farcasterAccount={farcasterAccount}
+      twitterAccount={twitterAccount}
+      signerStatus={signerStatus}
+      initialLinkedAccountsResponse={initialLinkedAccountsResponse}
+      initialSignerIdentityKey={initialSignerIdentityKey}
+    />
+  );
+}
+
+function HydratedConnectedAccountsActions({
   address,
   farcasterAccount,
   twitterAccount,
@@ -211,5 +244,61 @@ export function ConnectedAccountsActions({
         onDisconnect={handleDisconnect}
       />
     </div>
+  );
+}
+
+function ConnectedAccountsActionsFallback({
+  farcasterAccount,
+  twitterAccount,
+}: Pick<ConnectedAccountsActionsProps, "farcasterAccount" | "twitterAccount">) {
+  return (
+    <div className="mt-4 flex flex-wrap gap-2">
+      <CompactFallbackButton type="farcaster" username={farcasterAccount?.username ?? undefined} />
+      <CompactFallbackButton type="twitter" username={twitterAccount?.username ?? undefined} />
+    </div>
+  );
+}
+
+function CompactFallbackButton({
+  type,
+  username,
+}: {
+  type: LinkAccountType;
+  username?: string | null;
+}) {
+  const config = ACCOUNT_CONFIG[type];
+  const label = username ?? `Link ${config.label}`;
+  const isLinked = Boolean(username);
+  const className =
+    "text-muted-foreground border-border flex w-fit items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs";
+
+  if (isLinked && username) {
+    return (
+      <a
+        href={config.profileUrl(username)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(className, "border-solid")}
+      >
+        <span
+          className={cn(
+            "flex size-5 items-center justify-center rounded-full",
+            config.compactIconWrapper
+          )}
+        >
+          <config.Icon className={cn("size-2.5", config.compactIconLinked)} />
+        </span>
+        {label}
+      </a>
+    );
+  }
+
+  return (
+    <Button type="button" variant="ghost" size="sm" disabled className={cn(className, "h-auto")}>
+      <span className="bg-muted flex size-5 items-center justify-center rounded-full">
+        <config.Icon className="size-2.5" />
+      </span>
+      {label}
+    </Button>
   );
 }
