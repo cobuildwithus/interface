@@ -1,170 +1,131 @@
-"use client";
-
+import dynamic from "next/dynamic";
 import { LogIn, LogOut, MoreHorizontal } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { CopyToClipboard } from "@/components/ui/copy-to-clipboard";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
-import { useLogin } from "@/lib/domains/auth/use-login";
-import { useLinkAccount } from "@/lib/domains/auth/use-link-account";
-import { useHydrated } from "@/lib/hooks/use-hydrated";
-import { LinkAccountButton } from "@/components/features/auth/link-account-button";
 import type { Profile } from "@/lib/domains/profile/types";
 import { truncateAddress } from "@/lib/shared/utils";
 
-type SidebarUserMenuProps = {
+export type SidebarUserMenuProps = {
   address?: string;
   profile?: Profile;
 };
 
-export function SidebarUserMenu({ address, profile }: SidebarUserMenuProps) {
-  const hydrated = useHydrated();
-
-  if (!hydrated) {
-    return <SidebarUserMenuFallback address={address} profile={profile} />;
+const SidebarUserMenuConnectButton = dynamic(
+  async () =>
+    (await import("@/components/layout/sidebar/sidebar-user-menu-connect-button"))
+      .SidebarUserMenuConnectButton,
+  {
+    ssr: false,
+    loading: () => <SidebarUserMenuConnectPlaceholder />,
   }
+);
 
-  return <MountedSidebarUserMenu address={address} profile={profile} />;
-}
+const SidebarUserMenuActions = dynamic(
+  async () =>
+    (await import("@/components/layout/sidebar/sidebar-user-menu-actions")).SidebarUserMenuActions,
+  {
+    ssr: false,
+    loading: () => <SidebarUserMenuActionsPlaceholder />,
+  }
+);
 
-function MountedSidebarUserMenu({ address, profile }: SidebarUserMenuProps) {
-  const { ready, authenticated, login, logout } = useLogin();
-  const { linkedAccounts } = useLinkAccount();
-
-  const farcasterUsername = linkedAccounts.farcaster?.username;
-  const displayName = profile?.name || (address ? truncateAddress(address) : "");
-  const displayHandle = farcasterUsername
-    ? `@${farcasterUsername}`
-    : address
-      ? truncateAddress(address)
-      : "";
-  const fallbackChar = (displayName[0] || "?").toUpperCase();
-
-  if (!address && ready && !authenticated) {
+export function SidebarUserMenu({ address, profile }: SidebarUserMenuProps) {
+  if (!address) {
     return (
       <div className="md:flex md:justify-center lg:block">
-        <Button
-          className="bg-foreground text-background hover:bg-foreground/90 w-full rounded-full md:size-11 lg:h-11 lg:w-full"
-          onClick={login}
-        >
-          <span className="md:hidden lg:inline">Connect</span>
-          <LogIn className="hidden size-5 md:block lg:hidden" />
-        </Button>
+        <SidebarUserMenuConnectButton />
       </div>
     );
   }
 
-  if (!address) return null;
+  const displayName = profile?.name || truncateAddress(address);
+  const displayHandle = truncateAddress(address);
+  const fallbackChar = (displayName[0] || "?").toUpperCase();
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem className="md:flex md:justify-center lg:block">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground h-auto w-full cursor-pointer gap-3 rounded-full py-2 pr-3 pl-2 focus-visible:ring-0 md:w-fit md:p-1 lg:w-full lg:py-2 lg:pr-3 lg:pl-2"
-            >
+    <div className="md:flex md:justify-center lg:block">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground flex h-auto w-full cursor-pointer items-center gap-3 rounded-full py-2 pr-3 pl-2 text-left focus-visible:ring-0 md:w-fit md:p-1 lg:w-full lg:py-2 lg:pr-3 lg:pl-2"
+          >
+            <Avatar
+              src={profile?.avatar}
+              alt={displayName}
+              size={40}
+              fallback={<span className="text-sm">{fallbackChar}</span>}
+            />
+            <div className="grid min-w-0 flex-1 gap-0 leading-none md:hidden lg:grid">
+              <span className="truncate text-base font-bold">{displayName}</span>
+              <span className="text-muted-foreground truncate text-sm">{displayHandle}</span>
+            </div>
+            <MoreHorizontal className="text-muted-foreground size-6 shrink-0 md:hidden lg:block" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="min-w-64 rounded-lg p-0"
+          side="right"
+          align="end"
+          sideOffset={4}
+        >
+          <div className="border-border border-b p-3">
+            <div className="flex items-center gap-3">
               <Avatar
                 src={profile?.avatar}
                 alt={displayName}
                 size={40}
                 fallback={<span className="text-sm">{fallbackChar}</span>}
               />
-              <div className="grid flex-1 gap-0 text-left leading-none md:hidden lg:grid">
-                <span className="truncate text-base font-bold">{displayName}</span>
-                <span className="text-muted-foreground truncate text-sm">{displayHandle}</span>
-              </div>
-              <MoreHorizontal className="text-muted-foreground size-6 shrink-0 md:hidden lg:block" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="min-w-64 rounded-lg p-0"
-            side="right"
-            align="end"
-            sideOffset={4}
-          >
-            <div className="border-border border-b p-3">
-              <div className="flex items-center gap-3">
-                <Avatar
-                  src={profile?.avatar}
-                  alt={displayName}
-                  size={40}
-                  fallback={<span className="text-sm">{fallbackChar}</span>}
-                />
-                <div className="min-w-0 flex-1 leading-tight">
-                  <p className="truncate text-base font-bold">{displayName}</p>
-                  <CopyToClipboard text={address} className="text-muted-foreground text-sm">
-                    {truncateAddress(address)}
-                  </CopyToClipboard>
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <LinkAccountButton type="farcaster" variant="compact" />
-                <LinkAccountButton type="twitter" variant="compact" />
+              <div className="min-w-0 flex-1 leading-tight">
+                <p className="truncate text-base font-bold">{displayName}</p>
+                <p className="text-muted-foreground truncate text-sm">{displayHandle}</p>
               </div>
             </div>
+          </div>
 
-            <div className="p-1">
-              <DropdownMenuItem onClick={logout}>
-                <LogOut className="size-4" />
-                Log out
-              </DropdownMenuItem>
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
+          <SidebarUserMenuActions />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
-function SidebarUserMenuFallback({ address, profile }: SidebarUserMenuProps) {
-  const displayName = profile?.name || (address ? truncateAddress(address) : "");
-  const fallbackChar = (displayName[0] || "?").toUpperCase();
-
-  if (!address) {
-    return (
-      <div className="md:flex md:justify-center lg:block">
-        <Button
-          className="bg-foreground text-background hover:bg-foreground/90 w-full rounded-full md:size-11 lg:h-11 lg:w-full"
-          disabled
-        >
-          <span className="md:hidden lg:inline">Connect</span>
-          <LogIn className="hidden size-5 md:block lg:hidden" />
-        </Button>
-      </div>
-    );
-  }
-
+function SidebarUserMenuConnectPlaceholder() {
   return (
-    <SidebarMenu>
-      <SidebarMenuItem className="md:flex md:justify-center lg:block">
-        <SidebarMenuButton
-          size="lg"
-          className="h-auto w-full gap-3 rounded-full py-2 pr-3 pl-2 md:w-fit md:p-1 lg:w-full lg:py-2 lg:pr-3 lg:pl-2"
-        >
-          <Avatar
-            src={profile?.avatar}
-            alt={displayName}
-            size={40}
-            fallback={<span className="text-sm">{fallbackChar}</span>}
-          />
-          <div className="grid flex-1 gap-0 text-left leading-none md:hidden lg:grid">
-            <span className="truncate text-base font-bold">{displayName}</span>
-            <span className="text-muted-foreground truncate text-sm">
-              {truncateAddress(address)}
-            </span>
-          </div>
-          <MoreHorizontal className="text-muted-foreground size-6 shrink-0 md:hidden lg:block" />
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
+    <button
+      type="button"
+      disabled
+      className="bg-foreground text-background w-full rounded-full md:size-11 lg:h-11 lg:w-full"
+    >
+      <span className="md:hidden lg:inline">Connect</span>
+      <LogIn className="mx-auto hidden size-5 md:block lg:hidden" />
+    </button>
+  );
+}
+
+function SidebarUserMenuActionsPlaceholder() {
+  return (
+    <>
+      <div className="mt-3 flex flex-wrap gap-2 px-3">
+        <span className="text-muted-foreground border-border rounded-full border px-3 py-1 text-xs">
+          Farcaster
+        </span>
+        <span className="text-muted-foreground border-border rounded-full border px-3 py-1 text-xs">
+          Twitter
+        </span>
+      </div>
+
+      <div className="p-1">
+        <div className="text-muted-foreground flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm">
+          <LogOut className="size-4" />
+          Log out
+        </div>
+      </div>
+    </>
   );
 }

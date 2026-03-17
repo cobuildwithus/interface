@@ -8,7 +8,6 @@ import { getProfile } from "@/lib/domains/profile/get-profile";
 import { getUserResponse } from "@/lib/server/user-response";
 import { AuthQueryBoundary } from "@/lib/domains/auth/auth-query-boundary";
 import { UserProvider } from "@/lib/domains/auth/user-context";
-import { WalletIdentityGuard } from "@/components/features/auth/wallet-identity-guard";
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -34,7 +33,6 @@ export default async function AppLayout({ children }: LayoutProps) {
     <div className="mx-auto min-h-screen">
       <UserProvider value={user}>
         <AuthQueryBoundary />
-        <WalletIdentityGuard />
         <NotificationsUnreadProvider
           key={`notifications:${address ?? "anon"}`}
           initialCount={unreadNotificationsState.count}
