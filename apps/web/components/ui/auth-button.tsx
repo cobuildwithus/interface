@@ -16,6 +16,7 @@ interface AuthButtonProps extends Omit<ButtonComponentProps, "onClick"> {
   onClick?: ButtonComponentProps["onClick"];
   onConnect?: () => void;
   connectLabel?: ReactNode;
+  allowPendingSession?: boolean;
 }
 
 export const AuthButton = forwardRef(function AuthButton(
@@ -24,13 +25,14 @@ export const AuthButton = forwardRef(function AuthButton(
     onClick,
     children,
     connectLabel,
+    allowPendingSession = false,
     disabled,
     type = "button",
     ...rest
   }: AuthButtonProps,
   ref: ForwardedRef<HTMLButtonElement>
 ) {
-  const { handleClick, address } = useAuthClick(onConnect);
+  const { handleClick, address } = useAuthClick(onConnect, { allowPendingSession });
 
   function handleButtonClick(event: MouseEvent<HTMLButtonElement>) {
     const shouldProceed = handleClick(event);

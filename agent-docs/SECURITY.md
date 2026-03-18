@@ -47,6 +47,7 @@
 - Keep signed-token checks and same-origin constraints for sensitive counters/views.
 - Keep encrypted storage keys validated and size-checked.
 - Reject ambiguous auth identities (for example, sessions with multiple linked wallets).
+- Only use `AuthButton` pending-session allowances for non-privileged trigger/open flows during client hydration; wallet-connected writes must still enforce real client readiness.
 - In production, require immutable Git refs for runtime-fetched external prompt content.
 
 ## Current Watchlist

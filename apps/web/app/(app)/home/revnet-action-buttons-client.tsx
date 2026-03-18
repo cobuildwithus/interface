@@ -1,7 +1,6 @@
 "use client";
 
 import { AuthButton } from "@/components/ui/auth-button";
-import { Button } from "@/components/ui/button";
 import { SwapDialog } from "@/components/features/funding/swap-dialog";
 import { useLogin } from "@/lib/domains/auth/use-login";
 import { useRevnetPosition } from "@/lib/hooks/use-revnet-position";
@@ -32,13 +31,19 @@ export function RevnetActionButtonsClient({
   return (
     <div className="mt-4 flex flex-wrap gap-2">
       <SwapDialog>
-        <Button className="flex-1">Buy</Button>
+        <AuthButton allowPendingSession className="flex-1">
+          Buy
+        </AuthButton>
       </SwapDialog>
       <CashOutDialog position={position} tokenLogoUrl={tokenLogoUrl}>
-        <Button variant="outline">Cash out</Button>
+        <AuthButton allowPendingSession variant="outline">
+          Cash out
+        </AuthButton>
       </CashOutDialog>
       <LoanDialog position={position} tokenLogoUrl={tokenLogoUrl}>
-        <Button variant="outline">Take a loan</Button>
+        <AuthButton allowPendingSession variant="outline">
+          Take a loan
+        </AuthButton>
       </LoanDialog>
     </div>
   );

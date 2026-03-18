@@ -20,6 +20,7 @@
 - Privy login/connect/logout orchestration: `lib/domains/auth/use-login.ts`.
 - Click gate for auth-required buttons: `lib/domains/auth/use-auth-click.ts`.
 - Auth-required button primitive: `components/ui/auth-button.tsx`.
+- `AuthButton` may opt into pending-session hydration via `allowPendingSession` for non-privileged trigger surfaces so a server-authenticated user does not lose the first click before Privy/Wagmi finish hydrating on the client.
 
 ## Wallet Identity Invariant
 
@@ -44,6 +45,7 @@
 4. Auth-required action bypasses auth guard:
 
 - Route all user-triggered privileged actions through `AuthButton` and auth-click hooks.
+- `allowPendingSession` is only for trigger/open flows during client hydration; do not use it to bypass wallet/session readiness for privileged writes.
 
 ## Linked Accounts
 
