@@ -28,7 +28,7 @@ vi.mock("@/lib/domains/auth/use-login", () => ({
 
 vi.mock("@/components/ui/auth-button", () => ({
   AuthButton: ({ children, className }: { children?: ReactNode; className?: string }) => (
-    <button type="button" className={className}>
+    <button type="button" className={className} data-auth-button="true">
       {children}
     </button>
   ),
@@ -63,6 +63,7 @@ describe("RevnetActionButtons", () => {
     const connectButtons = screen.getAllByRole("button", { name: "Connect wallet" });
     expect(connectButtons).toHaveLength(1);
     expect(connectButtons[0]).toHaveClass("w-full");
+    expect(connectButtons[0]).toHaveAttribute("data-auth-button", "true");
     expect(screen.queryByRole("button", { name: "Buy" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cash out" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Take a loan" })).not.toBeInTheDocument();
@@ -76,9 +77,13 @@ describe("RevnetActionButtons", () => {
 
     render(<RevnetActionButtonsClient tokenLogoUrl={tokenLogoUrl} />);
 
-    expect(screen.getByRole("button", { name: "Buy" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cash out" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Take a loan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Buy" })).not.toHaveAttribute("data-auth-button");
+    expect(screen.getByRole("button", { name: "Cash out" })).not.toHaveAttribute(
+      "data-auth-button"
+    );
+    expect(screen.getByRole("button", { name: "Take a loan" })).not.toHaveAttribute(
+      "data-auth-button"
+    );
     expect(screen.queryByRole("button", { name: "Connect wallet" })).not.toBeInTheDocument();
 
     expect(cashOutDialogMock).toHaveBeenCalledTimes(1);
@@ -96,9 +101,13 @@ describe("RevnetActionButtons", () => {
     render(<RevnetActionButtonsClient isAuthenticated />);
 
     expect(screen.queryByRole("button", { name: "Connect wallet" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Buy" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cash out" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Take a loan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Buy" })).not.toHaveAttribute("data-auth-button");
+    expect(screen.getByRole("button", { name: "Cash out" })).not.toHaveAttribute(
+      "data-auth-button"
+    );
+    expect(screen.getByRole("button", { name: "Take a loan" })).not.toHaveAttribute(
+      "data-auth-button"
+    );
   });
 
   it("does not evaluate wallet hooks during server render", () => {
