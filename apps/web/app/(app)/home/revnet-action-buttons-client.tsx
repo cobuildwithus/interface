@@ -31,19 +31,13 @@ export function RevnetActionButtonsClient({
   return (
     <div className="mt-4 flex flex-wrap gap-2">
       <SwapDialog>
-        <AuthButton allowPendingSession className="flex-1">
-          Buy
-        </AuthButton>
+        <AuthButton className="flex-1">Buy</AuthButton>
       </SwapDialog>
       <CashOutDialog position={position} tokenLogoUrl={tokenLogoUrl}>
-        <AuthButton allowPendingSession variant="outline">
-          Cash out
-        </AuthButton>
+        <AuthButton variant="outline">Cash out</AuthButton>
       </CashOutDialog>
       <LoanDialog position={position} tokenLogoUrl={tokenLogoUrl}>
-        <AuthButton allowPendingSession variant="outline">
-          Take a loan
-        </AuthButton>
+        <AuthButton variant="outline">Take a loan</AuthButton>
       </LoanDialog>
     </div>
   );

@@ -100,7 +100,7 @@ describe("useAuthClick", () => {
     expect(onConnect).not.toHaveBeenCalled();
   });
 
-  it("allows pending server sessions to pass through when explicitly enabled", () => {
+  it("allows pending server sessions to pass through for trigger surfaces during hydration", () => {
     const login = vi.fn();
     const connectWallet = vi.fn();
     useLoginMock.mockReturnValue({
@@ -114,7 +114,7 @@ describe("useAuthClick", () => {
       address: "0x" + "c".repeat(40),
     });
 
-    const { result } = renderHook(() => useAuthClick(undefined, { allowPendingSession: true }));
+    const { result } = renderHook(() => useAuthClick(undefined, { isTriggerSurface: true }));
     const event = { preventDefault: vi.fn() } as Partial<
       MouseEvent<HTMLButtonElement>
     > as MouseEvent<HTMLButtonElement>;
@@ -124,5 +124,33 @@ describe("useAuthClick", () => {
     expect(event.preventDefault).not.toHaveBeenCalled();
     expect(login).not.toHaveBeenCalled();
     expect(connectWallet).not.toHaveBeenCalled();
+  });
+
+  it("blocks non-trigger actions while a server session is still hydrating", () => {
+    const login = vi.fn();
+    const connectWallet = vi.fn();
+    const onConnect = vi.fn();
+    useLoginMock.mockReturnValue({
+      login,
+      connectWallet,
+      authenticated: false,
+      address: null,
+      ready: false,
+    });
+    useUserContextMock.mockReturnValue({
+      address: "0x" + "d".repeat(40),
+    });
+
+    const { result } = renderHook(() => useAuthClick(onConnect));
+    const event = { preventDefault: vi.fn() } as Partial<
+      MouseEvent<HTMLButtonElement>
+    > as MouseEvent<HTMLButtonElement>;
+
+    expect(result.current.address).toBe("0x" + "d".repeat(40));
+    expect(result.current.handleClick(event)).toBe(false);
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(login).not.toHaveBeenCalled();
+    expect(connectWallet).not.toHaveBeenCalled();
+    expect(onConnect).not.toHaveBeenCalled();
   });
 });

@@ -6,19 +6,23 @@ import { useLogin } from "./use-login";
 
 type OnConnectCallback = () => void;
 type UseAuthClickOptions = {
-  allowPendingSession?: boolean;
+  isTriggerSurface?: boolean;
 };
 
 export function useAuthClick(onConnect?: OnConnectCallback, options: UseAuthClickOptions = {}) {
   const { login, connectWallet, authenticated, address, ready } = useLogin();
   const sessionUser = useUserContext();
-  const pendingSessionAddress =
-    options.allowPendingSession && !ready ? (sessionUser?.address ?? null) : null;
+  const pendingSessionAddress = !ready ? (sessionUser?.address ?? null) : null;
   const effectiveAddress = address ?? pendingSessionAddress;
 
   function handleClick(e: MouseEvent<HTMLButtonElement>) {
     if (pendingSessionAddress) {
-      return true;
+      if (options.isTriggerSurface) {
+        return true;
+      }
+
+      e.preventDefault();
+      return false;
     }
 
     if (!effectiveAddress) {

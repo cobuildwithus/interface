@@ -27,21 +27,8 @@ vi.mock("@/lib/domains/auth/use-login", () => ({
 }));
 
 vi.mock("@/components/ui/auth-button", () => ({
-  AuthButton: ({
-    children,
-    className,
-    allowPendingSession,
-  }: {
-    children?: ReactNode;
-    className?: string;
-    allowPendingSession?: boolean;
-  }) => (
-    <button
-      type="button"
-      className={className}
-      data-auth-button="true"
-      data-allow-pending-session={allowPendingSession ? "true" : undefined}
-    >
+  AuthButton: ({ children, className }: { children?: ReactNode; className?: string }) => (
+    <button type="button" className={className} data-auth-button="true">
       {children}
     </button>
   ),
@@ -77,7 +64,6 @@ describe("RevnetActionButtons", () => {
     expect(connectButtons).toHaveLength(1);
     expect(connectButtons[0]).toHaveClass("w-full");
     expect(connectButtons[0]).toHaveAttribute("data-auth-button", "true");
-    expect(connectButtons[0]).not.toHaveAttribute("data-allow-pending-session");
     expect(screen.queryByRole("button", { name: "Buy" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cash out" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Take a loan" })).not.toBeInTheDocument();
@@ -92,24 +78,12 @@ describe("RevnetActionButtons", () => {
     render(<RevnetActionButtonsClient tokenLogoUrl={tokenLogoUrl} />);
 
     expect(screen.getByRole("button", { name: "Buy" })).toHaveAttribute("data-auth-button", "true");
-    expect(screen.getByRole("button", { name: "Buy" })).toHaveAttribute(
-      "data-allow-pending-session",
-      "true"
-    );
     expect(screen.getByRole("button", { name: "Cash out" })).toHaveAttribute(
       "data-auth-button",
       "true"
     );
-    expect(screen.getByRole("button", { name: "Cash out" })).toHaveAttribute(
-      "data-allow-pending-session",
-      "true"
-    );
     expect(screen.getByRole("button", { name: "Take a loan" })).toHaveAttribute(
       "data-auth-button",
-      "true"
-    );
-    expect(screen.getByRole("button", { name: "Take a loan" })).toHaveAttribute(
-      "data-allow-pending-session",
       "true"
     );
     expect(screen.queryByRole("button", { name: "Connect wallet" })).not.toBeInTheDocument();
@@ -130,24 +104,12 @@ describe("RevnetActionButtons", () => {
 
     expect(screen.queryByRole("button", { name: "Connect wallet" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Buy" })).toHaveAttribute("data-auth-button", "true");
-    expect(screen.getByRole("button", { name: "Buy" })).toHaveAttribute(
-      "data-allow-pending-session",
-      "true"
-    );
     expect(screen.getByRole("button", { name: "Cash out" })).toHaveAttribute(
       "data-auth-button",
       "true"
     );
-    expect(screen.getByRole("button", { name: "Cash out" })).toHaveAttribute(
-      "data-allow-pending-session",
-      "true"
-    );
     expect(screen.getByRole("button", { name: "Take a loan" })).toHaveAttribute(
       "data-auth-button",
-      "true"
-    );
-    expect(screen.getByRole("button", { name: "Take a loan" })).toHaveAttribute(
-      "data-allow-pending-session",
       "true"
     );
   });

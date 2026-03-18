@@ -16,7 +16,7 @@ interface AuthButtonProps extends Omit<ButtonComponentProps, "onClick"> {
   onClick?: ButtonComponentProps["onClick"];
   onConnect?: () => void;
   connectLabel?: ReactNode;
-  allowPendingSession?: boolean;
+  "data-slot"?: string;
 }
 
 export const AuthButton = forwardRef(function AuthButton(
@@ -25,14 +25,15 @@ export const AuthButton = forwardRef(function AuthButton(
     onClick,
     children,
     connectLabel,
-    allowPendingSession = false,
     disabled,
     type = "button",
     ...rest
   }: AuthButtonProps,
   ref: ForwardedRef<HTMLButtonElement>
 ) {
-  const { handleClick, address } = useAuthClick(onConnect, { allowPendingSession });
+  const dataSlot = typeof rest["data-slot"] === "string" ? rest["data-slot"] : undefined;
+  const isTriggerSurface = dataSlot?.endsWith("-trigger") ?? false;
+  const { handleClick, address } = useAuthClick(onConnect, { isTriggerSurface });
 
   function handleButtonClick(event: MouseEvent<HTMLButtonElement>) {
     const shouldProceed = handleClick(event);
