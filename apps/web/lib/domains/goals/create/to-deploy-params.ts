@@ -19,6 +19,7 @@ export function toDeployParams(
   return {
     preset: 0,
     managedSafe: ZERO_ADDRESS as Address,
+    managedBudgetGatePolicy: ZERO_ADDRESS as Address,
     funding: {
       paymentToken: COBUILD_TOKEN_ADDRESS as Address,
       paymentRevnetId: COBUILD_PROJECT_ID_BIGINT,

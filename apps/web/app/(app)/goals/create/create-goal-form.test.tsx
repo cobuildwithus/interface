@@ -307,27 +307,33 @@ describe("CreateGoalForm", () => {
       expect.objectContaining({
         address: wire.goalFactoryAddress.toLowerCase(),
         abi: wire.goalFactoryAbi,
-        functionName: "deployGoal",
+        functionName: "deployOpenGoal",
         chainId: 8453,
         args: [
           expect.objectContaining({
-            revnet: expect.objectContaining({
-              name: "Goal",
-              ticker: "GOAL",
+            common: expect.objectContaining({
+              revnet: expect.objectContaining({
+                name: "Goal",
+                ticker: "GOAL",
+              }),
+              underwriting: {
+                budgetPremiumPpm: 0,
+                budgetSlashPpm: 0,
+              },
+              goalSpendPolicy: "0x00000000000000000000000000000000000000cc",
             }),
-            underwriting: {
-              budgetPremiumPpm: 0,
-              budgetSlashPpm: 0,
-            },
-            budgetTCR: expect.objectContaining({
-              allocationMechanismAdmin: "0x00000000000000000000000000000000000000aa",
+            budgetRuntime: {
+              budgetSuccessResolver: "0x00000000000000000000000000000000000000bb",
               budgetSpendPolicy: "0x00000000000000000000000000000000000000dd",
-              challengePeriodDuration: 86400n,
-              registrationMetaEvidence: "ipfs://registration",
               oracleBounds: {
                 liveness: 86400n,
                 bondAmount: 1000000000000000000n,
               },
+            },
+            openBudgetTCR: expect.objectContaining({
+              allocationMechanismAdmin: "0x00000000000000000000000000000000000000aa",
+              challengePeriodDuration: 86400n,
+              registrationMetaEvidence: "ipfs://registration",
               arbitratorParams: {
                 votingPeriod: 86400n,
                 votingDelay: 3600n,
@@ -337,7 +343,6 @@ describe("CreateGoalForm", () => {
                 slashCallerBountyBps: 100n,
               },
             }),
-            goalSpendPolicy: "0x00000000000000000000000000000000000000cc",
           }),
         ],
       })
@@ -347,8 +352,13 @@ describe("CreateGoalForm", () => {
       args: Array<Record<string, unknown>>;
     };
     const deployParams = writeArgs.args[0];
-    expect((deployParams.revnet as Record<string, unknown>).owner).toBeUndefined();
-    expect((deployParams.underwriting as Record<string, unknown>).coverageLambda).toBeUndefined();
+    expect(
+      ((deployParams.common as Record<string, unknown>).revnet as Record<string, unknown>).owner
+    ).toBeUndefined();
+    expect(
+      ((deployParams.common as Record<string, unknown>).underwriting as Record<string, unknown>)
+        .coverageLambda
+    ).toBeUndefined();
   });
 
   it("hydrates deployment state and redirects from the shared GoalDeployed receipt decode", async () => {

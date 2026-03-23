@@ -3,7 +3,7 @@
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * [__View Contract on Base Basescan__](https://basescan.org/address/0xe5e248e5877cc4d71986ec6fc2b4cc321c80a23e)
+ * [__View Contract on Base Basescan__](https://basescan.org/address/0x21a580054e7a5e833f38033f2d958e00e4c50f0f)
  */
 export const cobuildSwapImplAbi = [
   { type: "constructor", inputs: [], stateMutability: "nonpayable" },
@@ -78,6 +78,15 @@ export const cobuildSwapImplAbi = [
     anonymous: false,
     inputs: [{ name: "version", internalType: "uint8", type: "uint8", indexed: false }],
     name: "Initialized",
+  },
+  {
+    type: "event",
+    anonymous: false,
+    inputs: [
+      { name: "directory", internalType: "address", type: "address", indexed: true },
+      { name: "tokens", internalType: "address", type: "address", indexed: true },
+    ],
+    name: "JuiceboxAddressesUpdated",
   },
   {
     type: "event",
@@ -425,6 +434,16 @@ export const cobuildSwapImplAbi = [
   },
   {
     type: "function",
+    inputs: [
+      { name: "directory", internalType: "address", type: "address" },
+      { name: "tokens", internalType: "address", type: "address" },
+    ],
+    name: "setJuiceboxAddresses",
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     inputs: [{ name: "minAbs", internalType: "uint256", type: "uint256" }],
     name: "setMinFeeAbsolute",
     outputs: [],
@@ -478,14 +497,14 @@ export const cobuildSwapImplAbi = [
 ] as const;
 
 /**
- * [__View Contract on Base Basescan__](https://basescan.org/address/0xe5e248e5877cc4d71986ec6fc2b4cc321c80a23e)
+ * [__View Contract on Base Basescan__](https://basescan.org/address/0x21a580054e7a5e833f38033f2d958e00e4c50f0f)
  */
 export const cobuildSwapImplAddress = {
-  8453: "0xe5e248E5877cc4D71986Ec6FC2B4cc321c80a23e",
+  8453: "0x21a580054e7A5E833F38033F2d958E00E4C50F0f",
 } as const;
 
 /**
- * [__View Contract on Base Basescan__](https://basescan.org/address/0xe5e248e5877cc4d71986ec6fc2b4cc321c80a23e)
+ * [__View Contract on Base Basescan__](https://basescan.org/address/0x21a580054e7a5e833f38033f2d958e00e4c50f0f)
  */
 export const cobuildSwapImplConfig = {
   address: cobuildSwapImplAddress,

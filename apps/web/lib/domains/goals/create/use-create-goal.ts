@@ -1,6 +1,10 @@
 "use client";
 
-import { buildGoalCreateTransaction, goalFactoryAbi, normalizeEvmAddress } from "@cobuild/wire";
+import {
+  buildGoalCreateTransaction,
+  buildGoalCreateWriteContractRequest,
+  normalizeEvmAddress,
+} from "@cobuild/wire";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Address, Hex } from "viem";
@@ -65,15 +69,20 @@ export function useCreateGoal() {
         normalizeEvmAddress(account, "Allocation mechanism admin"),
         parsedForm
       );
-      const goalCreateTx = buildGoalCreateTransaction({
+      const goalCreateRequest = buildGoalCreateWriteContractRequest({
         deployParams,
       });
 
+      if (goalCreateRequest.functionName === "deployOpenGoal") {
+        await writeContractAsync({
+          ...goalCreateRequest,
+          chainId: BASE_CHAIN_ID,
+        });
+        return;
+      }
+
       await writeContractAsync({
-        address: goalCreateTx.to,
-        abi: goalFactoryAbi,
-        functionName: "deployGoal",
-        args: [deployParams],
+        ...goalCreateRequest,
         chainId: BASE_CHAIN_ID,
       });
     } catch (error) {
