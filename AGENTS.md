@@ -44,6 +44,7 @@ If instructions still conflict after applying this order, ask the user before ac
 - Ledger rows are active-work notices by default, not hard file locks. Read overlapping rows first, preserve adjacent edits, and coordinate through scope/symbol notes. Treat a row as exclusive only when it explicitly says overlap is unsafe, the lane is a large refactor, or the user gives a conflicting direction.
 - Any spawned subagent that may review or edit code must read `COORDINATION_LEDGER.md`, follow the same hard gate before making code changes, and honor any explicit exclusive/refactor notes on overlapping rows.
 - Never lower enforced coverage thresholds in CI/test config without explicit user approval in the current chat.
+- For UI-affecting work under `apps/web/**`, do not rely on static reasoning alone; inspect the rendered result in a browser at desktop and mobile sizes before handoff.
 - Run completion workflow audit passes (`simplify`, `test-coverage-audit`, `task-finish-review`) for every non-doc change that touches production code or tests; skip only when the user explicitly says to skip for that turn.
 - Docs/process-only changes skip completion workflow audit passes unless the user explicitly asks to run them.
 - Keep this file short and route-oriented; keep durable detail in `agent-docs/`.
@@ -71,6 +72,7 @@ If instructions still conflict after applying this order, ask the user before ac
 - Always run `chrome-devtools --help` first to confirm exact command names and flags for this version.
 - Prefer `chrome-devtools take-snapshot` first, describe observed state, then make changes.
 - Never assume current page state; snapshot before actions.
+- For UI-affecting changes, inspect at least one desktop-width and one mobile-width state, then verify no obvious overflow, overlap, clipped CTA, or broken hierarchy before handoff.
 
 ### Commit and Handoff
 
@@ -101,6 +103,7 @@ If instructions still conflict after applying this order, ask the user before ac
 - Skip this workflow for docs/process-only turns unless the user explicitly asks for the full audit sequence.
 - For changes that require this workflow: run a simplification pass using `agent-docs/prompts/simplify.md`.
 - Apply behavior-preserving simplifications identified in that pass.
+- For UI-affecting changes under `apps/web/**`, run a frontend quality review using `agent-docs/prompts/frontend-quality-review.md` after the simplification pass and resolve obvious user-facing issues before the remaining audits.
 - Then run a test-coverage audit pass using `agent-docs/prompts/test-coverage-audit.md` with full change context.
 - The test-coverage audit subagent should implement the highest-impact missing tests it identifies (especially edge cases, failure modes, and invariants) before handoff.
 - Re-run required checks after the simplify + test-coverage sequence (even if no new tests were added).

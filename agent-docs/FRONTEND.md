@@ -58,6 +58,31 @@
 - Return stable response envelopes with explicit status behavior.
 - Avoid leaking raw third-party errors directly to clients.
 
+## UI Surface Rules
+
+### Marketing routes (`app/(marketing)/**`)
+
+- Treat the first viewport as a poster: one composition, one clear promise, one dominant visual plane.
+- Brand presence must survive nav removal; if the page could belong to another product without the header, the hero is too weak.
+- Avoid hero stats, boxed promos, detached overlays, or card grids above the fold unless the brief explicitly calls for them.
+- Prefer a narrow text column anchored to a calm area of the composition.
+- Use real imagery or a strong product/context visual before falling back to abstract decoration.
+
+### Product routes (`app/(app)/**`)
+
+- Default to utility-first copy and workspace-first layout.
+- Start with the action/data surface, not a marketing hero.
+- Use cards only when they clarify interaction or state grouping; plain layout is preferred when it remains legible.
+- Optimize headings, labels, and empty states for immediate scanning.
+
+## Browser Verification Baseline
+
+- For UI-affecting changes, inspect the rendered route in a browser before handoff.
+- Use at least one desktop-width and one mobile-width snapshot.
+- Verify there is no horizontal overflow, clipped CTA/action, fixed-header overlap, or obvious spacing collapse.
+- For modal, drawer, navigation, or auth/onchain interaction changes, verify the relevant open/close or transition state in addition to the default page load.
+- When a reference, screenshot, or mood board exists, compare the rendered result against it instead of reviewing the diff alone.
+
 ## Required Updates
 
 When changing boundary-sensitive frontend code, update matching docs:
@@ -74,3 +99,4 @@ When changing boundary-sensitive frontend code, update matching docs:
 - `pnpm typecheck`
 - `pnpm test`
 - `pnpm --filter web build:ci` for build-sensitive changes.
+- Browser inspection at desktop and mobile widths for UI-affecting `apps/web/**` changes.
