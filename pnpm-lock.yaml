@@ -12,8 +12,8 @@ importers:
         specifier: ^0.1.13
         version: 0.1.13
       '@cobuild/review-gpt':
-        specifier: ^0.3.2
-        version: 0.3.2
+        specifier: ^0.4.0
+        version: 0.4.0
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -553,8 +553,8 @@ packages:
     resolution: {integrity: sha512-GCuA78L5yRf6ajaCgLtHxw6JvMB29vh+I0+0QVLgrhXOutx4m9N0Sl4BnpxDZYSd2++zj/b/yJENYbvGEn1exA==}
     hasBin: true
 
-  '@cobuild/review-gpt@0.3.2':
-    resolution: {integrity: sha512-PkCFUHM0KtceB3rn9dHESH/AJWVQ0ccwZzSEzACTcUgCcaJICpBqCtMG0Vd/7B18U5V7cdKIaFgqhVv2eAvGnA==}
+  '@cobuild/review-gpt@0.4.0':
+    resolution: {integrity: sha512-7wyks4CpL0xNl6kPhSQpAO5JfwCReJscVa+cfWH8cJpSHNN4pdenAqJHyTLSU6s1fvYNIrWe0k+0+lVJiwBVug==}
     hasBin: true
 
   '@cobuild/wire@0.3.6':
@@ -3191,6 +3191,9 @@ packages:
 
   '@types/debug@4.1.12':
     resolution: {integrity: sha512-vIChWdVG3LG1SMxEvI/AK+FWJthlrqlTu7fbrlywTkkaONwk/UAGaULXRlf8vkzFBLVm0zkMdCquhL5aOjhXPQ==}
+
+  '@types/debug@4.1.13':
+    resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
 
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
@@ -8545,7 +8548,7 @@ snapshots:
 
   '@cobuild/repo-tools@0.1.13': {}
 
-  '@cobuild/review-gpt@0.3.2': {}
+  '@cobuild/review-gpt@0.4.0': {}
 
   '@cobuild/wire@0.3.6(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.1.13)':
     dependencies:
@@ -9320,7 +9323,7 @@ snapshots:
   '@metamask/utils@5.0.2':
     dependencies:
       '@ethereumjs/tx': 4.2.0
-      '@types/debug': 4.1.12
+      '@types/debug': 4.1.13
       debug: 4.4.3
       semver: 7.7.4
       superstruct: 1.0.4
@@ -11825,6 +11828,10 @@ snapshots:
       '@types/d3-zoom': 3.0.8
 
   '@types/debug@4.1.12':
+    dependencies:
+      '@types/ms': 2.1.0
+
+  '@types/debug@4.1.13':
     dependencies:
       '@types/ms': 2.1.0
 
