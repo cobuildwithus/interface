@@ -63,3 +63,32 @@ export COBUILD_DRIFT_CHANGED_COUNT_EXCLUDE_PATTERN='^agent-docs/generated/|^agen
 export COBUILD_DRIFT_ALLOW_RELEASE_ARTIFACTS_ONLY='0'
 export COBUILD_COMMITTER_EXAMPLE='fix(auth): guard session mismatch'
 export COBUILD_COMMITTER_DISALLOW_GLOBS=lib/\*$'\n'./lib/\*$'\n'
+export COBUILD_AUDIT_CONTEXT_PREFIX='cobuild-interface-audit'
+export COBUILD_AUDIT_CONTEXT_TITLE='Cobuild Interface Audit Bundle'
+export COBUILD_AUDIT_CONTEXT_REPO_LABEL='interface'
+export COBUILD_AUDIT_CONTEXT_SENSITIVE_NOTE='Sensitive files (for example `.env*`, private keys/certs, and credential files) are always excluded.'
+export COBUILD_AUDIT_CONTEXT_EXCLUDE_SENSITIVE='1'
+repo_tools_join_lines COBUILD_AUDIT_CONTEXT_ALWAYS_PATHS \
+  "AGENTS.md" \
+  "AGENT_NOTES.md" \
+  "ARCHITECTURE.md" \
+  "CONTRIBUTING.md" \
+  "README.md" \
+  "SECURITY.md" \
+  "SUPPORT.md" \
+  "package.json" \
+  "pnpm-lock.yaml" \
+  "pnpm-workspace.yaml" \
+  "tsconfig.json" \
+  "apps/web/AGENTS.md"
+repo_tools_join_lines COBUILD_AUDIT_CONTEXT_SCAN_SPECS \
+  "apps" \
+  "scripts"
+repo_tools_join_lines COBUILD_AUDIT_CONTEXT_TEST_SCAN_SPECS \
+  "tests" \
+  "test"
+repo_tools_join_lines COBUILD_AUDIT_CONTEXT_DOC_SCAN_SPECS \
+  "agent-docs:*.md" \
+  "agent-docs/references:*.txt"
+repo_tools_join_lines COBUILD_AUDIT_CONTEXT_CI_SCAN_SPECS \
+  ".github/workflows"
