@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build --webpack",
-    "build:ci": "next build --webpack --experimental-build-mode=compile",
+    "build": "next build",
+    "build:ci": "next build --experimental-build-mode=compile",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint && prettier --check .",
