@@ -111,7 +111,7 @@ If instructions still conflict after applying this order, ask the user before ac
 - Final handoff must report required-check results; green required checks remain the default completion bar.
 - If a required check fails for a credibly unrelated pre-existing reason, commit your exact touched files and hand off with the failing command, failing target, and why your diff did not cause it. If you cannot defend that separation, treat the failure as blocking.
 - Do not skip these audit passes unless the user explicitly instructs skipping them for that turn.
-- Do not rush or interrupt these subagent passes: wait for each `simplify`, `test-coverage-audit`, and `task-finish-review` pass to return, review the result, and resolve or explicitly hand off any follow-up before final handoff.
+- Do not rush or interrupt these subagent passes: expect each `simplify`, `test-coverage-audit`, and `task-finish-review` pass to take about 5 to 10 minutes on non-trivial diffs, wait for each pass to return, and do not cancel one early unless you have concrete evidence it is stuck or off-scope.
 - When using a fresh subagent for coverage or completion audits, provide an audit handoff packet that includes:
 - what changed and why (detailed behavior-level summary, not just filenames)
 - expected invariants/assumptions that must still hold
