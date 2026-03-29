@@ -45,7 +45,7 @@ If instructions still conflict after applying this order, ask the user before ac
 - Any spawned subagent that may review or edit code must read `COORDINATION_LEDGER.md`, follow the same hard gate before making code changes, and honor any explicit exclusive/refactor notes on overlapping rows.
 - Never lower enforced coverage thresholds in CI/test config without explicit user approval in the current chat.
 - For UI-affecting work under `apps/web/**`, do not rely on static reasoning alone; inspect the rendered result in a browser at desktop and mobile sizes before handoff.
-- Run completion workflow audit passes (`simplify`, `test-coverage-audit`, `task-finish-review`) for every non-doc change that touches production code or tests; skip only when the user explicitly says to skip for that turn.
+- Run completion workflow audit passes (`simplify`, `task-finish-review`) for every non-doc change that touches production code or tests; skip only when the user explicitly says to skip for that turn. The final completion audit owns remaining coverage/proof-gap review; do not require a separate `test-coverage-audit` pass.
 - Docs/process-only changes skip completion workflow audit passes unless the user explicitly asks to run them.
 - Keep this file short and route-oriented; keep durable detail in `agent-docs/`.
 
@@ -104,25 +104,25 @@ If instructions still conflict after applying this order, ask the user before ac
 - For changes that require this workflow: run a simplification pass using `agent-docs/prompts/simplify.md`.
 - Apply behavior-preserving simplifications identified in that pass.
 - For UI-affecting changes under `apps/web/**`, run a frontend quality review using `agent-docs/prompts/frontend-quality-review.md` after the simplification pass and resolve obvious user-facing issues before the remaining audits.
-- Then run a test-coverage audit pass using `agent-docs/prompts/test-coverage-audit.md` with full change context.
-- The test-coverage audit subagent should implement the highest-impact missing tests it identifies (especially edge cases, failure modes, and invariants) before handoff.
-- Re-run required checks after the simplify + test-coverage sequence (even if no new tests were added).
+- Re-run required checks after the simplify pass.
 - Then run a completion audit using `agent-docs/prompts/task-finish-review.md` with full change context.
+- The final completion audit owns the remaining coverage/proof-gap review too. If it finds meaningful missing tests or boundary-level verification, add the smallest high-impact proof before handoff instead of creating a separate coverage-audit pass.
 - Final handoff must report required-check results; green required checks remain the default completion bar.
 - If a required check fails for a credibly unrelated pre-existing reason, commit your exact touched files and hand off with the failing command, failing target, and why your diff did not cause it. If you cannot defend that separation, treat the failure as blocking.
 - Do not skip these audit passes unless the user explicitly instructs skipping them for that turn.
-- Do not rush or interrupt these subagent passes: expect each `simplify`, `test-coverage-audit`, and `task-finish-review` pass to take about 5 to 10 minutes on non-trivial diffs, wait for each pass to return, and do not cancel one early unless you have concrete evidence it is stuck or off-scope.
-- When using a fresh subagent for coverage or completion audits, provide an audit handoff packet that includes:
+- Do not rush or interrupt these subagent passes: expect each `simplify` and `task-finish-review` pass to take about 5 to 10 minutes on non-trivial diffs, wait for each pass to return, and do not cancel one early unless you have concrete evidence it is stuck or off-scope.
+- When using a fresh subagent for the final completion audit, provide an audit handoff packet that includes:
 - what changed and why (detailed behavior-level summary, not just filenames)
 - expected invariants/assumptions that must still hold
 - links to active execution-plan docs under `agent-docs/exec-plans/active/` (when present)
 - verification evidence already run (commands + pass/fail outcomes)
+- any direct scenario proof already run, or the gap if it still needs human verification
 - current git worktree context (relevant modified files, known unrelated dirty paths, and review scope boundaries)
 - explicit instruction to read `agent-docs/exec-plans/active/COORDINATION_LEDGER.md`, honor any explicit exclusive/refactor notes, and otherwise work carefully on top of overlapping rows
 - Instruct the reviewer to use the handoff packet plus current `git diff`/call-path inspection; do not rely on diff-only inference.
-- During simplify/test-coverage/completion-audit passes, never overwrite, discard, or revert existing worktree edits (including unrelated dirty files) and never use reset/checkout-style cleanup commands.
+- During simplify/completion-audit passes, never overwrite, discard, or revert existing worktree edits (including unrelated dirty files) and never use reset/checkout-style cleanup commands.
 - If a suggested audit change collides with pre-existing edits, leave the file untouched and escalate in handoff notes.
-- Always prefer a fresh subagent for coverage and completion audits; only fall back to same-agent audit when subagent execution is unavailable.
+- Always prefer a fresh subagent for the final completion audit; there is no separate required coverage-audit subagent.
 - Resolve all high-severity findings before final handoff; if anything is deferred, document risk, rationale, and follow-up owner.
 
 ## CPU/Runtime Guardrails
