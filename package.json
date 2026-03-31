@@ -18,6 +18,7 @@
     "typecheck": "pnpm --filter web typecheck",
     "wire:ensure-published": "bash scripts/wire-ensure-published.sh",
     "review:gpt": "cobuild-review-gpt --config scripts/review-gpt.config.sh",
+    "review:gpt:simplify": "cobuild-review-gpt --config scripts/review-gpt.config.sh --preset simplify",
     "zip:src": "bash scripts/package-audit-context.sh --zip",
     "setup:skills": "pnpm dlx skills add vercel-labs/agent-skills --skill vercel-react-best-practices --skill web-design-guidelines --agent codex --yes",
     "generate:contracts": "pnpm --filter contracts generate",
@@ -27,7 +28,7 @@
   },
   "devDependencies": {
     "@cobuild/repo-tools": "^0.1.15",
-    "@cobuild/review-gpt": "^0.5.16",
+    "@cobuild/review-gpt": "^0.5.17",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.7.4",
